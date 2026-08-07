@@ -1,0 +1,19 @@
+schema_version = 1
+id = "project-smoke"
+title = "Project Smoke"
+language = "ko"
+
+[source]
+author = "Typeul project"
+source_id = "project-smoke"
+source_url = "https://github.com/baba9811/typeul"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "project-smoke-1"
+kind = "sentence"
+text = "정확하게 입력합니다."
+tags = ["smoke"]

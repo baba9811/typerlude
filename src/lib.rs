@@ -1,3 +1,4 @@
+pub mod content;
 pub mod model;
 pub mod practice;
 pub mod typing;
