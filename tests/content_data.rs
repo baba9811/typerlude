@@ -1,7 +1,126 @@
+use std::{collections::HashSet, fs, path::Path};
 use typeul::{
-    content::{ContentCatalog, ContentKind, parse_pack, validate_pack},
+    content::{ContentCatalog, ContentKind, ContentPack, parse_pack, validate_pack},
     model::Language,
 };
+use unicode_segmentation::UnicodeSegmentation;
+
+fn load_word_pack(file_name: &str) -> ContentPack {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("assets/content")
+        .join(file_name);
+    parse_pack(&fs::read_to_string(path).unwrap()).unwrap()
+}
+
+#[test]
+fn bundled_word_packs_match_the_reviewed_5b1_contract() {
+    let catalog = ContentCatalog::load_builtins().unwrap();
+
+    for (language, pack_id, file_name) in [
+        (Language::Ko, "ko-words", "ko-words.toml"),
+        (Language::En, "en-words", "en-words.toml"),
+    ] {
+        let items: Vec<_> = catalog
+            .items()
+            .filter(|item| item.language == language && item.pack_id == pack_id)
+            .collect();
+        assert_eq!(items.len(), 300, "{pack_id}");
+        assert!(items.iter().all(|item| item.kind == ContentKind::Word));
+
+        let pack = load_word_pack(file_name);
+        assert!(validate_pack(&pack).is_empty(), "{pack_id}");
+        assert_eq!(pack.id, pack_id);
+        assert_eq!(pack.language, language);
+        assert_eq!(pack.items.len(), 300, "{pack_id}");
+        assert!(pack.items.iter().all(|item| item.difficulty.is_some()));
+        let item_prefix = pack_id.strip_suffix('s').unwrap();
+        for (index, item) in pack.items.iter().enumerate() {
+            assert_eq!(item.id, format!("{item_prefix}-{:03}", index + 1));
+            assert!(
+                item.tags.iter().all(|tag| !tag.trim().is_empty()),
+                "{}",
+                item.id
+            );
+        }
+
+        for difficulty in 1..=3 {
+            assert_eq!(
+                items
+                    .iter()
+                    .filter(|item| item.difficulty == Some(difficulty))
+                    .count(),
+                100,
+                "{pack_id} difficulty {difficulty}"
+            );
+        }
+
+        for item in items {
+            assert!(
+                !item.text.chars().any(char::is_whitespace),
+                "{} is not a single token",
+                item.id
+            );
+            assert!(
+                item.tags.iter().any(|tag| tag == "vocabulary"),
+                "{}",
+                item.id
+            );
+            assert!(
+                item.tags.iter().any(|tag| tag != "vocabulary"),
+                "{}",
+                item.id
+            );
+            let graphemes = item.text.graphemes(true).count();
+            let matches_threshold = match (language, item.difficulty) {
+                (Language::Ko, Some(1)) => graphemes <= 2,
+                (Language::Ko, Some(2)) => (3..=4).contains(&graphemes),
+                (Language::Ko, Some(3)) => graphemes >= 5,
+                (Language::En, Some(1)) => graphemes <= 4,
+                (Language::En, Some(2)) => (5..=8).contains(&graphemes),
+                (Language::En, Some(3)) => graphemes >= 9,
+                _ => false,
+            };
+            assert!(matches_threshold, "{} has {graphemes} graphemes", item.id);
+        }
+    }
+}
+
+#[test]
+fn word_packs_have_exact_project_cc0_provenance_and_unique_catalog_keys() {
+    for (file_name, pack_id, source_id) in [
+        ("ko-words.toml", "ko-words", "typeul-ko-words-v1.0.0"),
+        ("en-words.toml", "en-words", "typeul-en-words-v1.0.0"),
+    ] {
+        let pack = load_word_pack(file_name);
+        assert_eq!(pack.id, pack_id);
+        assert_eq!(pack.source.author, "Typeul contributors");
+        assert_eq!(pack.source.source_id, source_id);
+        assert_eq!(
+            pack.source.source_url,
+            format!("https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/{file_name}")
+        );
+        assert_eq!(pack.source.license, "CC0-1.0");
+        assert_eq!(
+            pack.source.license_url,
+            "https://creativecommons.org/publicdomain/zero/1.0/"
+        );
+        assert!(!pack.source.modified);
+        assert_eq!(pack.source.retrieved_at, "2026-08-07");
+        assert!(pack.items.iter().all(|item| item.source.is_none()));
+    }
+
+    let catalog = ContentCatalog::load_builtins().unwrap();
+    let mut ids = HashSet::new();
+    let mut texts = HashSet::new();
+    for item in catalog.items() {
+        assert!(ids.insert(item.id.as_str()), "duplicate ID: {}", item.id);
+        assert!(
+            texts.insert(item.text.as_str()),
+            "duplicate normalized text: {}",
+            item.text
+        );
+    }
+}
 
 #[test]
 fn bundled_tatoeba_sentence_packs_match_the_reviewed_5a_contract() {
