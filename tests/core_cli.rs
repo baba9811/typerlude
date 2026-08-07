@@ -323,6 +323,18 @@ fn parse_and_input_errors_exit_two_but_storage_errors_exit_one() {
 }
 
 #[test]
+fn top_level_errors_escape_controls_in_missing_custom_filenames() {
+    let root = TestDir::new("missing-control-path");
+    let missing = root.path().join("missing\u{1b}]0;owned\u{7}.txt");
+
+    let output = binary(&root.home(), &[missing.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert_no_terminal_controls(&output);
+    assert!(stderr(&output).contains(r"\u{1b}]0;owned\u{7}"));
+}
+
+#[test]
 fn direct_files_are_bounded_nonempty_utf8_custom_text() {
     let root = TestDir::new("direct-file");
     let valid = root.path().join("한글.txt");
@@ -386,6 +398,27 @@ fn custom_text_normalizes_crlf_before_launch() {
             text: "line one\nline two\n".into(),
         })
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn custom_text_escapes_controls_in_the_startup_display_name() {
+    let root = TestDir::new("control-startup-name");
+    let path = root.path().join("visible\u{1b}]0;startup\u{7}.txt");
+    fs::write(&path, "safe text").unwrap();
+
+    let Exit::Launch(Startup::CustomText { name, text }) = run(Command::File(path)).unwrap() else {
+        panic!("expected custom text startup");
+    };
+
+    assert_eq!(text, "safe text");
+    assert!(
+        !name
+            .chars()
+            .any(|character| !matches!(character, '\n' | '\t') && character.is_control()),
+        "raw terminal control in startup name: {name:?}"
+    );
+    assert!(name.contains(r"\u{1b}]0;startup\u{7}"), "{name:?}");
 }
 
 #[test]
@@ -469,6 +502,38 @@ fn smoke_loads_everything_and_preserves_invalid_files_as_warnings() {
     assert_eq!(fs::read(&session).unwrap(), b"{");
     assert_eq!(fs::read(&content).unwrap(), b"not = [toml");
     assert_eq!(fs::metadata(&oversized).unwrap().len(), MAX_INPUT_BYTES + 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn smoke_escapes_controls_in_config_and_session_warning_paths() {
+    let root = TestDir::new("smoke-control-paths");
+    let home = root.path().join("home\u{1b}]0;home\u{7}");
+    fs::create_dir_all(home.join("sessions")).unwrap();
+    fs::write(home.join("config.toml"), b"schema_version = [").unwrap();
+    fs::write(home.join("sessions/broken\u{1b}]0;session\u{7}.json"), b"{").unwrap();
+
+    let output = binary(&home, &["--smoke"]);
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stderr(&output).contains("config.toml"));
+    assert!(stderr(&output).contains("session"));
+    assert_no_terminal_controls(&output);
+    assert!(stderr(&output).contains(r"\u{1b}]0;home\u{7}"));
+    assert!(stderr(&output).contains(r"\u{1b}]0;session\u{7}"));
+}
+
+#[cfg(unix)]
+#[test]
+fn paths_escape_controls_in_typeul_home() {
+    let root = TestDir::new("paths-control-home");
+    let home = root.path().join("home\u{1b}]0;paths\u{7}");
+
+    let output = binary(&home, &["paths"]);
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert_no_terminal_controls(&output);
+    assert!(stdout(&output).contains(r"\u{1b}]0;paths\u{7}"));
 }
 
 #[test]

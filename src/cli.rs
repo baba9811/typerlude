@@ -115,6 +115,18 @@ pub fn is_input_error(error: &anyhow::Error) -> bool {
     error.downcast_ref::<InputError>().is_some()
 }
 
+pub fn terminal_safe(value: &str) -> String {
+    let mut safe = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '\n' | '\t') || !character.is_control() {
+            safe.push(character);
+        } else {
+            safe.extend(character.escape_debug());
+        }
+    }
+    safe
+}
+
 pub fn parse_args(args: Vec<OsString>) -> Result<Command> {
     if args.is_empty() {
         return Ok(Command::Home);
@@ -315,7 +327,10 @@ fn custom_file(path: &Path) -> Result<Exit> {
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string());
-    Ok(Exit::Launch(Startup::CustomText { name, text }))
+    Ok(Exit::Launch(Startup::CustomText {
+        name: terminal_safe(&name),
+        text,
+    }))
 }
 
 fn read_limited(reader: impl Read, name: &str) -> Result<Vec<u8>> {
@@ -648,11 +663,20 @@ impl ContentLock {
 }
 
 fn print_paths(paths: &AppPaths) {
-    println!("config: {}", paths.config.display());
-    println!("sessions: {}", paths.sessions.display());
-    println!("content: {}", paths.content.display());
-    println!("themes: {}", paths.themes.display());
-    println!("update-cache: {}", paths.update_cache.display());
+    println!("config: {}", terminal_safe(&paths.config.to_string_lossy()));
+    println!(
+        "sessions: {}",
+        terminal_safe(&paths.sessions.to_string_lossy())
+    );
+    println!(
+        "content: {}",
+        terminal_safe(&paths.content.to_string_lossy())
+    );
+    println!("themes: {}", terminal_safe(&paths.themes.to_string_lossy()));
+    println!(
+        "update-cache: {}",
+        terminal_safe(&paths.update_cache.to_string_lossy())
+    );
 }
 
 fn print_licenses() {
@@ -679,13 +703,21 @@ fn smoke() -> Result<()> {
     let paths = AppPaths::discover()?;
     let settings = Settings::load(&paths)?;
     for warning in settings.warnings {
-        eprintln!("warning: {}: {}", warning.path.display(), warning.message);
+        eprintln!(
+            "warning: {}: {}",
+            terminal_safe(&warning.path.to_string_lossy()),
+            terminal_safe(&warning.message)
+        );
     }
     let content = ContentCatalog::load(&paths.content)?;
     print_content_warnings(&content.warnings);
     let sessions = load_sessions(&paths)?;
     for warning in sessions.warnings {
-        eprintln!("warning: {}: {}", warning.path.display(), warning.message);
+        eprintln!(
+            "warning: {}: {}",
+            terminal_safe(&warning.path.to_string_lossy()),
+            terminal_safe(&warning.message)
+        );
     }
     println!(
         "smoke ok: {} content items, {} sessions",

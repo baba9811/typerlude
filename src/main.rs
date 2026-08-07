@@ -1,9 +1,9 @@
 use std::io::IsTerminal;
-use typeul::cli::{Exit, is_input_error, parse_args, run, stdin_command};
+use typeul::cli::{Exit, is_input_error, parse_args, run, stdin_command, terminal_safe};
 
 fn main() {
     if let Err((code, error)) = execute() {
-        eprintln!("typeul: {error:#}");
+        eprintln!("typeul: {}", terminal_safe(&format!("{error:#}")));
         std::process::exit(code);
     }
 }
