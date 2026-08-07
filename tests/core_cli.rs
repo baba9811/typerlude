@@ -14,7 +14,7 @@ use std::{
 };
 use typeul::{
     VERSION,
-    cli::{Command, ContentCommand, Exit, PracticeArgs, Startup, parse_args, run},
+    cli::{Command, ContentCommand, Exit, PracticeArgs, Startup, is_input_error, parse_args, run},
     model::{Language, PracticeKind},
 };
 
@@ -444,6 +444,25 @@ fn custom_text_rejects_esc_and_osc_without_emitting_them() {
         stderr(&stdin_output)
     );
     assert_no_terminal_controls(&stdin_output);
+}
+
+#[test]
+fn direct_stdin_commands_reject_terminal_controls() {
+    let error = run(Command::Stdin("safe\u{1b}]0;owned\u{7}".into())).unwrap_err();
+
+    assert!(is_input_error(&error));
+    assert!(error.to_string().contains("control"), "{error:#}");
+}
+
+#[test]
+fn direct_stdin_commands_normalize_crlf() {
+    assert_eq!(
+        run(Command::Stdin("line one\r\nline two\r\n".into())).unwrap(),
+        Exit::Launch(Startup::CustomText {
+            name: "stdin".into(),
+            text: "line one\nline two\n".into(),
+        })
+    );
 }
 
 #[test]

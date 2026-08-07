@@ -273,9 +273,7 @@ pub fn run(command: Command) -> Result<Exit> {
             if text.len() > MAX_CONTENT_BYTES {
                 return Err(input_error("stdin exceeds the 8 MiB limit"));
             }
-            if text.trim().is_empty() {
-                return Err(input_error("stdin must not be empty"));
-            }
+            let text = validate_text(text.into_bytes(), "stdin")?;
             Ok(Exit::Launch(Startup::CustomText {
                 name: "stdin".into(),
                 text,
