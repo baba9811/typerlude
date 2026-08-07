@@ -795,30 +795,44 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
 }
 
 #[test]
+fn license_snapshots_are_forced_to_lf_by_git_attributes() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let attributes = fs::read_to_string(root.join(".gitattributes")).unwrap();
+
+    assert!(
+        attributes
+            .lines()
+            .any(|line| line == "assets/licenses/*.txt text eol=lf")
+    );
+}
+
+#[test]
 fn repository_tracks_only_frozen_metadata_not_raw_exports_or_work_files() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let output = Command::new("git")
-        .args(["ls-files", "-z"])
-        .current_dir(root)
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    let tracked = String::from_utf8(output.stdout).unwrap();
-    for path in tracked.split('\0').filter(|path| !path.is_empty()) {
-        let lower = path.to_ascii_lowercase();
-        assert!(
-            ![
-                ".tsv", ".bz2", ".zip", ".tar", ".tar.gz", ".tgz", ".gz", ".xz", ".7z", ".tmp",
-                ".temp", ".bak", ".swp", ".orig", ".rej", "~",
-            ]
-            .iter()
-            .any(|suffix| lower.ends_with(suffix)),
-            "tracked raw/archive/temporary file: {path}"
-        );
-        assert!(
-            !lower.contains("proprietary") && !lower.contains("source-list"),
-            "tracked proprietary source list: {path}"
-        );
+    if root.join(".git").exists() {
+        let output = Command::new("git")
+            .args(["ls-files", "-z"])
+            .current_dir(root)
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let tracked = String::from_utf8(output.stdout).unwrap();
+        for path in tracked.split('\0').filter(|path| !path.is_empty()) {
+            let lower = path.to_ascii_lowercase();
+            assert!(
+                ![
+                    ".tsv", ".bz2", ".zip", ".tar", ".tar.gz", ".tgz", ".gz", ".xz", ".7z", ".tmp",
+                    ".temp", ".bak", ".swp", ".orig", ".rej", "~",
+                ]
+                .iter()
+                .any(|suffix| lower.ends_with(suffix)),
+                "tracked raw/archive/temporary file: {path}"
+            );
+            assert!(
+                !lower.contains("proprietary") && !lower.contains("source-list"),
+                "tracked proprietary source list: {path}"
+            );
+        }
     }
 
     let source_files = fs::read_dir(root.join("assets/sources"))
