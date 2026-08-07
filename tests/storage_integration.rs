@@ -2,11 +2,11 @@ use atomic_write_file::AtomicWriteFile;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
-    io::Write,
+    io::{ErrorKind, Write},
     path::{Path, PathBuf},
     sync::{
         Arc, Barrier,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     thread,
     time::{Duration, Instant},
@@ -219,6 +219,82 @@ fn session_round_trip_uses_one_immutable_file() {
     let original = fs::read(&saved).unwrap();
     assert!(save_session(&paths, &session).is_err());
     assert_eq!(fs::read(saved).unwrap(), original);
+}
+
+#[cfg(unix)]
+#[test]
+fn session_save_preserves_a_dangling_destination_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    fs::create_dir_all(&paths.sessions).unwrap();
+    let destination = paths.sessions.join("dangling.json");
+    let missing = root.path().join("missing-session");
+    symlink(&missing, &destination).unwrap();
+
+    let error = save_session(&paths, &fixture_session("dangling")).unwrap_err();
+
+    assert!(error.to_string().contains("already exists"), "{error:#}");
+    assert_eq!(fs::read_link(&destination).unwrap(), missing);
+    assert!(!root.path().join("missing-session").exists());
+}
+
+#[test]
+fn session_save_preserves_a_destination_created_during_publish() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    fs::create_dir_all(&paths.sessions).unwrap();
+    let destination = paths.sessions.join("racing.json");
+    let mut session = fixture_session("racing");
+    session.intended_keys = (0x1000..0x196a0)
+        .filter_map(char::from_u32)
+        .map(|character| (character, [1, 0]))
+        .collect();
+
+    let watched_sessions = paths.sessions.clone();
+    let watched_destination = destination.clone();
+    let done = Arc::new(AtomicBool::new(false));
+    let watcher_done = Arc::clone(&done);
+    let watcher = thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !watcher_done.load(Ordering::Acquire) && Instant::now() < deadline {
+            let temporary_exists = fs::read_dir(&watched_sessions)
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".racing.json.")
+                });
+            if temporary_exists {
+                match fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&watched_destination)
+                {
+                    Ok(mut file) => {
+                        file.write_all(b"noncooperating writer").unwrap();
+                        file.sync_all().unwrap();
+                        return true;
+                    }
+                    Err(error) if error.kind() == ErrorKind::AlreadyExists => return false,
+                    Err(error) => panic!("failed to create racing destination: {error}"),
+                }
+            }
+            thread::yield_now();
+        }
+        false
+    });
+
+    let result = save_session(&paths, &session);
+    done.store(true, Ordering::Release);
+
+    assert!(watcher.join().unwrap(), "temporary file was not observed");
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("already exists"), "{error:#}");
+    assert_eq!(fs::read(destination).unwrap(), b"noncooperating writer");
 }
 
 #[test]

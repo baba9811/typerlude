@@ -87,6 +87,18 @@ fn stderr(output: &Output) -> String {
     String::from_utf8(output.stderr.clone()).unwrap()
 }
 
+fn assert_no_terminal_controls(output: &Output) {
+    for (name, bytes) in [("stdout", &output.stdout), ("stderr", &output.stderr)] {
+        let text = String::from_utf8(bytes.clone()).unwrap();
+        assert!(
+            !text
+                .chars()
+                .any(|character| !matches!(character, '\n' | '\t') && character.is_control()),
+            "raw terminal control in {name}: {text:?}"
+        );
+    }
+}
+
 fn pack(id: &str, item_id: &str, text: &str) -> String {
     format!(
         r#"schema_version = 1
@@ -362,6 +374,46 @@ fn direct_files_are_bounded_nonempty_utf8_custom_text() {
 }
 
 #[test]
+fn custom_text_normalizes_crlf_before_launch() {
+    let root = TestDir::new("crlf-custom-text");
+    let path = root.path().join("windows-lines.txt");
+    fs::write(&path, b"line one\r\nline two\r\n").unwrap();
+
+    assert_eq!(
+        run(Command::File(path)).unwrap(),
+        Exit::Launch(Startup::CustomText {
+            name: "windows-lines.txt".into(),
+            text: "line one\nline two\n".into(),
+        })
+    );
+}
+
+#[test]
+fn custom_text_rejects_esc_and_osc_without_emitting_them() {
+    let root = TestDir::new("custom-controls");
+    let escaped = root.path().join("escaped.txt");
+    fs::write(&escaped, b"hello\x1b[31mred").unwrap();
+
+    let file_output = binary(&root.home(), &[escaped.to_str().unwrap()]);
+    assert_eq!(
+        file_output.status.code(),
+        Some(2),
+        "{}",
+        stderr(&file_output)
+    );
+    assert_no_terminal_controls(&file_output);
+
+    let stdin_output = piped_binary(&root.home(), &[], b"hello\x1b]0;owned\x07world");
+    assert_eq!(
+        stdin_output.status.code(),
+        Some(2),
+        "{}",
+        stderr(&stdin_output)
+    );
+    assert_no_terminal_controls(&stdin_output);
+}
+
+#[test]
 fn no_arg_nonterminal_stdin_is_bounded_custom_text() {
     let root = TestDir::new("stdin");
     assert!(
@@ -469,6 +521,44 @@ fn content_validate_and_add_use_the_startup_conflict_rules() {
             .code(),
         Some(2)
     );
+}
+
+#[test]
+fn content_validation_escapes_control_metadata_errors() {
+    let root = TestDir::new("content-control-errors");
+    let candidate = root.path().join("candidate.toml");
+    let source = pack("unsafe\\u001B[31mpack", "unsafe\\u009Bitem", "safe-text").replace(
+        "author = \"Test author\"",
+        "author = \"unsafe\\u001B]0;owned\\u0007author\"",
+    );
+    fs::write(&candidate, source).unwrap();
+
+    let output = binary(
+        &root.home(),
+        &["content", "validate", candidate.to_str().unwrap()],
+    );
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(stderr(&output).contains("field="), "{}", stderr(&output));
+    assert_no_terminal_controls(&output);
+}
+
+#[test]
+fn startup_warnings_escape_control_metadata_errors() {
+    let root = TestDir::new("content-control-warnings");
+    let home = root.home();
+    fs::create_dir_all(home.join("content")).unwrap();
+    let source = pack("unsafe\u{9b}pack", "unsafe\u{9d}item", "safe-text").replace(
+        "author = \"Test author\"",
+        "author = \"unsafe\u{85}author\"",
+    );
+    fs::write(home.join("content/unsafe.toml"), source).unwrap();
+
+    let output = binary(&home, &["content", "list"]);
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(stderr(&output).contains("warning:"), "{}", stderr(&output));
+    assert_no_terminal_controls(&output);
 }
 
 #[test]

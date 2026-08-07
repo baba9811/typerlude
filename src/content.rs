@@ -81,7 +81,7 @@ pub struct ContentCatalog {
     items: Vec<ResolvedItem>,
     pack_ids: HashSet<String>,
     item_ids: HashSet<String>,
-    normalized_texts: HashSet<String>,
+    normalized_texts: HashSet<(Language, ContentKind, String)>,
     user_pack_paths: HashMap<String, PathBuf>,
 }
 
@@ -136,6 +136,8 @@ pub fn validate_pack(pack: &ContentPack) -> Vec<ContentError> {
     if pack.id.trim().is_empty() {
         errors.push(error(pack, None, "id", "must not be empty"));
     }
+    validate_visible(pack, None, "id", &pack.id, &mut errors);
+    validate_visible(pack, None, "title", &pack.title, &mut errors);
     if pack.items.is_empty() {
         errors.push(error(pack, None, "items", "must not be empty"));
     }
@@ -147,6 +149,13 @@ pub fn validate_pack(pack: &ContentPack) -> Vec<ContentError> {
             errors.push(error(pack, item_id, "id", "must not be empty"));
         } else if !ids.insert(item.id.as_str()) {
             errors.push(error(pack, item_id, "id", "duplicate item ID"));
+        }
+        validate_visible(pack, item_id, "id", &item.id, &mut errors);
+        if let Some(title) = &item.title {
+            validate_visible(pack, item_id, "title", title, &mut errors);
+        }
+        for tag in &item.tags {
+            validate_visible(pack, item_id, "tags", tag, &mut errors);
         }
         if item.text.trim().is_empty() {
             errors.push(error(pack, item_id, "text", "must not be empty"));
@@ -163,7 +172,7 @@ pub fn validate_pack(pack: &ContentPack) -> Vec<ContentError> {
         if normalized != item.text {
             errors.push(error(pack, item_id, "text", "must be NFC normalized"));
         }
-        if let Some(previous) = texts.insert(normalized, item.id.as_str()) {
+        if let Some(previous) = texts.insert((item.kind, normalized), item.id.as_str()) {
             errors.push(error(
                 pack,
                 item_id,
@@ -389,7 +398,11 @@ impl ContentCatalog {
                     "duplicate catalog item ID",
                 ));
             }
-            if self.normalized_texts.contains(&normalize_nfc(&item.text)) {
+            if self.normalized_texts.contains(&(
+                pack.language,
+                item.kind,
+                normalize_nfc(&item.text),
+            )) {
                 errors.push(error(
                     pack,
                     Some(&item.id),
@@ -406,7 +419,8 @@ impl ContentCatalog {
         self.pack_ids.insert(pack.id);
         for item in &items {
             self.item_ids.insert(item.id.clone());
-            self.normalized_texts.insert(normalize_nfc(&item.text));
+            self.normalized_texts
+                .insert((item.language, item.kind, normalize_nfc(&item.text)));
         }
         self.items.extend(items);
         Ok(())
@@ -483,12 +497,31 @@ fn validate_source(
         ("source.author", source.author.as_str()),
         ("source.source_id", source.source_id.as_str()),
         ("source.source_url", source.source_url.as_str()),
+        ("source.license", source.license.as_str()),
         ("source.license_url", source.license_url.as_str()),
         ("source.retrieved_at", source.retrieved_at.as_str()),
     ] {
         if value.trim().is_empty() {
             errors.push(error(pack, item_id, field, "must not be empty"));
         }
+        validate_visible(pack, item_id, field, value, errors);
+    }
+}
+
+fn validate_visible(
+    pack: &ContentPack,
+    item_id: Option<&str>,
+    field: &str,
+    value: &str,
+    errors: &mut Vec<ContentError>,
+) {
+    if value.chars().any(char::is_control) {
+        errors.push(error(
+            pack,
+            item_id,
+            field,
+            "contains a disallowed control character",
+        ));
     }
 }
 
@@ -708,6 +741,86 @@ retrieved_at = "2026-08-07"
     }
 
     #[test]
+    fn every_terminal_visible_string_rejects_c0_and_c1_controls() {
+        let cases = [
+            ("pack.id", "id"),
+            ("pack.title", "title"),
+            ("item.id", "id"),
+            ("item.text", "text"),
+            ("item.title", "title"),
+            ("item.tags.0", "tags"),
+            ("item.tags.1", "tags"),
+            ("pack.source.author", "source.author"),
+            ("pack.source.source_id", "source.source_id"),
+            ("pack.source.source_url", "source.source_url"),
+            ("pack.source.license", "source.license"),
+            ("pack.source.license_url", "source.license_url"),
+            ("pack.source.retrieved_at", "source.retrieved_at"),
+            ("item.source.author", "source.author"),
+            ("item.source.source_id", "source.source_id"),
+            ("item.source.source_url", "source.source_url"),
+            ("item.source.license", "source.license"),
+            ("item.source.license_url", "source.license_url"),
+            ("item.source.retrieved_at", "source.retrieved_at"),
+        ];
+
+        for control in ['\u{1b}', '\u{9b}'] {
+            for (case, expected_field) in cases {
+                let mut pack = fixture_pack();
+                pack.items[0].title = Some("Item title".into());
+                pack.items[0].tags = vec!["first".into(), "second".into()];
+                pack.items[0].source = Some(pack.source.clone());
+                let value = format!("safe{control}value");
+                match case {
+                    "pack.id" => pack.id = value,
+                    "pack.title" => pack.title = value,
+                    "item.id" => pack.items[0].id = value,
+                    "item.text" => pack.items[0].text = value,
+                    "item.title" => pack.items[0].title = Some(value),
+                    "item.tags.0" => pack.items[0].tags[0] = value,
+                    "item.tags.1" => pack.items[0].tags[1] = value,
+                    "pack.source.author" => pack.source.author = value,
+                    "pack.source.source_id" => pack.source.source_id = value,
+                    "pack.source.source_url" => pack.source.source_url = value,
+                    "pack.source.license" => pack.source.license = value,
+                    "pack.source.license_url" => pack.source.license_url = value,
+                    "pack.source.retrieved_at" => pack.source.retrieved_at = value,
+                    "item.source.author" => pack.items[0].source.as_mut().unwrap().author = value,
+                    "item.source.source_id" => {
+                        pack.items[0].source.as_mut().unwrap().source_id = value;
+                    }
+                    "item.source.source_url" => {
+                        pack.items[0].source.as_mut().unwrap().source_url = value;
+                    }
+                    "item.source.license" => {
+                        pack.items[0].source.as_mut().unwrap().license = value;
+                    }
+                    "item.source.license_url" => {
+                        pack.items[0].source.as_mut().unwrap().license_url = value;
+                    }
+                    "item.source.retrieved_at" => {
+                        pack.items[0].source.as_mut().unwrap().retrieved_at = value;
+                    }
+                    _ => unreachable!(),
+                }
+
+                let errors = validate_pack(&pack);
+                assert!(
+                    errors.iter().any(|error| {
+                        error.field == expected_field && error.message.contains("control")
+                    }),
+                    "{case} did not reject U+{:04X}: {errors:?}",
+                    control as u32
+                );
+            }
+        }
+
+        let mut newline = fixture_pack();
+        newline.items[0].text = "line one\nline two".into();
+        assert!(validate_pack(&newline).is_empty());
+    }
+
+    #[test]
     fn item_source_is_complete_override_and_user_words_resolve_difficulty() {
         let pack = parse_pack(
             r#"
@@ -792,20 +905,111 @@ retrieved_at = "2026-08-06"
     }
 
     #[test]
-    fn catalog_conflicts_include_normalized_text_across_packs() {
-        let catalog = ContentCatalog::load_builtins().unwrap();
-        let mut pack = fixture_pack();
-        pack.id = "other-pack".into();
-        pack.items[0].id = "other-item".into();
-        pack.items[0].text = "지난 주말에 산으로 소풍을 갔다.".into();
+    fn normalized_text_conflicts_are_scoped_by_language_and_kind() {
+        let mut within_pack = fixture_pack();
+        let mut cross_kind = within_pack.items[0].clone();
+        cross_kind.id = "sentence-item".into();
+        cross_kind.kind = ContentKind::Sentence;
+        within_pack.items.push(cross_kind);
+        assert!(
+            !validate_pack(&within_pack)
+                .iter()
+                .any(|error| error.field == "text" && error.message.contains("duplicate"))
+        );
 
-        let error = catalog
-            .conflicts(&pack)
-            .into_iter()
-            .find(|error| error.field == "items.text")
-            .unwrap();
-        assert_eq!(error.pack_id, "other-pack");
-        assert_eq!(error.item_id.as_deref(), Some("other-item"));
+        let mut same_kind = within_pack.items[0].clone();
+        same_kind.id = "word-item".into();
+        within_pack.items.push(same_kind);
+        assert!(
+            validate_pack(&within_pack)
+                .iter()
+                .any(|error| error.item_id.as_deref() == Some("word-item")
+                    && error.field == "text"
+                    && error.message.contains("duplicate"))
+        );
+
+        let base = fixture_pack();
+        let mut catalog = ContentCatalog::default();
+        catalog.insert(base.clone()).unwrap();
+
+        let candidate =
+            |pack_id: &str, item_id: &str, language: Language, kind: ContentKind, text: &str| {
+                let mut pack = base.clone();
+                pack.id = pack_id.into();
+                pack.language = language;
+                pack.items[0].id = item_id.into();
+                pack.items[0].kind = kind;
+                pack.items[0].text = text.into();
+                pack
+            };
+
+        for allowed in [
+            candidate(
+                "other-language",
+                "other-language-item",
+                Language::Ko,
+                ContentKind::Word,
+                "hello",
+            ),
+            candidate(
+                "other-kind",
+                "other-kind-item",
+                Language::En,
+                ContentKind::Sentence,
+                "hello",
+            ),
+        ] {
+            assert!(
+                !catalog
+                    .conflicts(&allowed)
+                    .iter()
+                    .any(|error| error.field == "items.text"),
+                "{}",
+                allowed.id
+            );
+        }
+
+        let same_scope = candidate(
+            "same-scope",
+            "same-scope-item",
+            Language::En,
+            ContentKind::Word,
+            "hello",
+        );
+        assert!(
+            catalog
+                .conflicts(&same_scope)
+                .iter()
+                .any(|error| error.field == "items.text")
+        );
+
+        let duplicate_item = candidate(
+            "duplicate-item",
+            "fixture-1",
+            Language::Ko,
+            ContentKind::Quote,
+            "unique text",
+        );
+        assert!(
+            catalog
+                .conflicts(&duplicate_item)
+                .iter()
+                .any(|error| error.field == "items.id")
+        );
+
+        let duplicate_pack = candidate(
+            "fixture",
+            "unique-item",
+            Language::Ko,
+            ContentKind::Quote,
+            "other unique text",
+        );
+        assert!(
+            catalog
+                .conflicts(&duplicate_pack)
+                .iter()
+                .any(|error| error.field == "id")
+        );
     }
 
     #[test]

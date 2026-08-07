@@ -6,7 +6,7 @@ use crate::{
         validate_pack,
     },
     model::{Language, PracticeKind},
-    storage::{AppPaths, load_sessions},
+    storage::{AppPaths, atomic_write_new, load_sessions, rename_no_replace},
 };
 use anyhow::{Context, Result, anyhow, bail};
 use std::{
@@ -15,9 +15,8 @@ use std::{
     ffi::OsString,
     fmt,
     fs::{self, File, OpenOptions},
-    io::{self, ErrorKind, Read, Write},
+    io::{self, ErrorKind, Read},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 const HELP: &str = r#"Usage:
@@ -33,7 +32,6 @@ const HELP: &str = r#"Usage:
   typeul content disable PACK_ID
   typeul paths | licenses | update
   typeul --help | --version | --smoke"#;
-static CONTENT_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
@@ -335,6 +333,15 @@ fn read_limited(reader: impl Read, name: &str) -> Result<Vec<u8>> {
 fn validate_text(bytes: Vec<u8>, name: &str) -> Result<String> {
     let text = String::from_utf8(bytes)
         .map_err(|error| input_error(format!("{name} is not valid UTF-8: {error}")))?;
+    let text = text.replace("\r\n", "\n");
+    if text
+        .chars()
+        .any(|character| character != '\n' && character.is_control())
+    {
+        return Err(input_error(format!(
+            "{name} contains a disallowed control character"
+        )));
+    }
     if text.trim().is_empty() {
         return Err(input_error(format!("{name} must not be empty")));
     }
@@ -424,7 +431,7 @@ fn add_content(paths: &AppPaths, path: &Path) -> Result<()> {
     let catalog = load_catalog(paths)?;
     reject_content_errors(catalog.validate_candidate(&pack))?;
     let destination = paths.content.join(format!("{}.toml", pack.id));
-    match install_new_file(&destination, &bytes) {
+    match atomic_write_new(&destination, &bytes) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
             return Err(input_error(format!(
@@ -437,43 +444,6 @@ fn add_content(paths: &AppPaths, path: &Path) -> Result<()> {
         }
     }
     println!("added content pack {}", pack.id);
-    Ok(())
-}
-
-struct PendingContentFile(PathBuf);
-
-impl Drop for PendingContentFile {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
-    }
-}
-
-fn install_new_file(destination: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let parent = destination
-        .parent()
-        .ok_or_else(|| std::io::Error::from(ErrorKind::InvalidInput))?;
-    let file_name = destination
-        .file_name()
-        .ok_or_else(|| std::io::Error::from(ErrorKind::InvalidInput))?
-        .to_string_lossy();
-    let (temporary, mut file) = loop {
-        let counter = CONTENT_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path = parent.join(format!(
-            ".{file_name}.{}.{}.tmp",
-            std::process::id(),
-            counter
-        ));
-        match OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(file) => break (PendingContentFile(path), file),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error),
-        }
-    };
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    drop(file);
-    fs::hard_link(&temporary.0, destination)?;
-    let _ = fs::remove_file(&temporary.0);
     Ok(())
 }
 
@@ -533,55 +503,6 @@ fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
     }
     println!("disabled content pack {id}");
     Ok(())
-}
-
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    rustix::fs::renameat_with(
-        rustix::fs::CWD,
-        source,
-        rustix::fs::CWD,
-        destination,
-        rustix::fs::RenameFlags::NOREPLACE,
-    )
-    .map_err(io::Error::from)
-}
-
-#[cfg(windows)]
-fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows_sys::Win32::Storage::FileSystem::MoveFileExW;
-
-    fn verbatim_child(path: &Path) -> io::Result<Vec<u16>> {
-        let file_name = path
-            .file_name()
-            .ok_or_else(|| io::Error::from(ErrorKind::InvalidInput))?;
-        let parent = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty())
-            .unwrap_or_else(|| Path::new("."));
-        let path = fs::canonicalize(parent)?.join(file_name);
-        Ok(path.as_os_str().encode_wide().chain(Some(0)).collect())
-    }
-
-    let source = verbatim_child(source)?;
-    let destination = verbatim_child(destination)?;
-    // SAFETY: Both vectors are live, NUL-terminated UTF-16 paths. With no
-    // replace or copy flag, MoveFileExW is an exclusive same-volume rename.
-    let result = unsafe { MoveFileExW(source.as_ptr(), destination.as_ptr(), 0) };
-    if result == 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
-    }
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
-fn rename_no_replace(_source: &Path, _destination: &Path) -> io::Result<()> {
-    Err(io::Error::new(
-        ErrorKind::Unsupported,
-        "atomic no-replace rename is unsupported on this platform",
-    ))
 }
 
 fn ensure_disabled_dir(content: &Path) -> Result<PathBuf> {
@@ -665,13 +586,15 @@ fn print_content_warnings(warnings: &[ContentError]) {
 }
 
 fn format_content_error(error: &ContentError) -> String {
-    let item = error
-        .item_id
-        .as_deref()
-        .map_or(String::new(), |item| format!(" item={item}"));
+    let item = error.item_id.as_deref().map_or(String::new(), |item| {
+        format!(" item={}", item.escape_debug())
+    });
     format!(
         "pack={}{} field={}: {}",
-        error.pack_id, item, error.field, error.message
+        error.pack_id.escape_debug(),
+        item,
+        error.field.escape_debug(),
+        error.message.escape_debug()
     )
 }
 
@@ -770,40 +693,4 @@ fn smoke() -> Result<()> {
         sessions.values.len()
     );
     Ok(())
-}
-
-#[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
-mod tests {
-    use super::rename_no_replace;
-    use std::{fs, io::ErrorKind};
-
-    #[test]
-    fn no_replace_rename_moves_one_name_and_preserves_collisions() {
-        let cleanup = std::env::temp_dir().join(format!(
-            "typeul-no-replace-{}-{}",
-            std::process::id(),
-            fastrand::u64(..)
-        ));
-        let root = (0..12).fold(cleanup.clone(), |path, index| {
-            path.join(format!("extended-path-segment-{index:02}"))
-        });
-        fs::create_dir_all(&root).unwrap();
-
-        let source = root.join("source");
-        let destination = root.join("destination");
-        fs::write(&source, b"source").unwrap();
-        rename_no_replace(&source, &destination).unwrap();
-        assert!(!source.exists());
-        assert_eq!(fs::read(&destination).unwrap(), b"source");
-
-        let collision = root.join("collision");
-        fs::write(&source, b"preserved source").unwrap();
-        fs::write(&collision, b"preserved destination").unwrap();
-        let error = rename_no_replace(&source, &collision).unwrap_err();
-        assert_eq!(error.kind(), ErrorKind::AlreadyExists);
-        assert_eq!(fs::read(&source).unwrap(), b"preserved source");
-        assert_eq!(fs::read(&collision).unwrap(), b"preserved destination");
-
-        fs::remove_dir_all(cleanup).unwrap();
-    }
 }
