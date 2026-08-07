@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     ffi::OsStr,
-    fs,
+    fs::{self, OpenOptions},
     io::{ErrorKind, Write},
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
@@ -17,6 +17,26 @@ use std::{
 use time::{Date, OffsetDateTime, UtcOffset};
 
 static SESSION_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+struct SessionLock {
+    path: PathBuf,
+}
+
+impl SessionLock {
+    fn acquire(path: PathBuf) -> std::io::Result<Self> {
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)?;
+        Ok(Self { path })
+    }
+}
+
+impl Drop for SessionLock {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppPaths {
@@ -173,7 +193,11 @@ impl SessionRecord {
 pub fn save_session(paths: &AppPaths, session: &SessionRecord) -> Result<PathBuf> {
     session.validate()?;
     let bytes = serde_json::to_vec_pretty(session).context("failed to serialize session")?;
+    fs::create_dir_all(&paths.sessions)
+        .with_context(|| format!("failed to create {}", paths.sessions.display()))?;
     let path = paths.sessions.join(format!("{}.json", session.id));
+    let _lock = SessionLock::acquire(paths.sessions.join(format!(".{}.lock", session.id)))
+        .with_context(|| format!("session {} is already being saved", session.id))?;
     match path.try_exists() {
         Ok(true) => bail!("session {} already exists", session.id),
         Ok(false) => {}
@@ -221,6 +245,9 @@ pub fn load_sessions(paths: &AppPaths) -> Result<LoadResult<SessionRecord>> {
             })
             .and_then(|record| {
                 record.validate()?;
+                if path.file_stem() != Some(OsStr::new(&record.id)) {
+                    bail!("session ID does not match its filename");
+                }
                 Ok(record)
             });
         match record {

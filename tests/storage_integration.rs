@@ -4,7 +4,11 @@ use std::{
     fs,
     io::Write,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc, Barrier,
+        atomic::{AtomicU64, Ordering},
+    },
+    thread,
     time::{Duration, Instant},
 };
 use time::{OffsetDateTime, macros::date};
@@ -226,6 +230,79 @@ fn an_empty_session_is_rejected_before_creating_storage() {
 
     assert!(save_session(&paths, &empty).is_err());
     assert!(!paths.sessions.exists());
+}
+
+#[test]
+fn a_preheld_session_lock_blocks_writes_and_preserves_the_destination() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let session = fixture_session("locked");
+    fs::create_dir_all(&paths.sessions).unwrap();
+    let lock_path = paths.sessions.join(".locked.lock");
+    let _lock = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&lock_path)
+        .unwrap();
+    let destination = paths.sessions.join("locked.json");
+
+    assert!(save_session(&paths, &session).is_err());
+    assert!(!destination.exists());
+
+    fs::write(&destination, b"existing session bytes").unwrap();
+    assert!(save_session(&paths, &session).is_err());
+    assert_eq!(fs::read(&destination).unwrap(), b"existing session bytes");
+}
+
+#[test]
+fn concurrent_saves_of_one_id_create_exactly_one_session() {
+    const WRITERS: usize = 8;
+    let root = TestDir::new();
+    let paths = Arc::new(AppPaths::from_override(root.path().join("home")));
+    let session = Arc::new(fixture_session("shared"));
+    let start = Arc::new(Barrier::new(WRITERS));
+    let writes = (0..WRITERS)
+        .map(|_| {
+            let paths = Arc::clone(&paths);
+            let session = Arc::clone(&session);
+            let start = Arc::clone(&start);
+            thread::spawn(move || {
+                start.wait();
+                save_session(&paths, &session)
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let successes = writes
+        .into_iter()
+        .map(|write| write.join().unwrap())
+        .filter(Result::is_ok)
+        .count();
+
+    assert_eq!(successes, 1);
+    assert_eq!(
+        load_sessions(&paths).unwrap().values,
+        vec![(*session).clone()]
+    );
+    assert!(!paths.sessions.join(".shared.lock").exists());
+}
+
+#[test]
+fn a_filename_id_mismatch_is_preserved_but_not_loaded_twice() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let session = fixture_session("canonical");
+    let canonical = save_session(&paths, &session).unwrap();
+    let alias = paths.sessions.join("alias.json");
+    fs::copy(&canonical, &alias).unwrap();
+    let original_alias = fs::read(&alias).unwrap();
+
+    let loaded = load_sessions(&paths).unwrap();
+
+    assert_eq!(loaded.values, vec![session]);
+    assert_eq!(loaded.warnings.len(), 1);
+    assert_eq!(loaded.warnings[0].path, alias);
+    assert_eq!(fs::read(&loaded.warnings[0].path).unwrap(), original_alias);
 }
 
 #[test]
