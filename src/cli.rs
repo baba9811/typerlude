@@ -513,7 +513,7 @@ fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
     let disabled = ensure_disabled_dir(&paths.content)?;
     let file_name = source.file_name().context("content file has no filename")?;
     let destination = disabled.join(file_name);
-    match fs::hard_link(&source, &destination) {
+    match rename_no_replace(&source, &destination) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
             return Err(input_error(format!(
@@ -524,26 +524,64 @@ fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
         Err(error) => {
             return Err(error).with_context(|| {
                 format!(
-                    "failed to link {} to {}",
+                    "failed to rename {} to {}",
                     source.display(),
                     destination.display()
                 )
             });
         }
     }
-    if let Err(error) = fs::remove_file(&source) {
-        let rollback = fs::remove_file(&destination);
-        return match rollback {
-            Ok(()) => Err(error).with_context(|| format!("failed to remove {}", source.display())),
-            Err(rollback) => Err(anyhow!(
-                "failed to remove {}: {error}; failed to roll back {}: {rollback}",
-                source.display(),
-                destination.display()
-            )),
-        };
-    }
     println!("disabled content pack {id}");
     Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
+    rustix::fs::renameat_with(
+        rustix::fs::CWD,
+        source,
+        rustix::fs::CWD,
+        destination,
+        rustix::fs::RenameFlags::NOREPLACE,
+    )
+    .map_err(io::Error::from)
+}
+
+#[cfg(windows)]
+fn rename_no_replace(source: &Path, destination: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::MoveFileExW;
+
+    fn verbatim_child(path: &Path) -> io::Result<Vec<u16>> {
+        let file_name = path
+            .file_name()
+            .ok_or_else(|| io::Error::from(ErrorKind::InvalidInput))?;
+        let parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let path = fs::canonicalize(parent)?.join(file_name);
+        Ok(path.as_os_str().encode_wide().chain(Some(0)).collect())
+    }
+
+    let source = verbatim_child(source)?;
+    let destination = verbatim_child(destination)?;
+    // SAFETY: Both vectors are live, NUL-terminated UTF-16 paths. With no
+    // replace or copy flag, MoveFileExW is an exclusive same-volume rename.
+    let result = unsafe { MoveFileExW(source.as_ptr(), destination.as_ptr(), 0) };
+    if result == 0 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
+fn rename_no_replace(_source: &Path, _destination: &Path) -> io::Result<()> {
+    Err(io::Error::new(
+        ErrorKind::Unsupported,
+        "atomic no-replace rename is unsupported on this platform",
+    ))
 }
 
 fn ensure_disabled_dir(content: &Path) -> Result<PathBuf> {
@@ -732,4 +770,40 @@ fn smoke() -> Result<()> {
         sessions.values.len()
     );
     Ok(())
+}
+
+#[cfg(all(test, any(target_os = "linux", target_os = "macos", windows)))]
+mod tests {
+    use super::rename_no_replace;
+    use std::{fs, io::ErrorKind};
+
+    #[test]
+    fn no_replace_rename_moves_one_name_and_preserves_collisions() {
+        let cleanup = std::env::temp_dir().join(format!(
+            "typeul-no-replace-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let root = (0..12).fold(cleanup.clone(), |path, index| {
+            path.join(format!("extended-path-segment-{index:02}"))
+        });
+        fs::create_dir_all(&root).unwrap();
+
+        let source = root.join("source");
+        let destination = root.join("destination");
+        fs::write(&source, b"source").unwrap();
+        rename_no_replace(&source, &destination).unwrap();
+        assert!(!source.exists());
+        assert_eq!(fs::read(&destination).unwrap(), b"source");
+
+        let collision = root.join("collision");
+        fs::write(&source, b"preserved source").unwrap();
+        fs::write(&collision, b"preserved destination").unwrap();
+        let error = rename_no_replace(&source, &collision).unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(&source).unwrap(), b"preserved source");
+        assert_eq!(fs::read(&collision).unwrap(), b"preserved destination");
+
+        fs::remove_dir_all(cleanup).unwrap();
+    }
 }

@@ -1045,6 +1045,7 @@ dependencies = [
  "fs4",
  "include_dir",
  "ratatui",
+ "rustix",
  "serde",
  "serde_json",
  "time",
@@ -1052,6 +1053,7 @@ dependencies = [
  "unicode-normalization",
  "unicode-segmentation",
  "unicode-width",
+ "windows-sys",
 ]
 
 [[package]]
