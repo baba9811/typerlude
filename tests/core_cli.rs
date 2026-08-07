@@ -6,6 +6,12 @@ use std::{
     process::{Command as ProcessCommand, Output, Stdio},
     sync::atomic::{AtomicU64, Ordering},
 };
+#[cfg(unix)]
+use std::{
+    sync::{Arc, atomic::AtomicBool},
+    thread,
+    time::{Duration, Instant},
+};
 use typeul::{
     VERSION,
     cli::{Command, ContentCommand, Exit, PracticeArgs, Startup, parse_args, run},
@@ -466,6 +472,29 @@ fn content_validate_and_add_use_the_startup_conflict_rules() {
 }
 
 #[test]
+fn content_validate_accepts_the_exact_active_file_but_not_a_copy() {
+    let root = TestDir::new("validate-active-file");
+    let home = root.home();
+    let candidate = root.path().join("candidate.toml");
+    let source = pack("validate-self", "validate-self-item", "selfword");
+    fs::write(&candidate, &source).unwrap();
+    assert!(
+        binary(&home, &["content", "add", candidate.to_str().unwrap()])
+            .status
+            .success()
+    );
+
+    let active = home.join("content/validate-self.toml");
+    let active_result = binary(&home, &["content", "validate", active.to_str().unwrap()]);
+    assert!(active_result.status.success(), "{}", stderr(&active_result));
+
+    let copy = root.path().join("copy.toml");
+    fs::write(&copy, source).unwrap();
+    let copied_result = binary(&home, &["content", "validate", copy.to_str().unwrap()]);
+    assert_eq!(copied_result.status.code(), Some(2));
+}
+
+#[test]
 fn content_add_rejects_unsafe_ids_and_never_overwrites() {
     let root = TestDir::new("content-no-overwrite");
     let home = root.home();
@@ -483,6 +512,129 @@ fn content_add_rejects_unsafe_ids_and_never_overwrites() {
     fs::write(&candidate, pack("existing", "existing-item", "quartz")).unwrap();
     let output = binary(&home, &["content", "add", candidate.to_str().unwrap()]);
     assert_eq!(output.status.code(), Some(2));
+    assert_eq!(fs::read(destination).unwrap(), b"review pending");
+}
+
+#[test]
+fn content_validate_uses_schema_ids_but_add_rejects_nonportable_filenames() {
+    let root = TestDir::new("portable-pack-ids");
+    let home = root.home();
+    for (index, id) in [
+        "CON",
+        "con",
+        "PRN",
+        "AUX",
+        "NUL",
+        "COM1",
+        "com9",
+        "LPT1",
+        "lpt9",
+        "../schema-only",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let candidate = root.path().join(format!("candidate-{index}.toml"));
+        fs::write(
+            &candidate,
+            pack(
+                id,
+                &format!("portable-item-{index}"),
+                &format!("portableword{index}"),
+            ),
+        )
+        .unwrap();
+        let candidate = candidate.to_str().unwrap();
+        let validated = binary(&home, &["content", "validate", candidate]);
+        assert!(validated.status.success(), "{id}: {}", stderr(&validated));
+        assert_eq!(
+            binary(&home, &["content", "add", candidate]).status.code(),
+            Some(2),
+            "{id}"
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn content_add_preserves_a_dangling_destination_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new("add-dangling-destination");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let destination = content.join("dangling.toml");
+    let missing = root.path().join("missing-target");
+    symlink(&missing, &destination).unwrap();
+    let candidate = root.path().join("candidate.toml");
+    fs::write(
+        &candidate,
+        pack("dangling", "dangling-item", "danglingword"),
+    )
+    .unwrap();
+
+    let output = binary(&home, &["content", "add", candidate.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert_eq!(fs::read_link(&destination).unwrap(), missing);
+    assert!(!root.path().join("missing-target").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn content_add_does_not_replace_a_destination_created_during_commit() {
+    let root = TestDir::new("add-racing-destination");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let candidate = root.path().join("candidate.toml");
+    let mut source = pack("racing", "racing-item", "racingword").into_bytes();
+    source.push(b'#');
+    source.resize(MAX_INPUT_BYTES as usize, b'x');
+    fs::write(&candidate, source).unwrap();
+
+    let destination = content.join("racing.toml");
+    let watched_content = content.clone();
+    let watched_destination = destination.clone();
+    let done = Arc::new(AtomicBool::new(false));
+    let watcher_done = Arc::clone(&done);
+    let watcher = thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while !watcher_done.load(Ordering::Acquire) && Instant::now() < deadline {
+            let temporary_exists = fs::read_dir(&watched_content)
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".racing.toml.")
+                });
+            if temporary_exists {
+                match fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&watched_destination)
+                {
+                    Ok(mut file) => {
+                        file.write_all(b"review pending").unwrap();
+                        file.sync_all().unwrap();
+                        return true;
+                    }
+                    Err(error) if error.kind() == ErrorKind::AlreadyExists => return false,
+                    Err(error) => panic!("failed to create racing destination: {error}"),
+                }
+            }
+            thread::yield_now();
+        }
+        false
+    });
+
+    let output = binary(&home, &["content", "add", candidate.to_str().unwrap()]);
+    done.store(true, Ordering::Release);
+    assert!(watcher.join().unwrap(), "temporary file was not observed");
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
     assert_eq!(fs::read(destination).unwrap(), b"review pending");
 }
 
@@ -520,6 +672,68 @@ fn content_disable_resolves_pack_id_and_moves_only_that_user_file() {
 }
 
 #[test]
+fn content_disable_accepts_an_active_schema_id_that_is_not_a_filename() {
+    let root = TestDir::new("disable-schema-id");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let enabled = content.join("friendly-filename.toml");
+    fs::write(&enabled, pack("내 팩", "unicode-item", "unicodeword")).unwrap();
+
+    let output = binary(&home, &["content", "disable", "내 팩"]);
+
+    assert!(output.status.success(), "{}", stderr(&output));
+    assert!(!enabled.exists());
+    assert!(content.join("disabled/friendly-filename.toml").exists());
+}
+
+#[test]
+fn content_disable_moves_only_a_pack_that_startup_accepted() {
+    let root = TestDir::new("disable-invalid-pack");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let invalid = content.join("invalid.toml");
+    let source =
+        pack("invalid-pack", "invalid-item", "invalidword").replace("CC0-1.0", "CC-BY-NC-4.0");
+    fs::write(&invalid, &source).unwrap();
+
+    let output = binary(&home, &["content", "disable", "invalid-pack"]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert!(stderr(&output).contains("unsupported license"));
+    assert_eq!(fs::read(invalid).unwrap(), source.as_bytes());
+    assert!(!content.join("disabled/invalid.toml").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn user_content_symlinks_and_nonfiles_are_warnings_not_active_packs() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new("content-nonfiles");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let outside = root.path().join("outside.toml");
+    fs::write(&outside, pack("linked-pack", "linked-item", "linkedword")).unwrap();
+    let linked = content.join("linked.toml");
+    symlink(&outside, &linked).unwrap();
+    let directory = content.join("directory.toml");
+    fs::create_dir(&directory).unwrap();
+
+    let listed = binary(&home, &["content", "list"]);
+    assert!(listed.status.success(), "{}", stderr(&listed));
+    assert!(!stdout(&listed).contains("linked-pack"));
+    assert!(stderr(&listed).contains("linked"));
+    assert!(stderr(&listed).contains("directory"));
+
+    let disabled = binary(&home, &["content", "disable", "linked-pack"]);
+    assert_eq!(disabled.status.code(), Some(2), "{}", stderr(&disabled));
+    assert_eq!(fs::read_link(linked).unwrap(), outside);
+}
+
+#[test]
 fn content_disable_refuses_an_existing_disabled_destination() {
     let root = TestDir::new("disable-no-overwrite");
     let home = root.home();
@@ -538,6 +752,115 @@ fn content_disable_refuses_an_existing_disabled_destination() {
         fs::read(disabled.join("same.toml")).unwrap(),
         b"older disabled pack"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn content_disable_preserves_a_dangling_destination_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new("disable-dangling-destination");
+    let home = root.home();
+    let content = home.join("content");
+    let disabled = content.join("disabled");
+    fs::create_dir_all(&disabled).unwrap();
+    let enabled = content.join("reviewed.toml");
+    let source = pack("disable-dangling", "disable-dangling-item", "firmword");
+    fs::write(&enabled, &source).unwrap();
+    let missing = root.path().join("missing-target");
+    let destination = disabled.join("reviewed.toml");
+    symlink(&missing, &destination).unwrap();
+
+    let output = binary(&home, &["content", "disable", "disable-dangling"]);
+
+    assert_eq!(output.status.code(), Some(2), "{}", stderr(&output));
+    assert_eq!(fs::read(&enabled).unwrap(), source.as_bytes());
+    assert_eq!(fs::read_link(destination).unwrap(), missing);
+}
+
+#[cfg(unix)]
+#[test]
+fn content_disable_rejects_a_disabled_directory_outside_the_content_root() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new("disable-root-escape");
+    let home = root.home();
+    let content = home.join("content");
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&content).unwrap();
+    fs::create_dir(&outside).unwrap();
+    symlink(&outside, content.join("disabled")).unwrap();
+    let enabled = content.join("reviewed.toml");
+    let source = pack("same-root", "same-root-item", "rootword");
+    fs::write(&enabled, &source).unwrap();
+
+    let output = binary(&home, &["content", "disable", "same-root"]);
+
+    assert!(!output.status.success(), "{}", stdout(&output));
+    assert_eq!(fs::read(enabled).unwrap(), source.as_bytes());
+    assert!(!outside.join("reviewed.toml").exists());
+}
+
+#[test]
+fn stale_content_lock_is_reused_but_a_live_lock_excludes_mutation() {
+    let root = TestDir::new("content-advisory-lock");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let lock_path = content.join(".typeul-content.lock");
+    fs::write(&lock_path, []).unwrap();
+    let first = root.path().join("first.toml");
+    fs::write(&first, pack("first-lock", "first-lock-item", "lockword")).unwrap();
+
+    let stale_result = binary(&home, &["content", "add", first.to_str().unwrap()]);
+    assert!(stale_result.status.success(), "{}", stderr(&stale_result));
+    assert!(fs::symlink_metadata(&lock_path).unwrap().is_file());
+
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .unwrap();
+    fs4::FileExt::try_lock(&lock).unwrap();
+    let second = root.path().join("second.toml");
+    fs::write(
+        &second,
+        pack("second-lock", "second-lock-item", "secondlockword"),
+    )
+    .unwrap();
+    let live_result = binary(&home, &["content", "add", second.to_str().unwrap()]);
+    assert_eq!(live_result.status.code(), Some(1));
+    assert!(!content.join("second-lock.toml").exists());
+    drop(lock);
+
+    let released_result = binary(&home, &["content", "add", second.to_str().unwrap()]);
+    assert!(
+        released_result.status.success(),
+        "{}",
+        stderr(&released_result)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn content_mutation_rejects_a_symlink_lock_file() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new("content-symlink-lock");
+    let home = root.home();
+    let content = home.join("content");
+    fs::create_dir_all(&content).unwrap();
+    let outside = root.path().join("outside-lock");
+    fs::write(&outside, b"do not touch").unwrap();
+    symlink(&outside, content.join(".typeul-content.lock")).unwrap();
+    let candidate = root.path().join("candidate.toml");
+    fs::write(&candidate, pack("lock-link", "lock-link-item", "linkword")).unwrap();
+
+    let output = binary(&home, &["content", "add", candidate.to_str().unwrap()]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(fs::read(outside).unwrap(), b"do not touch");
+    assert!(!content.join("lock-link.toml").exists());
 }
 
 #[test]

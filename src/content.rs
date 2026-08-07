@@ -9,7 +9,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs::{self, File as FsFile},
     io::Read,
-    path::Path,
+    path::{Path, PathBuf},
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -82,6 +82,7 @@ pub struct ContentCatalog {
     pack_ids: HashSet<String>,
     item_ids: HashSet<String>,
     normalized_texts: HashSet<String>,
+    user_pack_paths: HashMap<String, PathBuf>,
 }
 
 pub struct CatalogLoad {
@@ -232,27 +233,59 @@ impl ContentCatalog {
     }
 
     pub fn load(user_dir: &Path) -> Result<CatalogLoad> {
+        Self::load_excluding(user_dir, None)
+    }
+
+    pub(crate) fn load_excluding(
+        user_dir: &Path,
+        excluded_path: Option<&Path>,
+    ) -> Result<CatalogLoad> {
         let mut catalog = Self::load_builtins()?;
         let mut warnings = Vec::new();
-        let mut paths = match fs::read_dir(user_dir) {
-            Ok(entries) => entries
-                .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-                .filter(|path| path.is_file() && path.extension().is_some_and(|ext| ext == "toml"))
-                .collect::<Vec<_>>(),
+        let excluded_path = excluded_path.and_then(canonical_regular_file);
+        let mut entries = match fs::read_dir(user_dir) {
+            Ok(entries) => entries.collect::<std::io::Result<Vec<_>>>()?,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
             Err(error) => {
                 return Err(error)
                     .with_context(|| format!("failed to read {}", user_dir.display()));
             }
         };
-        paths.sort();
+        entries.sort_unstable_by_key(|entry| entry.file_name());
 
-        for path in paths {
+        for entry in entries {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("toml") {
+                continue;
+            }
             let fallback_id = path
                 .file_stem()
                 .and_then(|name| name.to_str())
                 .unwrap_or("unknown")
                 .to_owned();
+            match entry.file_type() {
+                Ok(file_type) if file_type.is_file() => {}
+                Ok(_) => {
+                    warnings.push(file_error(
+                        &fallback_id,
+                        format!("{} is not a regular file", path.display()),
+                    ));
+                    continue;
+                }
+                Err(error) => {
+                    warnings.push(file_error(
+                        &fallback_id,
+                        format!("failed to inspect {}: {error}", path.display()),
+                    ));
+                    continue;
+                }
+            }
+            if excluded_path
+                .as_ref()
+                .is_some_and(|excluded| canonical_regular_file(&path).as_ref() == Some(excluded))
+            {
+                continue;
+            }
             let bytes = match read_pack_bytes(&path) {
                 Ok(bytes) => bytes,
                 Err(error) => {
@@ -277,7 +310,9 @@ impl ContentCatalog {
             let mut errors = validate_pack(&pack);
             errors.extend(catalog.conflicts(&pack));
             if errors.is_empty() {
+                let pack_id = pack.id.clone();
                 catalog.insert(pack)?;
+                catalog.user_pack_paths.insert(pack_id, path);
             } else {
                 warnings.extend(errors);
             }
@@ -298,6 +333,10 @@ impl ContentCatalog {
 
     pub fn contains_pack(&self, id: &str) -> bool {
         self.pack_ids.contains(id)
+    }
+
+    pub(crate) fn active_user_path(&self, id: &str) -> Option<&Path> {
+        self.user_pack_paths.get(id).map(PathBuf::as_path)
     }
 
     pub fn count(&self, language: Language, kind: ContentKind) -> usize {
@@ -372,6 +411,13 @@ impl ContentCatalog {
         self.items.extend(items);
         Ok(())
     }
+}
+
+fn canonical_regular_file(path: &Path) -> Option<PathBuf> {
+    fs::symlink_metadata(path)
+        .ok()
+        .filter(|metadata| metadata.file_type().is_file())
+        .and_then(|_| fs::canonicalize(path).ok())
 }
 
 pub(crate) fn read_pack_bytes(path: &Path) -> Result<Vec<u8>> {

@@ -6,7 +6,7 @@ use crate::{
         validate_pack,
     },
     model::{Language, PracticeKind},
-    storage::{AppPaths, atomic_write, load_sessions},
+    storage::{AppPaths, load_sessions},
 };
 use anyhow::{Context, Result, anyhow, bail};
 use std::{
@@ -15,8 +15,9 @@ use std::{
     ffi::OsString,
     fmt,
     fs::{self, File, OpenOptions},
-    io::{self, Read},
+    io::{self, ErrorKind, Read, Write},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 const HELP: &str = r#"Usage:
@@ -32,6 +33,7 @@ const HELP: &str = r#"Usage:
   typeul content disable PACK_ID
   typeul paths | licenses | update
   typeul --help | --version | --smoke"#;
+static CONTENT_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
@@ -391,21 +393,21 @@ fn list_content(paths: &AppPaths) -> Result<()> {
 }
 
 fn validate_content(paths: &AppPaths, path: Option<&Path>) -> Result<()> {
-    let loaded = ContentCatalog::load(&paths.content)?;
-    print_content_warnings(&loaded.warnings);
-    if path.is_none() && !loaded.warnings.is_empty() {
-        return Err(input_error(format!(
-            "{} active content pack warning(s)",
-            loaded.warnings.len()
-        )));
-    }
-    let catalog = loaded.catalog;
     if let Some(path) = path {
         let (pack, _) = candidate(path)?;
-        validate_safe_id(&pack.id)?;
-        reject_content_errors(catalog.validate_candidate(&pack))?;
+        let loaded = ContentCatalog::load_excluding(&paths.content, Some(path))?;
+        print_content_warnings(&loaded.warnings);
+        reject_content_errors(loaded.catalog.validate_candidate(&pack))?;
         println!("valid content pack: {}", pack.id);
     } else {
+        let loaded = ContentCatalog::load(&paths.content)?;
+        print_content_warnings(&loaded.warnings);
+        if !loaded.warnings.is_empty() {
+            return Err(input_error(format!(
+                "{} active content pack warning(s)",
+                loaded.warnings.len()
+            )));
+        }
         println!("active content is valid");
     }
     Ok(())
@@ -413,7 +415,7 @@ fn validate_content(paths: &AppPaths, path: Option<&Path>) -> Result<()> {
 
 fn add_content(paths: &AppPaths, path: &Path) -> Result<()> {
     let (pack, bytes) = candidate(path)?;
-    validate_safe_id(&pack.id)?;
+    validate_add_id(&pack.id)?;
     reject_content_errors(validate_pack(&pack))?;
 
     fs::create_dir_all(&paths.content)
@@ -422,19 +424,56 @@ fn add_content(paths: &AppPaths, path: &Path) -> Result<()> {
     let catalog = load_catalog(paths)?;
     reject_content_errors(catalog.validate_candidate(&pack))?;
     let destination = paths.content.join(format!("{}.toml", pack.id));
-    match destination.try_exists() {
-        Ok(true) => {
+    match install_new_file(&destination, &bytes) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {
             return Err(input_error(format!(
                 "content destination already exists: {}",
                 destination.display()
             )));
         }
-        Ok(false) => {}
-        Err(error) => return Err(error).context("failed to inspect content destination"),
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to add {}", destination.display()));
+        }
     }
-    atomic_write(&destination, &bytes)
-        .with_context(|| format!("failed to add {}", destination.display()))?;
     println!("added content pack {}", pack.id);
+    Ok(())
+}
+
+struct PendingContentFile(PathBuf);
+
+impl Drop for PendingContentFile {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.0);
+    }
+}
+
+fn install_new_file(destination: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let parent = destination
+        .parent()
+        .ok_or_else(|| std::io::Error::from(ErrorKind::InvalidInput))?;
+    let file_name = destination
+        .file_name()
+        .ok_or_else(|| std::io::Error::from(ErrorKind::InvalidInput))?
+        .to_string_lossy();
+    let (temporary, mut file) = loop {
+        let counter = CONTENT_TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path = parent.join(format!(
+            ".{file_name}.{}.{}.tmp",
+            std::process::id(),
+            counter
+        ));
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => break (PendingContentFile(path), file),
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error),
+        }
+    };
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    fs::hard_link(&temporary.0, destination)?;
+    let _ = fs::remove_file(&temporary.0);
     Ok(())
 }
 
@@ -448,7 +487,7 @@ fn candidate(path: &Path) -> Result<(ContentPack, Vec<u8>)> {
 }
 
 fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
-    validate_safe_id(id)?;
+    validate_disable_id(id)?;
     if ContentCatalog::load_builtins()?.contains_pack(id) {
         return Err(input_error(format!(
             "built-in content pack {id:?} cannot be disabled"
@@ -457,81 +496,113 @@ fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
     fs::create_dir_all(&paths.content)
         .with_context(|| format!("failed to create {}", paths.content.display()))?;
     let _lock = ContentLock::acquire(&paths.content)?;
-    let mut matches = Vec::new();
-    let mut entries = fs::read_dir(&paths.content)
-        .with_context(|| format!("failed to read {}", paths.content.display()))?
-        .collect::<std::io::Result<Vec<_>>>()?;
-    entries.sort_unstable_by_key(|entry| entry.file_name());
-    for entry in entries {
-        if !entry.file_type()?.is_file()
-            || entry.path().extension().and_then(|ext| ext.to_str()) != Some("toml")
-        {
-            continue;
-        }
-        let path = entry.path();
-        let bytes = match read_pack_bytes(&path) {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                eprintln!("warning: {}: {error:#}", path.display());
-                continue;
-            }
-        };
-        let pack = std::str::from_utf8(&bytes)
-            .ok()
-            .and_then(|source| parse_pack(source).ok());
-        if pack.as_ref().is_some_and(|pack| pack.id == id) {
-            matches.push(path);
-        }
+    let loaded = ContentCatalog::load(&paths.content)?;
+    print_content_warnings(&loaded.warnings);
+    let source = loaded
+        .catalog
+        .active_user_path(id)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| input_error(format!("enabled user content pack {id:?} was not found")))?;
+    if !fs::symlink_metadata(&source)
+        .with_context(|| format!("failed to inspect {}", source.display()))?
+        .file_type()
+        .is_file()
+    {
+        bail!("active content source is no longer a regular file");
     }
-    let source = match matches.as_slice() {
-        [] => {
-            return Err(input_error(format!(
-                "enabled user content pack {id:?} was not found"
-            )));
-        }
-        [source] => source,
-        _ => {
-            return Err(input_error(format!(
-                "multiple enabled files declare pack ID {id:?}"
-            )));
-        }
-    };
-    let disabled = paths.content.join("disabled");
+    let disabled = ensure_disabled_dir(&paths.content)?;
     let file_name = source.file_name().context("content file has no filename")?;
     let destination = disabled.join(file_name);
-    match destination.try_exists() {
-        Ok(true) => {
+    match fs::hard_link(&source, &destination) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {
             return Err(input_error(format!(
                 "disabled content destination already exists: {}",
                 destination.display()
             )));
         }
-        Ok(false) => {}
-        Err(error) => return Err(error).context("failed to inspect disabled destination"),
+        Err(error) => {
+            return Err(error).with_context(|| {
+                format!(
+                    "failed to link {} to {}",
+                    source.display(),
+                    destination.display()
+                )
+            });
+        }
     }
-    fs::create_dir_all(&disabled)
-        .with_context(|| format!("failed to create {}", disabled.display()))?;
-    fs::rename(source, &destination).with_context(|| {
-        format!(
-            "failed to move {} to {}",
-            source.display(),
-            destination.display()
-        )
-    })?;
+    if let Err(error) = fs::remove_file(&source) {
+        let rollback = fs::remove_file(&destination);
+        return match rollback {
+            Ok(()) => Err(error).with_context(|| format!("failed to remove {}", source.display())),
+            Err(rollback) => Err(anyhow!(
+                "failed to remove {}: {error}; failed to roll back {}: {rollback}",
+                source.display(),
+                destination.display()
+            )),
+        };
+    }
     println!("disabled content pack {id}");
     Ok(())
 }
 
-fn validate_safe_id(id: &str) -> Result<()> {
+fn ensure_disabled_dir(content: &Path) -> Result<PathBuf> {
+    let content = fs::canonicalize(content)
+        .with_context(|| format!("failed to resolve {}", content.display()))?;
+    let disabled = content.join("disabled");
+    match fs::create_dir(&disabled) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            return Err(error).with_context(|| format!("failed to create {}", disabled.display()));
+        }
+    }
+    let metadata = fs::symlink_metadata(&disabled)
+        .with_context(|| format!("failed to inspect {}", disabled.display()))?;
+    if !metadata.file_type().is_dir() {
+        bail!("{} must be a real directory", disabled.display());
+    }
+    let disabled = fs::canonicalize(&disabled)
+        .with_context(|| format!("failed to resolve {}", disabled.display()))?;
+    if disabled.parent() != Some(content.as_path()) {
+        bail!("disabled content directory is outside the content root");
+    }
+    Ok(disabled)
+}
+
+fn validate_add_id(id: &str) -> Result<()> {
     if id.is_empty()
         || id.len() > 128
         || !id
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || is_windows_device_name(id)
     {
         return Err(input_error(format!(
-            "pack ID {id:?} must use 1-128 ASCII letters, digits, '-' or '_'"
+            "pack ID {id:?} is not a portable filename"
         )));
+    }
+    Ok(())
+}
+
+fn is_windows_device_name(id: &str) -> bool {
+    let upper = id.to_ascii_uppercase();
+    matches!(upper.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ["COM", "LPT"].iter().any(|prefix| {
+            upper.strip_prefix(prefix).is_some_and(|suffix| {
+                matches!(suffix, "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9")
+            })
+        })
+}
+
+fn validate_disable_id(id: &str) -> Result<()> {
+    if id.is_empty()
+        || matches!(id, "." | "..")
+        || id
+            .chars()
+            .any(|character| matches!(character, '/' | '\\') || character.is_control())
+    {
+        return Err(input_error(format!("invalid pack ID {id:?}")));
     }
     Ok(())
 }
@@ -573,23 +644,45 @@ fn language_name(language: Language) -> &'static str {
     }
 }
 
-struct ContentLock(PathBuf);
+struct ContentLock {
+    _file: File,
+}
 
 impl ContentLock {
     fn acquire(content: &Path) -> Result<Self> {
         let path = content.join(".typeul-content.lock");
-        OpenOptions::new()
+        let file = match OpenOptions::new()
+            .read(true)
             .write(true)
             .create_new(true)
             .open(&path)
-            .context("content is already being changed")?;
-        Ok(Self(path))
-    }
-}
-
-impl Drop for ContentLock {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.0);
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {
+                if !fs::symlink_metadata(&path)
+                    .with_context(|| format!("failed to inspect {}", path.display()))?
+                    .file_type()
+                    .is_file()
+                {
+                    bail!("{} must be a regular lock file", path.display());
+                }
+                OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(&path)
+                    .with_context(|| format!("failed to open {}", path.display()))?
+            }
+            Err(error) => {
+                return Err(error).with_context(|| format!("failed to create {}", path.display()));
+            }
+        };
+        match fs4::FileExt::try_lock(&file) {
+            Ok(()) => Ok(Self { _file: file }),
+            Err(fs4::TryLockError::WouldBlock) => bail!("content is already being changed"),
+            Err(fs4::TryLockError::Error(error)) => {
+                Err(error).context("failed to lock content mutations")
+            }
+        }
     }
 }
 
