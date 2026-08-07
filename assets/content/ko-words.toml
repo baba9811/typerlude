@@ -266,7 +266,7 @@ items = [
   { id = "ko-word-260", kind = "word", text = "들여다보다", difficulty = 3, tags = ["vocabulary", "action"] },
   { id = "ko-word-261", kind = "word", text = "내려다보다", difficulty = 3, tags = ["vocabulary", "action"] },
   { id = "ko-word-262", kind = "word", text = "올려다보다", difficulty = 3, tags = ["vocabulary", "action"] },
-  { id = "ko-word-263", kind = "word", text = "돌이켜보다", difficulty = 3, tags = ["vocabulary", "action"] },
+  { id = "ko-word-263", kind = "word", text = "되새김질하다", difficulty = 3, tags = ["vocabulary", "action"] },
   { id = "ko-word-264", kind = "word", text = "이야기하다", difficulty = 3, tags = ["vocabulary", "communication"] },
   { id = "ko-word-265", kind = "word", text = "마무리하다", difficulty = 3, tags = ["vocabulary", "action"] },
   { id = "ko-word-266", kind = "word", text = "되풀이하다", difficulty = 3, tags = ["vocabulary", "action"] },
