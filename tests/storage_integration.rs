@@ -88,9 +88,14 @@ fn missing_and_partial_config_use_defaults_without_eager_writes() {
 
     let missing = Settings::load(&paths).unwrap();
     let mut expected = Settings::default();
-    let lc_all = std::env::var("LC_ALL").ok();
-    let lang = std::env::var("LANG").ok();
-    expected.ui_language = initial_ui_language(lc_all.as_deref(), lang.as_deref());
+    let lc_all = std::env::var_os("LC_ALL");
+    let lang = std::env::var_os("LANG");
+    expected.ui_language = lc_all
+        .as_deref()
+        .or(lang.as_deref())
+        .and_then(|locale| locale.to_str())
+        .map(|locale| initial_ui_language(Some(locale), None))
+        .unwrap_or(Language::En);
     assert_eq!(missing.value, expected);
     assert!(missing.warnings.is_empty());
     assert!(!paths.config.exists());
@@ -105,6 +110,26 @@ fn missing_and_partial_config_use_defaults_without_eager_writes() {
     assert_eq!(partial.value.language, Language::Ko);
     assert_eq!(partial.value.target_wpm, Settings::default().target_wpm);
     assert!(partial.warnings.is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn dangling_config_symlink_is_not_a_missing_config() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    fs::create_dir_all(paths.config.parent().unwrap()).unwrap();
+    let missing_target = root.path().join("missing-config-target");
+    symlink(&missing_target, &paths.config).unwrap();
+    let original_link = fs::read_link(&paths.config).unwrap();
+
+    let error = Settings::load(&paths)
+        .expect_err("a dangling config symlink must not be treated as missing config");
+
+    assert!(error.to_string().contains("failed to read"), "{error:#}");
+    assert_eq!(fs::read_link(&paths.config).unwrap(), original_link);
+    assert!(!missing_target.exists());
 }
 
 #[test]

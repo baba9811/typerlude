@@ -1,4 +1,4 @@
-use ratatui::style::Color;
+use ratatui::style::{Color, Modifier};
 use std::{
     collections::HashSet,
     fs,
@@ -9,7 +9,7 @@ use std::{
 use typeul::{
     i18n::{TextKey, initial_ui_language, text},
     model::Language,
-    theme::{ThemeCatalog, parse_theme},
+    theme::{ThemeCatalog, ThemeSpec, parse_theme},
 };
 
 static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
@@ -116,7 +116,7 @@ fn every_supported_named_color_and_exact_rgb_boundary_builds_styles() {
                 &format!("background = \"{value}\""),
             );
             let theme = parse_theme(&source).unwrap();
-            assert_eq!(theme.styles().base.bg, Some(expected), "{value}");
+            assert_eq!(theme.styles().unwrap().base.bg, Some(expected), "{value}");
         }
     }
 
@@ -130,10 +130,26 @@ fn every_supported_named_color_and_exact_rgb_boundary_builds_styles() {
             &format!("background = \"{value}\""),
         );
         assert_eq!(
-            parse_theme(&source).unwrap().styles().base.bg,
+            parse_theme(&source).unwrap().styles().unwrap().base.bg,
             Some(expected)
         );
     }
+}
+
+#[test]
+fn invalid_colors_from_direct_deserialization_or_mutation_return_errors() {
+    let directly_deserialized: ThemeSpec = toml::from_str(
+        &theme_source("direct-invalid")
+            .replace("background = \"reset\"", "background = \"not-a-color\""),
+    )
+    .unwrap();
+    let error = directly_deserialized.styles().unwrap_err();
+    assert!(error.to_string().contains("background"), "{error:#}");
+
+    let mut mutated = parse_theme(&theme_source("mutated-invalid")).unwrap();
+    mutated.cursor = "not-a-color".into();
+    let error = mutated.styles().unwrap_err();
+    assert!(error.to_string().contains("cursor"), "{error:#}");
 }
 
 #[test]
@@ -209,7 +225,7 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
         (
             "default",
             [
-                "reset",
+                "black",
                 "white",
                 "cyan",
                 "green",
@@ -218,7 +234,7 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
                 "dark_gray",
             ],
             [
-                Color::Reset,
+                Color::Black,
                 Color::White,
                 Color::Cyan,
                 Color::Green,
@@ -250,9 +266,9 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
         ),
         (
             "minimal",
-            ["reset", "white", "white", "green", "red", "white", "gray"],
+            ["black", "white", "white", "green", "red", "white", "gray"],
             [
-                Color::Reset,
+                Color::Black,
                 Color::White,
                 Color::White,
                 Color::Green,
@@ -277,7 +293,7 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
         (
             "nord",
             [
-                "#2e3440", "#d8dee9", "#88c0d0", "#a3be8c", "#bf616a", "#ebcb8b", "#4c566a",
+                "#2e3440", "#d8dee9", "#88c0d0", "#a3be8c", "#bf616a", "#ebcb8b", "#81a1c1",
             ],
             [
                 Color::Rgb(0x2e, 0x34, 0x40),
@@ -286,7 +302,7 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
                 Color::Rgb(0xa3, 0xbe, 0x8c),
                 Color::Rgb(0xbf, 0x61, 0x6a),
                 Color::Rgb(0xeb, 0xcb, 0x8b),
-                Color::Rgb(0x4c, 0x56, 0x6a),
+                Color::Rgb(0x81, 0xa1, 0xc1),
             ],
         ),
     ];
@@ -308,7 +324,7 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
             fields,
             "{id}"
         );
-        let styles = theme.styles();
+        let styles = theme.styles().unwrap();
         assert_eq!(
             [
                 styles.base.bg.unwrap(),
@@ -321,6 +337,68 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
             ],
             colors,
             "{id}"
+        );
+    }
+}
+
+fn relative_luminance(color: Color) -> f64 {
+    let Color::Rgb(red, green, blue) = color else {
+        panic!("contrast regression expects an RGB color, got {color:?}");
+    };
+    let linear = |component: u8| {
+        let value = f64::from(component) / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+}
+
+fn contrast_ratio(left: Color, right: Color) -> f64 {
+    let left = relative_luminance(left);
+    let right = relative_luminance(right);
+    (left.max(right) + 0.05) / (left.min(right) + 0.05)
+}
+
+#[test]
+fn builtins_avoid_reset_with_explicit_white_and_nord_dim_meets_contrast_floor() {
+    let catalog = ThemeCatalog::load_builtins().unwrap();
+    for id in ["default", "minimal"] {
+        let theme = catalog.get(id).unwrap();
+        assert_eq!(theme.background, "black", "{id}");
+        assert_eq!(theme.foreground, "white", "{id}");
+    }
+
+    let nord = catalog.get("nord").unwrap();
+    assert_eq!(nord.dim, "#81a1c1");
+    let styles = nord.styles().unwrap();
+    assert!(
+        contrast_ratio(styles.base.bg.unwrap(), styles.dim.fg.unwrap()) >= 4.5,
+        "Nord dim text must meet WCAG AA contrast"
+    );
+}
+
+#[test]
+fn error_and_cursor_roles_have_non_color_emphasis() {
+    let catalog = ThemeCatalog::load_builtins().unwrap();
+
+    for id in catalog.ids() {
+        let styles = catalog.get(id).unwrap().styles().unwrap();
+        assert!(
+            styles
+                .error
+                .add_modifier
+                .contains(Modifier::BOLD | Modifier::UNDERLINED),
+            "{id} error"
+        );
+        assert!(
+            styles
+                .cursor
+                .add_modifier
+                .contains(Modifier::BOLD | Modifier::REVERSED),
+            "{id} cursor"
         );
     }
 }
@@ -445,6 +523,7 @@ fn nord_offline_license_notice_lf_and_package_closure_are_pinned() {
         "b931ac3732582b2066b2d6cadec02d9820ba7081e6e3e404c31cb62d9315a962",
         "25ac8188d670bd2ad2ce2f4f55ab88573010ee9f7a4502543cb1eea1e2274f8a",
         "unchanged hex values",
+        "`#81a1c1` dim",
     ] {
         assert!(
             notice.contains(required),

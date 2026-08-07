@@ -1,4 +1,5 @@
 use crate::model::Language;
+use std::ffi::OsStr;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum TextKey {
@@ -215,11 +216,57 @@ pub const fn text(language: Language, key: TextKey) -> &'static str {
 }
 
 pub fn initial_ui_language(lc_all: Option<&str>, lang: Option<&str>) -> Language {
-    let locale = lc_all.or(lang).unwrap_or_default();
+    initial_ui_language_os(lc_all.map(OsStr::new), lang.map(OsStr::new))
+}
+
+pub(crate) fn initial_ui_language_os(lc_all: Option<&OsStr>, lang: Option<&OsStr>) -> Language {
+    let locale = lc_all.or(lang).and_then(OsStr::to_str).unwrap_or_default();
     let prefix = locale.split(['_', '-', '.']).next().unwrap_or_default();
     if prefix.eq_ignore_ascii_case("ko") {
         Language::Ko
     } else {
         Language::En
+    }
+}
+
+#[cfg(test)]
+mod locale_tests {
+    use super::initial_ui_language_os;
+    use crate::model::Language;
+
+    #[cfg(unix)]
+    #[test]
+    fn present_non_unicode_lc_all_wins_over_korean_lang_as_english() {
+        use std::{
+            ffi::{OsStr, OsString},
+            os::unix::ffi::OsStringExt,
+        };
+
+        let non_unicode = OsString::from_vec(vec![0xff]);
+        assert_eq!(
+            initial_ui_language_os(
+                Some(non_unicode.as_os_str()),
+                Some(OsStr::new("ko_KR.UTF-8")),
+            ),
+            Language::En
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn present_non_unicode_lc_all_wins_over_korean_lang_as_english() {
+        use std::{
+            ffi::{OsStr, OsString},
+            os::windows::ffi::OsStringExt,
+        };
+
+        let non_unicode = OsString::from_wide(&[0xd800]);
+        assert_eq!(
+            initial_ui_language_os(
+                Some(non_unicode.as_os_str()),
+                Some(OsStr::new("ko_KR.UTF-8")),
+            ),
+            Language::En
+        );
     }
 }

@@ -1,6 +1,6 @@
 schema_version = 1
 id = "default"
-background = "reset"
+background = "black"
 foreground = "white"
 accent = "cyan"
 correct = "green"

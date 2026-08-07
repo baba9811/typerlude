@@ -182,7 +182,10 @@ https://raw.githubusercontent.com/nordtheme/nord/1cef71605416a222e57225b544540ce
 `b931ac3732582b2066b2d6cadec02d9820ba7081e6e3e404c31cb62d9315a962`).
 Typeul maps unchanged hex values from that palette to its theme roles:
 `#2e3440` background, `#d8dee9` foreground, `#88c0d0` accent, `#a3be8c`
-correct, `#bf616a` error, `#ebcb8b` cursor, and `#4c566a` dim.
+correct, `#bf616a` error, `#ebcb8b` cursor, and `#81a1c1` dim. The dim value
+provides at least 4.5:1 contrast against the background. Typeul also renders
+errors bold and underlined, and renders the cursor bold and reversed, so color
+is not the only signal for either role.
 
 Nord is distributed under the MIT License. Its byte-identical license is
 bundled at `assets/licenses/NORD-MIT.txt` (1,132 bytes, SHA-256

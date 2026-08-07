@@ -1,11 +1,11 @@
 use crate::{
-    i18n::initial_ui_language,
+    i18n::initial_ui_language_os,
     model::Language,
     storage::{AppPaths, LoadWarning, atomic_write},
 };
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
-use std::{fs, io::ErrorKind};
+use std::{ffi::OsStr, fs, io::ErrorKind};
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -57,26 +57,38 @@ pub struct ConfigLoad {
 
 impl Settings {
     pub fn load(paths: &AppPaths) -> Result<ConfigLoad> {
-        let lc_all = std::env::var("LC_ALL").ok();
-        let lang = std::env::var("LANG").ok();
+        let lc_all = std::env::var_os("LC_ALL");
+        let lang = std::env::var_os("LANG");
         Self::load_with_locale(paths, lc_all.as_deref(), lang.as_deref())
     }
 
     fn load_with_locale(
         paths: &AppPaths,
-        lc_all: Option<&str>,
-        lang: Option<&str>,
+        lc_all: Option<&OsStr>,
+        lang: Option<&OsStr>,
     ) -> Result<ConfigLoad> {
         let bytes = match fs::read(&paths.config) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == ErrorKind::NotFound => {
-                return Ok(ConfigLoad {
-                    value: Self {
-                        ui_language: initial_ui_language(lc_all, lang),
-                        ..Self::default()
-                    },
-                    warnings: Vec::new(),
-                });
+                match fs::symlink_metadata(&paths.config) {
+                    Err(metadata_error) if metadata_error.kind() == ErrorKind::NotFound => {
+                        return Ok(ConfigLoad {
+                            value: Self {
+                                ui_language: initial_ui_language_os(lc_all, lang),
+                                ..Self::default()
+                            },
+                            warnings: Vec::new(),
+                        });
+                    }
+                    Ok(_) => {}
+                    Err(metadata_error) => {
+                        return Err(metadata_error).with_context(|| {
+                            format!("failed to inspect {}", paths.config.display())
+                        });
+                    }
+                }
+                return Err(error)
+                    .with_context(|| format!("failed to read {}", paths.config.display()));
             }
             Err(error) => {
                 return Err(error)
@@ -139,7 +151,7 @@ impl Settings {
 mod locale_tests {
     use super::Settings;
     use crate::{model::Language, storage::AppPaths};
-    use std::{fs, path::PathBuf};
+    use std::{ffi::OsStr, fs, path::PathBuf};
 
     #[test]
     fn locale_applies_only_to_a_genuinely_missing_config() {
@@ -150,20 +162,25 @@ mod locale_tests {
         ));
         let paths = AppPaths::from_override(PathBuf::from(&root));
 
-        let missing = Settings::load_with_locale(&paths, Some("ko_KR.UTF-8"), Some("en")).unwrap();
+        let missing = Settings::load_with_locale(
+            &paths,
+            Some(OsStr::new("ko_KR.UTF-8")),
+            Some(OsStr::new("en")),
+        )
+        .unwrap();
         assert_eq!(missing.value.ui_language, Language::Ko);
         assert!(missing.warnings.is_empty());
         assert!(!paths.config.exists());
 
         fs::create_dir_all(&root).unwrap();
         fs::write(&paths.config, b"schema_version = 1\nui_language = \"en\"\n").unwrap();
-        let saved = Settings::load_with_locale(&paths, Some("ko"), None).unwrap();
+        let saved = Settings::load_with_locale(&paths, Some(OsStr::new("ko")), None).unwrap();
         assert_eq!(saved.value.ui_language, Language::En);
         assert!(saved.warnings.is_empty());
 
         let corrupt = b"schema_version = [";
         fs::write(&paths.config, corrupt).unwrap();
-        let loaded = Settings::load_with_locale(&paths, Some("ko"), None).unwrap();
+        let loaded = Settings::load_with_locale(&paths, Some(OsStr::new("ko")), None).unwrap();
         assert_eq!(loaded.value, Settings::default());
         assert_eq!(loaded.warnings.len(), 1);
         assert_eq!(loaded.warnings[0].path, paths.config);

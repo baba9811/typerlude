@@ -1,7 +1,7 @@
 use crate::storage::LoadWarning;
 use anyhow::{Context, Result, bail};
 use include_dir::{Dir, include_dir};
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
 use std::{
     collections::HashSet,
@@ -54,23 +54,22 @@ pub fn parse_theme(source: &str) -> Result<ThemeSpec> {
 }
 
 impl ThemeSpec {
-    pub fn styles(&self) -> ThemeStyles {
-        let background = parse_color(&self.background).expect("validated theme background");
-        let role = |value: &str| {
-            Style::default()
-                .fg(parse_color(value).expect("validated theme color"))
-                .bg(background)
+    pub fn styles(&self) -> Result<ThemeStyles> {
+        self.validate()?;
+        let background = parse_color(&self.background)?;
+        let role = |value: &str| -> Result<Style> {
+            Ok(Style::default().fg(parse_color(value)?).bg(background))
         };
-        ThemeStyles {
+        Ok(ThemeStyles {
             base: Style::default()
-                .fg(parse_color(&self.foreground).expect("validated theme foreground"))
+                .fg(parse_color(&self.foreground)?)
                 .bg(background),
-            accent: role(&self.accent),
-            correct: role(&self.correct),
-            error: role(&self.error),
-            cursor: role(&self.cursor),
-            dim: role(&self.dim),
-        }
+            accent: role(&self.accent)?,
+            correct: role(&self.correct)?,
+            error: role(&self.error)?.add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+            cursor: role(&self.cursor)?.add_modifier(Modifier::BOLD | Modifier::REVERSED),
+            dim: role(&self.dim)?,
+        })
     }
 
     fn validate(&self) -> Result<()> {
