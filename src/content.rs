@@ -3,7 +3,7 @@ use crate::{
     typing::normalize_nfc,
 };
 use anyhow::{Context, Result, bail};
-use include_dir::{Dir, include_dir};
+use include_dir::{Dir, File, include_dir};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
@@ -99,13 +99,23 @@ const ALLOWED_LICENSES: &[&str] = &[
 
 static BUILTIN: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/content");
 
-fn builtin_pack_sources() -> impl Iterator<Item = (&'static str, &'static str)> {
-    BUILTIN.files().filter_map(|file| {
-        if file.path().extension()?.to_str()? != "toml" {
-            return None;
-        }
-        Some((file.path().to_str()?, file.contents_utf8()?))
-    })
+fn builtin_pack_source<'file, 'data>(
+    file: &'file File<'data>,
+) -> Result<Option<(&'data str, &'file str)>> {
+    if file.path().extension().and_then(|ext| ext.to_str()) != Some("toml") {
+        return Ok(None);
+    }
+    let path = file.path().to_str().expect("include_dir paths are UTF-8");
+    let contents = file
+        .contents_utf8()
+        .with_context(|| format!("built-in pack {path} is not valid UTF-8"))?;
+    Ok(Some((path, contents)))
+}
+
+fn builtin_pack_sources() -> impl Iterator<Item = Result<(&'static str, &'static str)>> {
+    BUILTIN
+        .files()
+        .filter_map(|file| builtin_pack_source(file).transpose())
 }
 
 pub fn parse_pack(source: &str) -> Result<ContentPack> {
@@ -199,7 +209,7 @@ impl ContentPack {
 impl ContentCatalog {
     pub fn load_builtins() -> Result<Self> {
         let mut catalog = Self::default();
-        let mut sources: Vec<_> = builtin_pack_sources().collect();
+        let mut sources: Vec<_> = builtin_pack_sources().collect::<Result<_>>()?;
         sources.sort_unstable_by_key(|(path, _)| *path);
 
         for (path, source) in sources {
@@ -429,6 +439,7 @@ fn format_errors(errors: &[ContentError]) -> String {
 mod tests {
     use super::{ContentCatalog, ContentKind, parse_pack, validate_builtin_words, validate_pack};
     use crate::model::{Difficulty, Language};
+    use include_dir::File;
     use std::{
         fs,
         path::PathBuf,
@@ -460,6 +471,13 @@ difficulty = 2
 "#,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn invalid_utf8_builtin_toml_is_an_error() {
+        let file = File::new("invalid.toml", b"\xff");
+        let error = super::builtin_pack_source(&file).unwrap_err();
+        assert!(error.to_string().contains("invalid.toml"));
     }
 
     fn temp_dir(name: &str) -> PathBuf {
