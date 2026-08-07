@@ -7,7 +7,8 @@ use include_dir::{Dir, File, include_dir};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs::{self, File as FsFile},
+    io::Read,
     path::Path,
 };
 use unicode_segmentation::UnicodeSegmentation;
@@ -96,6 +97,7 @@ const ALLOWED_LICENSES: &[&str] = &[
     "KOGL-1.0",
     "LicenseRef-Public-Domain",
 ];
+pub(crate) const MAX_CONTENT_BYTES: usize = 8 * 1024 * 1024;
 
 static BUILTIN: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/content");
 
@@ -132,6 +134,9 @@ pub fn validate_pack(pack: &ContentPack) -> Vec<ContentError> {
     }
     if pack.id.trim().is_empty() {
         errors.push(error(pack, None, "id", "must not be empty"));
+    }
+    if pack.items.is_empty() {
+        errors.push(error(pack, None, "items", "must not be empty"));
     }
     validate_source(pack, None, &pack.source, &mut errors);
 
@@ -248,7 +253,14 @@ impl ContentCatalog {
                 .and_then(|name| name.to_str())
                 .unwrap_or("unknown")
                 .to_owned();
-            let source = match fs::read_to_string(&path) {
+            let bytes = match read_pack_bytes(&path) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    warnings.push(file_error(&fallback_id, error.to_string()));
+                    continue;
+                }
+            };
+            let source = match String::from_utf8(bytes) {
                 Ok(source) => source,
                 Err(error) => {
                     warnings.push(file_error(&fallback_id, error.to_string()));
@@ -276,6 +288,16 @@ impl ContentCatalog {
 
     pub fn items(&self) -> impl Iterator<Item = &ResolvedItem> {
         self.items.iter()
+    }
+
+    pub fn validate_candidate(&self, pack: &ContentPack) -> Vec<ContentError> {
+        let mut errors = validate_pack(pack);
+        errors.extend(self.conflicts(pack));
+        errors
+    }
+
+    pub fn contains_pack(&self, id: &str) -> bool {
+        self.pack_ids.contains(id)
     }
 
     pub fn count(&self, language: Language, kind: ContentKind) -> usize {
@@ -350,6 +372,21 @@ impl ContentCatalog {
         self.items.extend(items);
         Ok(())
     }
+}
+
+pub(crate) fn read_pack_bytes(path: &Path) -> Result<Vec<u8>> {
+    let file = FsFile::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+    let mut bytes = Vec::new();
+    file.take(MAX_CONTENT_BYTES as u64 + 1)
+        .read_to_end(&mut bytes)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+    if bytes.len() > MAX_CONTENT_BYTES {
+        bail!(
+            "content pack exceeds the {} MiB limit",
+            MAX_CONTENT_BYTES / 1024 / 1024
+        );
+    }
+    Ok(bytes)
 }
 
 fn validate_builtin_words(pack: &ContentPack) -> Vec<ContentError> {
