@@ -6,12 +6,14 @@ is released under CC0 1.0 Universal. Third-party material keeps the license or
 public-domain status stated below; MIT does not replace those terms.
 
 The complete offline legal texts are bundled at
-`assets/licenses/CC0-1.0.txt` and `assets/licenses/CC-BY-2.0-FR.txt`.
+`assets/licenses/CC0-1.0.txt`, `assets/licenses/CC-BY-2.0-FR.txt`, and
+`assets/licenses/NORD-MIT.txt`.
 The canonical online texts are:
 
 - CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt
 - Creative Commons Attribution 2.0 France (`CC-BY-2.0-FR`):
   https://creativecommons.org/licenses/by/2.0/fr/legalcode.fr
+- Nord MIT license: https://github.com/nordtheme/nord/blob/1cef71605416a222e57225b544540ce0fcec18d4/license
 
 License sources were retrieved `2026-08-07`:
 
@@ -169,3 +171,20 @@ or adaptation was copied.
   the Hare Retold”: the ancient Aesopic fable The Tortoise and the Hare.
 - `en-text-retelling-stone-soup`, “The Empty Pot — Stone Soup Retold”: the
   traditional European folktale Stone Soup.
+
+## Nord theme palette
+
+The bundled `nord` theme uses the official
+[Nord](https://github.com/nordtheme/nord) palette, package 0.2.1, pinned at
+commit `1cef71605416a222e57225b544540ce0fcec18d4`. The palette source is
+https://raw.githubusercontent.com/nordtheme/nord/1cef71605416a222e57225b544540ce0fcec18d4/src/nord.css
+(5,380 bytes, SHA-256
+`b931ac3732582b2066b2d6cadec02d9820ba7081e6e3e404c31cb62d9315a962`).
+Typeul maps unchanged hex values from that palette to its theme roles:
+`#2e3440` background, `#d8dee9` foreground, `#88c0d0` accent, `#a3be8c`
+correct, `#bf616a` error, `#ebcb8b` cursor, and `#4c566a` dim.
+
+Nord is distributed under the MIT License. Its byte-identical license is
+bundled at `assets/licenses/NORD-MIT.txt` (1,132 bytes, SHA-256
+`25ac8188d670bd2ad2ce2f4f55ab88573010ee9f7a4502543cb1eea1e2274f8a`).
+Copyright (c) 2016-present Sven Greb <development@svengreb.de> (https://www.svengreb.de).

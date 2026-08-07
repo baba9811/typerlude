@@ -1,4 +1,5 @@
 use crate::{
+    i18n::initial_ui_language,
     model::Language,
     storage::{AppPaths, LoadWarning, atomic_write},
 };
@@ -56,11 +57,24 @@ pub struct ConfigLoad {
 
 impl Settings {
     pub fn load(paths: &AppPaths) -> Result<ConfigLoad> {
+        let lc_all = std::env::var("LC_ALL").ok();
+        let lang = std::env::var("LANG").ok();
+        Self::load_with_locale(paths, lc_all.as_deref(), lang.as_deref())
+    }
+
+    fn load_with_locale(
+        paths: &AppPaths,
+        lc_all: Option<&str>,
+        lang: Option<&str>,
+    ) -> Result<ConfigLoad> {
         let bytes = match fs::read(&paths.config) {
             Ok(bytes) => bytes,
             Err(error) if error.kind() == ErrorKind::NotFound => {
                 return Ok(ConfigLoad {
-                    value: Self::default(),
+                    value: Self {
+                        ui_language: initial_ui_language(lc_all, lang),
+                        ..Self::default()
+                    },
                     warnings: Vec::new(),
                 });
             }
@@ -118,5 +132,43 @@ impl Settings {
             bail!("daily_minutes must be between 1 and 1440");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod locale_tests {
+    use super::Settings;
+    use crate::{model::Language, storage::AppPaths};
+    use std::{fs, path::PathBuf};
+
+    #[test]
+    fn locale_applies_only_to_a_genuinely_missing_config() {
+        let root = std::env::temp_dir().join(format!(
+            "typeul-config-locale-{}-{}",
+            std::process::id(),
+            fastrand::u64(..)
+        ));
+        let paths = AppPaths::from_override(PathBuf::from(&root));
+
+        let missing = Settings::load_with_locale(&paths, Some("ko_KR.UTF-8"), Some("en")).unwrap();
+        assert_eq!(missing.value.ui_language, Language::Ko);
+        assert!(missing.warnings.is_empty());
+        assert!(!paths.config.exists());
+
+        fs::create_dir_all(&root).unwrap();
+        fs::write(&paths.config, b"schema_version = 1\nui_language = \"en\"\n").unwrap();
+        let saved = Settings::load_with_locale(&paths, Some("ko"), None).unwrap();
+        assert_eq!(saved.value.ui_language, Language::En);
+        assert!(saved.warnings.is_empty());
+
+        let corrupt = b"schema_version = [";
+        fs::write(&paths.config, corrupt).unwrap();
+        let loaded = Settings::load_with_locale(&paths, Some("ko"), None).unwrap();
+        assert_eq!(loaded.value, Settings::default());
+        assert_eq!(loaded.warnings.len(), 1);
+        assert_eq!(loaded.warnings[0].path, paths.config);
+        assert_eq!(fs::read(&paths.config).unwrap(), corrupt);
+
+        fs::remove_dir_all(root).unwrap();
     }
 }

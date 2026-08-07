@@ -1,0 +1,9 @@
+schema_version = 1
+id = "minimal"
+background = "reset"
+foreground = "white"
+accent = "white"
+correct = "green"
+error = "red"
+cursor = "white"
+dim = "gray"

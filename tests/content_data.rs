@@ -616,7 +616,11 @@ fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() 
         .collect::<BTreeSet<_>>();
     assert_eq!(
         shipped,
-        BTreeSet::from(["CC-BY-2.0-FR.txt".to_owned(), "CC0-1.0.txt".to_owned(),])
+        BTreeSet::from([
+            "CC-BY-2.0-FR.txt".to_owned(),
+            "CC0-1.0.txt".to_owned(),
+            "NORD-MIT.txt".to_owned(),
+        ])
     );
 
     let cc0_path = license_dir.join("CC0-1.0.txt");

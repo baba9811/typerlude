@@ -283,6 +283,8 @@ fn version_help_licenses_and_paths_are_headless() {
         "THIRD_PARTY_NOTICES.md",
         "CC0 1.0 Universal",
         "Attribution 2.0 France",
+        "assets/licenses/NORD-MIT.txt",
+        "Sven Greb",
     ] {
         assert!(stdout(&licenses).contains(text), "{text}");
     }

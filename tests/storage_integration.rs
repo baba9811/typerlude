@@ -14,6 +14,7 @@ use std::{
 use time::{OffsetDateTime, macros::date};
 use typeul::{
     config::Settings,
+    i18n::initial_ui_language,
     model::{Language, PracticeKind},
     practice::PracticeEngine,
     storage::{AppPaths, SessionRecord, load_sessions, save_session},
@@ -86,7 +87,11 @@ fn missing_and_partial_config_use_defaults_without_eager_writes() {
     let paths = AppPaths::from_override(root.path().join("home"));
 
     let missing = Settings::load(&paths).unwrap();
-    assert_eq!(missing.value, Settings::default());
+    let mut expected = Settings::default();
+    let lc_all = std::env::var("LC_ALL").ok();
+    let lang = std::env::var("LANG").ok();
+    expected.ui_language = initial_ui_language(lc_all.as_deref(), lang.as_deref());
+    assert_eq!(missing.value, expected);
     assert!(missing.warnings.is_empty());
     assert!(!paths.config.exists());
 

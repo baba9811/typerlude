@@ -695,6 +695,10 @@ fn print_licenses() {
         "\n===== assets/licenses/CC-BY-2.0-FR.txt =====\n{}",
         include_str!("../assets/licenses/CC-BY-2.0-FR.txt")
     );
+    println!(
+        "\n===== assets/licenses/NORD-MIT.txt =====\n{}",
+        include_str!("../assets/licenses/NORD-MIT.txt")
+    );
 }
 
 fn smoke() -> Result<()> {
