@@ -1,6 +1,13 @@
 use crossterm::event::{
     Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind,
 };
+use ratatui::{
+    Terminal,
+    backend::TestBackend,
+    buffer::{Buffer, Cell},
+    layout::Rect,
+    style::Style,
+};
 use std::{
     collections::{BTreeMap, HashSet},
     fs,
@@ -14,10 +21,13 @@ use typeul::{
     config::Settings,
     content::ContentCatalog,
     model::{Difficulty, Language, PracticeKind},
-    practice::InputOutcome,
+    practice::{InputOutcome, PracticeEngine},
+    stats::KeyAccuracy,
     storage::{AppPaths, SessionRecord},
     theme::ThemeCatalog,
+    ui::{practice_cursor, render},
 };
+use unicode_width::UnicodeWidthStr;
 
 static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
 
@@ -143,6 +153,753 @@ fn result_view(id: &str) -> ResultView {
         grade: None,
         save_error: Some("preserve this result".into()),
     }
+}
+
+struct Drawn {
+    buffer: Buffer,
+    cursor: Option<(u16, u16)>,
+}
+
+fn draw(app: &App, width: u16, height: u16) -> Drawn {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).unwrap();
+    terminal.draw(|frame| render(frame, app)).unwrap();
+    let backend = terminal.backend();
+    let cursor = backend.cursor_visible().then(|| {
+        let position = backend.cursor_position();
+        (position.x, position.y)
+    });
+    Drawn {
+        buffer: backend.buffer().clone(),
+        cursor,
+    }
+}
+
+fn buffer_text(buffer: &Buffer) -> String {
+    buffer
+        .content
+        .chunks(buffer.area.width as usize)
+        .map(|row| {
+            let mut output = String::new();
+            let mut hidden = 0_usize;
+            for cell in row {
+                if hidden == 0 {
+                    output.push_str(cell.symbol());
+                }
+                hidden = hidden
+                    .max(UnicodeWidthStr::width(cell.symbol()))
+                    .saturating_sub(1);
+            }
+            output
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn required_label(screen: Screen, language: Language) -> &'static str {
+    match (screen, language) {
+        (Screen::Home, Language::Ko) => "타이플",
+        (Screen::Home, Language::En) => "Typeul",
+        (Screen::ModeSelect, Language::Ko) => "빠른 연습",
+        (Screen::ModeSelect, Language::En) => "Quick practice",
+        (Screen::Practice, Language::Ko) => "진행",
+        (Screen::Practice, Language::En) => "Progress",
+        (Screen::Result, Language::Ko) => "결과",
+        (Screen::Result, Language::En) => "Result",
+        (Screen::Stats, Language::Ko) => "통계",
+        (Screen::Stats, Language::En) => "Statistics",
+        (Screen::History, Language::Ko) => "기록",
+        (Screen::History, Language::En) => "History",
+        (Screen::WeakKeys, Language::Ko) => "약한 키",
+        (Screen::WeakKeys, Language::En) => "Weak keys",
+        (Screen::Goals, Language::Ko) => "목표",
+        (Screen::Goals, Language::En) => "Goals",
+        (Screen::Content, Language::Ko) => "콘텐츠",
+        (Screen::Content, Language::En) => "Content",
+        (Screen::ContentDetail, Language::Ko) => "출처",
+        (Screen::ContentDetail, Language::En) => "Sources",
+        (Screen::Settings, Language::Ko) => "설정",
+        (Screen::Settings, Language::En) => "Settings",
+        (Screen::Themes, Language::Ko) => "테마",
+        (Screen::Themes, Language::En) => "Theme",
+        (Screen::Help, Language::Ko) => "도움말",
+        (Screen::Help, Language::En) => "Help",
+    }
+}
+
+fn assert_role_style(cell: &Cell, expected: Style) {
+    assert_eq!(Some(cell.fg), expected.fg);
+    assert_eq!(Some(cell.bg), expected.bg);
+    assert_eq!(cell.modifier, expected.add_modifier);
+}
+
+#[test]
+fn engine_exposes_only_the_borrowed_target_render_view() {
+    let start = Instant::now();
+    let mut engine =
+        PracticeEngine::new(Language::Ko, PracticeKind::Sentence, "한글\n🙂", None).unwrap();
+    engine.input("한강", start);
+
+    assert_eq!(engine.cursor(), 2);
+    assert_eq!(engine.target_len(), 4);
+    assert_eq!(
+        engine
+            .target_cells()
+            .map(|(grapheme, entered)| (grapheme.to_owned(), entered))
+            .collect::<Vec<_>>(),
+        [
+            ("한".into(), Some(true)),
+            ("글".into(), Some(false)),
+            ("\n".into(), None),
+            ("🙂".into(), None),
+        ]
+    );
+}
+
+#[test]
+fn every_screen_renders_its_bilingual_identity_at_supported_sizes() {
+    for language in [Language::Ko, Language::En] {
+        for screen in Screen::ALL {
+            for (width, height) in [(80, 24), (120, 40)] {
+                let (_root, mut app) = fixture_app();
+                app.settings.ui_language = language;
+                app.open(screen);
+
+                let drawn = draw(&app, width, height);
+                let output = buffer_text(&drawn.buffer);
+                assert!(
+                    output.contains(required_label(screen, language)),
+                    "{language:?} {screen:?} at {width}x{height}: {output}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn home_renders_exactly_ten_actions_and_marks_the_focused_one() {
+    let (_root, mut app) = fixture_app();
+    for _ in 0..3 {
+        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+    }
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for action in [
+        "Quick practice",
+        "Key practice",
+        "Word practice",
+        "Sentence practice",
+        "Long-text practice",
+        "Typing test",
+        "Statistics",
+        "Goals",
+        "Content",
+        "Settings",
+    ] {
+        assert_eq!(output.matches(action).count(), 1, "{action}: {output}");
+    }
+    assert!(output.contains("> Sentence practice"), "{output}");
+}
+
+#[test]
+fn tiny_terminals_return_before_layout_and_hide_the_cursor() {
+    for language in [Language::Ko, Language::En] {
+        for (width, height) in [(1, 1), (40, 10), (79, 23)] {
+            let (_root, mut app) = fixture_app();
+            app.settings.ui_language = language;
+            app.start_mode(
+                request(
+                    PracticeKind::Words,
+                    language,
+                    if language == Language::Ko {
+                        "한글"
+                    } else {
+                        "text"
+                    },
+                    StopRule::TargetEnd,
+                ),
+                Instant::now(),
+            )
+            .unwrap();
+
+            let drawn = draw(&app, width, height);
+            let output = buffer_text(&drawn.buffer);
+            assert!(!output.contains(required_label(Screen::Home, language)));
+            assert_eq!(drawn.cursor, None, "{width}x{height}");
+            if width >= 40 && height >= 10 {
+                assert!(!output.contains(required_label(Screen::Practice, language)));
+                assert!(
+                    output.contains(match language {
+                        Language::Ko => "터미널이 너무 작습니다",
+                        Language::En => "Terminal is too small",
+                    }),
+                    "{output}"
+                );
+                assert!(output.contains("80x24"), "{output}");
+                assert!(output.contains(&format!("{width}x{height}")), "{output}");
+            }
+        }
+    }
+}
+
+#[test]
+fn practice_uses_role_styles_and_places_the_unicode_newline_cursor() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Sentence,
+            Language::Ko,
+            "한x\n🙂e\u{301}Z",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+    app.active_practice_mut()
+        .unwrap()
+        .engine
+        .input("한q\n", start);
+
+    let drawn = draw(&app, 80, 24);
+    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    assert_eq!(drawn.cursor, Some((1, 2)));
+    assert_eq!(drawn.buffer[(1, 1)].symbol(), "한");
+    assert_role_style(&drawn.buffer[(1, 1)], styles.correct);
+    assert_eq!(drawn.buffer[(3, 1)].symbol(), "x");
+    assert_role_style(&drawn.buffer[(3, 1)], styles.error);
+    assert_eq!(drawn.buffer[(1, 2)].symbol(), "🙂");
+    assert_role_style(&drawn.buffer[(1, 2)], styles.cursor);
+    assert_eq!(drawn.buffer[(3, 2)].symbol(), "é");
+    assert_role_style(&drawn.buffer[(3, 2)], styles.dim);
+}
+
+#[test]
+fn practice_cursor_handles_wrapping_wrong_full_length_and_bounds() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Sentence,
+            Language::Ko,
+            "한ab🙂c",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+    let active = app.active_practice_mut().unwrap();
+    active.engine.input("한ab", start);
+    assert_eq!(practice_cursor(Rect::new(5, 7, 4, 2), active), Some((5, 8)));
+
+    active.engine.input("x?", start);
+    assert_eq!(active.engine.cursor(), active.engine.target_len());
+    assert_eq!(practice_cursor(Rect::new(5, 7, 4, 2), active), Some((8, 8)));
+    assert_eq!(practice_cursor(Rect::new(5, 7, 4, 1), active), Some((8, 7)));
+    assert_eq!(practice_cursor(Rect::new(5, 7, 0, 2), active), None);
+    assert_eq!(practice_cursor(Rect::new(5, 7, 4, 0), active), None);
+}
+
+#[test]
+fn practice_cursor_matches_the_rendered_row_for_an_oversized_grapheme() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Sentence,
+            Language::En,
+            "🙂a",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+    let active = app.active_practice_mut().unwrap();
+    active.engine.input("🙂", start);
+
+    assert_eq!(practice_cursor(Rect::new(5, 7, 1, 3), active), Some((5, 8)));
+}
+
+#[test]
+fn payload_free_practice_and_result_render_localized_no_data() {
+    for language in [Language::Ko, Language::En] {
+        for screen in [Screen::Practice, Screen::Result] {
+            let (_root, mut app) = fixture_app();
+            app.settings.ui_language = language;
+            app.open(screen);
+            let output = buffer_text(&draw(&app, 80, 24).buffer);
+            assert!(
+                output.contains(match language {
+                    Language::Ko => "데이터 없음",
+                    Language::En => "No data",
+                }),
+                "{language:?} {screen:?}: {output}"
+            );
+        }
+    }
+}
+
+#[test]
+fn content_detail_preserves_exact_provenance_values() {
+    let (_root, mut app) = fixture_app();
+    app.open(Screen::ContentDetail);
+    let output = buffer_text(&draw(&app, 120, 40).buffer);
+
+    for value in [
+        "en-tatoeba-331259",
+        "Tatoeba CC0 contributors",
+        "tatoeba:331259",
+        "https://tatoeba.org/en/sentences/show/331259",
+        "CC0-1.0",
+        "https://creativecommons.org/publicdomain/zero/1.0/",
+        "2026-08-07",
+        "modified: no",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
+    }
+}
+
+#[test]
+fn stats_shows_default_ranges_no_data_and_stored_session_data() {
+    let (_root, mut app) = fixture_app();
+    app.open(Screen::Stats);
+    let empty = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(empty.contains("7  [30]  90  All"), "{empty}");
+    assert!(empty.contains("No data"), "{empty}");
+
+    app.sessions.push(result_view("visible-session").session);
+    let populated = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(populated.contains("Sessions: 1"), "{populated}");
+    assert!(populated.contains("Accuracy: 100.0%"), "{populated}");
+    assert!(!populated.contains("No data"), "{populated}");
+}
+
+#[test]
+fn stats_with_multiple_sessions_renders_a_real_speed_chart() {
+    let (_root, mut app) = fixture_app();
+    let mut first = result_view("chart-first").session;
+    first.wpm = 12.0;
+    let mut second = result_view("chart-second").session;
+    second.wpm = 24.0;
+    app.sessions.extend([first, second]);
+    app.open(Screen::Stats);
+
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("Speed trend"), "{output}");
+    assert!(
+        drawn.buffer.content.iter().any(|cell| {
+            cell.symbol()
+                .chars()
+                .any(|character| ('\u{2801}'..='\u{28ff}').contains(&character))
+        }),
+        "chart has no visible Braille data: {output}"
+    );
+}
+
+#[test]
+fn stats_uses_the_selected_language_and_30_days_from_the_latest_stored_date() {
+    let (_root, mut app) = fixture_app();
+    app.settings.language = Language::En;
+    app.warnings.clear();
+    let mut recent = result_view("recent-en").session;
+    recent.local_date = date!(2026 - 08 - 06);
+    recent.wpm = 20.0;
+    recent.accuracy = 80.0;
+    let mut boundary = result_view("boundary-en").session;
+    boundary.local_date = date!(2026 - 07 - 09);
+    boundary.wpm = 40.0;
+    boundary.accuracy = 100.0;
+    let mut too_old = result_view("old-en").session;
+    too_old.local_date = date!(2026 - 07 - 08);
+    too_old.wpm = 999.0;
+    let mut latest_other_language = result_view("latest-ko").session;
+    latest_other_language.local_date = date!(2026 - 08 - 07);
+    latest_other_language.language = Language::Ko;
+    latest_other_language.kpm = 777.0;
+    app.sessions
+        .extend([recent, boundary, too_old, latest_other_language]);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("Sessions: 2"), "{output}");
+    assert!(output.contains("Accuracy: 90.0%"), "{output}");
+    assert!(output.contains("WPM 30.0/40.0"), "{output}");
+    assert!(!output.contains("KPM "), "{output}");
+    assert!(!output.contains("999.0"), "{output}");
+    assert!(!output.contains("777.0"), "{output}");
+}
+
+#[test]
+fn stats_trends_are_chronological_regardless_of_storage_order() {
+    let (_first_root, mut first) = fixture_app();
+    let (_second_root, mut second) = fixture_app();
+    for app in [&mut first, &mut second] {
+        app.settings.language = Language::En;
+        app.warnings.clear();
+        app.open(Screen::Stats);
+    }
+    let mut older = result_view("older-en").session;
+    older.local_date = date!(2026 - 08 - 06);
+    older.started_at_unix_ms = 1;
+    older.wpm = 10.0;
+    let mut newer = result_view("newer-en").session;
+    newer.local_date = date!(2026 - 08 - 07);
+    newer.started_at_unix_ms = 2;
+    newer.wpm = 90.0;
+    first.sessions.extend([newer.clone(), older.clone()]);
+    second.sessions.extend([older, newer]);
+
+    assert_eq!(draw(&first, 80, 24).buffer, draw(&second, 80, 24).buffer);
+}
+
+#[test]
+fn stats_with_no_selected_language_session_in_30_days_renders_no_data() {
+    let (_root, mut app) = fixture_app();
+    app.settings.language = Language::En;
+    app.warnings.clear();
+    let mut korean = result_view("only-ko").session;
+    korean.language = Language::Ko;
+    korean.local_date = date!(2026 - 08 - 07);
+    app.sessions.push(korean);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("No data"), "{output}");
+    assert!(!output.contains("Sessions:"), "{output}");
+}
+
+#[test]
+fn non_finite_stored_accuracy_cannot_panic_stats_rendering() {
+    let (_root, mut app) = fixture_app();
+    let mut session = result_view("nan-accuracy").session;
+    session.accuracy = f64::NAN;
+    app.sessions.push(session);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("Accuracy: 0.0%"), "{output}");
+}
+
+#[test]
+fn korean_data_screens_do_not_fall_back_to_english_prose() {
+    let (_root, mut app) = fixture_app();
+    app.settings.ui_language = Language::Ko;
+    app.settings.language = Language::Ko;
+    app.settings.daily_minutes = 22;
+    app.sessions.push(result_view("korean-row").session);
+
+    for (screen, required, forbidden) in [
+        (Screen::Stats, "7  [30]  90  전체", "All"),
+        (Screen::History, "단어 연습", "Words"),
+        (Screen::Content, "문장 연습", "Sentence"),
+        (Screen::ContentDetail, "수정됨: 아니요", "modified: no"),
+        (Screen::Goals, "22분", "22 min"),
+        (Screen::Settings, "키보드: 켜짐", "keyboard: true"),
+    ] {
+        app.open(screen);
+        let output = buffer_text(&draw(&app, 80, 24).buffer);
+        assert!(output.contains(required), "{screen:?}: {output}");
+        assert!(!output.contains(forbidden), "{screen:?}: {output}");
+    }
+
+    app.open(Screen::Settings);
+    let settings = buffer_text(&draw(&app, 80, 24).buffer);
+    for required in [
+        "손가락 안내: 켜짐",
+        "실시간 속도: 켜짐",
+        "적응형: 켜짐",
+        "업데이트 확인: 켜짐",
+    ] {
+        assert!(
+            settings.contains(required),
+            "missing {required:?}: {settings}"
+        );
+    }
+    assert!(!settings.contains("true"), "{settings}");
+    assert!(!settings.contains("false"), "{settings}");
+}
+
+#[test]
+fn history_renders_newest_session_first_without_mutating_storage_order() {
+    let (_root, mut app) = fixture_app();
+    let mut newer = result_view("newer-session").session;
+    newer.started_at_unix_ms = 2;
+    let mut older = result_view("older-session").session;
+    older.started_at_unix_ms = 1;
+    app.sessions.extend([newer, older]);
+    let stored = app.sessions.clone();
+    app.open(Screen::History);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    let newer = output
+        .find("newer-session")
+        .expect("newer session is visible");
+    let older = output
+        .find("older-session")
+        .expect("older session is visible");
+    assert!(newer < older, "{output}");
+    assert_eq!(app.sessions, stored);
+}
+
+#[test]
+fn populated_result_renders_only_its_stored_outcome_fields() {
+    let (_root, mut app) = fixture_app();
+    let mut result = result_view("rendered-result");
+    result.grade = Some(Grade::B);
+    app.result = Some(result);
+    app.open(Screen::Result);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for value in [
+        "12.0 WPM",
+        "Accuracy: 100.0%",
+        "Errors: 0",
+        "Previous: 10.0",
+        "Best: 12.0",
+        "Test grade: B",
+        "preserve this result",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
+    }
+}
+
+#[test]
+fn populated_result_renders_stored_goal_and_weak_key_outcomes() {
+    let (_root, mut app) = fixture_app();
+    let mut result = result_view("goal-result");
+    result.weak_keys.push(KeyAccuracy {
+        key: 'x',
+        correct: 8,
+        errors: 2,
+        accuracy: 80.0,
+    });
+    app.result = Some(result);
+    app.open(Screen::Result);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for value in [
+        "Speed: Goal met",
+        "Accuracy: Goal met",
+        "Daily minutes: Goal missed",
+        "Weak keys",
+        "x: 80.0%",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
+    }
+}
+
+#[test]
+fn result_reserves_space_for_save_failure_before_bounded_weak_rows() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut result = result_view("many-weak-keys");
+    result.weak_keys = (b'a'..=b'z')
+        .map(|key| KeyAccuracy {
+            key: char::from(key),
+            correct: 1,
+            errors: 1,
+            accuracy: 50.0,
+        })
+        .collect();
+    app.result = Some(result);
+    app.open(Screen::Result);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(
+        output.contains("Save failed: preserve this result"),
+        "{output}"
+    );
+    assert!(output.contains("j: 50.0%"), "{output}");
+    assert!(!output.contains("k: 50.0%"), "{output}");
+}
+
+#[test]
+fn goals_and_settings_render_the_saved_values_without_edit_state() {
+    let (_root, mut app) = fixture_app();
+    app.settings.language = Language::Ko;
+    app.settings.ui_language = Language::En;
+    app.settings.theme = "nord".into();
+    app.settings.target_kpm = 321;
+    app.settings.target_wpm = 65;
+    app.settings.target_accuracy = 97.5;
+    app.settings.daily_minutes = 22;
+
+    app.open(Screen::Goals);
+    let goals = buffer_text(&draw(&app, 80, 24).buffer);
+    for value in ["321 KPM", "65 WPM", "97.5%", "22 min"] {
+        assert!(goals.contains(value), "missing {value:?}: {goals}");
+    }
+
+    app.open(Screen::Settings);
+    let settings = buffer_text(&draw(&app, 80, 24).buffer);
+    for value in ["Language: ko", "UI language: en", "Theme: nord"] {
+        assert!(settings.contains(value), "missing {value:?}: {settings}");
+    }
+}
+
+#[test]
+fn themes_lists_all_five_validated_builtin_ids() {
+    let (_root, mut app) = fixture_app();
+    app.open(Screen::Themes);
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+
+    for id in ["default", "matrix", "minimal", "monochrome", "nord"] {
+        assert!(output.contains(id), "missing {id:?}: {output}");
+    }
+}
+
+#[test]
+fn weak_keys_renders_derived_attempts_and_accuracy() {
+    let (_root, mut app) = fixture_app();
+    let mut session = result_view("weak-key-session").session;
+    session.intended_keys = BTreeMap::from([('a', [8, 2])]);
+    app.sessions.push(session);
+    app.open(Screen::WeakKeys);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("a: 80.0% (10)"), "{output}");
+}
+
+#[test]
+fn weak_keys_uses_only_the_saved_practice_language() {
+    let (_root, mut app) = fixture_app();
+    app.settings.language = Language::En;
+    let mut english = result_view("weak-en").session;
+    english.intended_keys = BTreeMap::from([('x', [8, 2])]);
+    let mut korean = result_view("weak-ko").session;
+    korean.language = Language::Ko;
+    korean.intended_keys = BTreeMap::from([('한', [0, 10])]);
+    app.sessions.extend([english, korean]);
+    app.open(Screen::WeakKeys);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("x: 80.0% (10)"), "{output}");
+    assert!(!output.contains("한: 0.0% (10)"), "{output}");
+}
+
+#[test]
+fn valid_history_and_content_remain_visible_with_sanitized_warnings() {
+    for screen in [Screen::History, Screen::Content] {
+        let (_root, mut app) = fixture_app();
+        app.sessions.push(result_view("visible-session").session);
+        app.warnings = vec!["bad\u{1b}]0;hidden\u{7} visible-warning".into()];
+        app.open(screen);
+
+        let drawn = draw(&app, 80, 24);
+        let output = buffer_text(&drawn.buffer);
+        let expected_content = match screen {
+            Screen::History => "visible-session",
+            Screen::Content => "en-tatoeba-331259",
+            _ => unreachable!(),
+        };
+        assert!(output.contains(expected_content), "{screen:?}: {output}");
+        assert!(output.contains("visible-warning"), "{screen:?}: {output}");
+        assert!(
+            drawn
+                .buffer
+                .content
+                .iter()
+                .all(|cell| !cell.symbol().contains('\u{1b}') && !cell.symbol().contains('\u{7}')),
+            "{screen:?}: {output}"
+        );
+    }
+}
+
+#[test]
+fn warning_footer_collapses_leading_whitespace_and_wraps_multiple_useful_suffixes() {
+    let (_root, mut app) = fixture_app();
+    app.sessions.push(result_view("visible-session").session);
+    app.warnings = vec![
+        "\n\t leading warning".into(),
+        format!("{}useful-tail", "long warning segment ".repeat(6)),
+        "final suffix".into(),
+    ];
+    app.open(Screen::History);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for required in [
+        "visible-session",
+        "leading warning",
+        "useful-tail",
+        "final suffix",
+    ] {
+        assert!(output.contains(required), "missing {required:?}: {output}");
+    }
+}
+
+#[test]
+fn warning_footer_reserves_three_rows_for_word_boundary_wrapping() {
+    let (_root, mut app) = fixture_app();
+    app.sessions.push(result_view("visible-session").session);
+    app.warnings = vec![format!(
+        "FIRST{} SECOND{} THIRD{}",
+        "a".repeat(35),
+        "b".repeat(34),
+        "c".repeat(35)
+    )];
+    app.open(Screen::History);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("visible-session"), "{output}");
+    assert!(output.contains("FIRST"), "{output}");
+    assert!(output.contains("SECOND"), "{output}");
+    assert!(output.contains("THIRD"), "{output}");
+}
+
+#[test]
+fn unknown_saved_theme_falls_back_to_validated_default_styles() {
+    let (_root, mut app) = fixture_app();
+    app.settings.theme = "missing-theme".into();
+    app.warnings.clear();
+    let drawn = draw(&app, 80, 24);
+    let expected = app.themes.get("default").unwrap().styles().unwrap().base;
+
+    assert_role_style(&drawn.buffer[(70, 18)], expected);
+    assert!(buffer_text(&drawn.buffer).contains("Typeul"));
+}
+
+#[test]
+fn mode_select_and_help_render_keyboard_guidance() {
+    for screen in [Screen::ModeSelect, Screen::Help] {
+        let (_root, mut app) = fixture_app();
+        app.open(screen);
+        let output = buffer_text(&draw(&app, 80, 24).buffer);
+        for key_name in ["Tab", "Enter", "Esc"] {
+            assert!(output.contains(key_name), "{screen:?} {key_name}: {output}");
+        }
+    }
+}
+
+#[test]
+fn rendering_is_read_only_for_app_sessions_and_engine_metrics() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    app.start_mode(
+        request(PracticeKind::Words, Language::En, "ab", StopRule::TargetEnd),
+        now,
+    )
+    .unwrap();
+    app.active_practice_mut().unwrap().engine.input("a", now);
+    app.sessions.push(result_view("preserved-session").session);
+
+    let screen = app.screen();
+    let parent = app.parent();
+    let focus = app.focus();
+    let quit = app.should_quit();
+    let retry = app.retry_request().cloned();
+    let sessions = app.sessions.clone();
+    let metrics = app.active_practice().unwrap().engine.metrics(now);
+
+    draw(&app, 80, 24);
+
+    assert_eq!(app.screen(), screen);
+    assert_eq!(app.parent(), parent);
+    assert_eq!(app.focus(), focus);
+    assert_eq!(app.should_quit(), quit);
+    assert_eq!(app.retry_request(), retry.as_ref());
+    assert_eq!(app.sessions, sessions);
+    assert_eq!(app.active_practice().unwrap().engine.metrics(now), metrics);
 }
 
 #[test]

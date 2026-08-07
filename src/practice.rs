@@ -192,6 +192,23 @@ impl PracticeEngine {
         &self.intended
     }
 
+    pub fn cursor(&self) -> usize {
+        self.input.len()
+    }
+
+    pub fn target_len(&self) -> usize {
+        self.target.len()
+    }
+
+    pub fn target_cells(&self) -> impl Iterator<Item = (&str, Option<bool>)> {
+        self.target.iter().enumerate().map(|(index, target)| {
+            (
+                target.as_str(),
+                self.input.get(index).map(|cell| cell.correct),
+            )
+        })
+    }
+
     pub fn is_finished(&self, now: Instant) -> bool {
         self.target_complete() || self.limit.is_some_and(|limit| self.active(now) >= limit)
     }

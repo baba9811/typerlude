@@ -204,6 +204,24 @@ pub fn streak(dates: impl IntoIterator<Item = Date>, today: Date) -> usize {
     count
 }
 
+pub(crate) fn intended_key_counts(
+    sessions: &[SessionRecord],
+    language: Language,
+) -> BTreeMap<char, [u64; 2]> {
+    let mut counts = BTreeMap::<char, [u64; 2]>::new();
+    for session in sessions
+        .iter()
+        .filter(|session| session.language == language)
+    {
+        for (&key, &[correct, errors]) in &session.intended_keys {
+            let total = counts.entry(key).or_default();
+            total[0] = total[0].saturating_add(correct);
+            total[1] = total[1].saturating_add(errors);
+        }
+    }
+    counts
+}
+
 pub fn weak_keys(counts: &BTreeMap<char, [u64; 2]>, min_attempts: u64) -> Vec<KeyAccuracy> {
     let mut keys = counts
         .iter()
@@ -235,18 +253,7 @@ pub fn adaptive_candidates<'a>(
     language: Language,
     seed: u64,
 ) -> Vec<&'a ResolvedItem> {
-    let mut counts = BTreeMap::<char, [u64; 2]>::new();
-    for session in sessions
-        .iter()
-        .filter(|session| session.language == language)
-    {
-        for (&key, &[correct, errors]) in &session.intended_keys {
-            let total = counts.entry(key).or_default();
-            total[0] = total[0].saturating_add(correct);
-            total[1] = total[1].saturating_add(errors);
-        }
-    }
-
+    let counts = intended_key_counts(sessions, language);
     let weak = weak_keys(&counts, 10)
         .into_iter()
         .take(3)
@@ -301,7 +308,10 @@ pub fn adaptive_candidates<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{Range, adaptive_candidates, history, progress, streak, summarize, weak_keys};
+    use super::{
+        Range, adaptive_candidates, history, intended_key_counts, progress, streak, summarize,
+        weak_keys,
+    };
     use crate::{
         content::{ContentCatalog, ContentKind},
         model::{Language, PracticeKind},
@@ -545,6 +555,21 @@ mod tests {
         let zero = weak_keys(&BTreeMap::from([('0', [0, 0])]), 0);
         assert_eq!(zero[0].accuracy, 0.0);
         assert!(zero[0].accuracy.is_finite());
+    }
+
+    #[test]
+    fn intended_key_counts_filter_language_and_saturate_each_bucket() {
+        let mut first = session("first-en", date!(2026 - 08 - 07), Language::En);
+        first.intended_keys = BTreeMap::from([('x', [u64::MAX, 5])]);
+        let mut second = session("second-en", date!(2026 - 08 - 07), Language::En);
+        second.intended_keys = BTreeMap::from([('x', [1, u64::MAX])]);
+        let mut korean = session("other-ko", date!(2026 - 08 - 07), Language::Ko);
+        korean.intended_keys = BTreeMap::from([('x', [7, 7]), ('한', [9, 1])]);
+
+        assert_eq!(
+            intended_key_counts(&[first, second, korean], Language::En),
+            BTreeMap::from([('x', [u64::MAX, u64::MAX])])
+        );
     }
 
     struct TestDir(PathBuf);
