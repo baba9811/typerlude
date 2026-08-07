@@ -1,8 +1,15 @@
-use std::{collections::HashSet, fs, path::Path};
+use serde::Deserialize;
+use std::{
+    collections::{BTreeMap, BTreeSet, HashSet},
+    fs,
+    path::Path,
+    process::Command,
+};
 use typeul::{
     content::{ContentCatalog, ContentKind, ContentPack, parse_pack, validate_pack},
     model::Language,
 };
+use unicode_normalization::UnicodeNormalization;
 use unicode_segmentation::UnicodeSegmentation;
 
 fn load_pack(file_name: &str) -> ContentPack {
@@ -495,4 +502,335 @@ fn reviewed_replacement_rows_are_verbatim_and_rejected_rows_are_absent() {
             assert!(items.iter().all(|item| item.id != id), "{id}");
         }
     }
+}
+
+#[derive(Deserialize)]
+struct FrozenSelection {
+    ko: Vec<FrozenSentence>,
+    en: Vec<FrozenSentence>,
+}
+
+#[derive(Deserialize)]
+struct FrozenSentence {
+    id: u64,
+    author: String,
+}
+
+#[derive(Deserialize)]
+struct FrozenSnapshot {
+    retrieved_at: String,
+    exports: Vec<FrozenExport>,
+}
+
+#[derive(Deserialize)]
+struct FrozenExport {
+    key: String,
+    url: String,
+    bytes: u64,
+    sha256: String,
+    decompressed_bytes: u64,
+    decompressed_sha256: String,
+}
+
+fn all_packs() -> Vec<ContentPack> {
+    let content_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/content");
+    let mut paths = fs::read_dir(content_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "toml")
+        })
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| parse_pack(&fs::read_to_string(path).unwrap()).unwrap())
+        .collect()
+}
+
+fn collapse_whitespace(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn fnv1a(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x100000001b3)
+    })
+}
+
+#[test]
+fn complete_release_catalog_has_exact_counts_unique_nfc_content_and_no_warnings() {
+    let absent_user_dir = std::env::temp_dir().join(format!(
+        "typeul-no-user-content-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let loaded = ContentCatalog::load(&absent_user_dir).unwrap();
+    assert!(loaded.warnings.is_empty(), "{:?}", loaded.warnings);
+
+    for language in [Language::Ko, Language::En] {
+        assert_eq!(loaded.catalog.count(language, ContentKind::Word), 300);
+        assert_eq!(
+            loaded
+                .catalog
+                .count_any(language, &[ContentKind::Sentence, ContentKind::Quote]),
+            120
+        );
+        assert_eq!(loaded.catalog.count(language, ContentKind::Text), 8);
+    }
+
+    let mut ids = HashSet::new();
+    let mut texts = HashSet::new();
+    for item in loaded.catalog.items() {
+        assert!(ids.insert(&item.id), "duplicate ID: {}", item.id);
+        let normalized = item.text.nfc().collect::<String>();
+        assert_eq!(item.text, normalized, "non-NFC text: {}", item.id);
+        assert!(texts.insert(normalized), "duplicate NFC text: {}", item.id);
+    }
+}
+
+#[test]
+fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() {
+    let used = all_packs()
+        .into_iter()
+        .flat_map(|pack| pack.resolve_items().unwrap())
+        .map(|item| item.source.license)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        used,
+        BTreeSet::from([
+            "CC-BY-2.0-FR".to_owned(),
+            "CC0-1.0".to_owned(),
+            "LicenseRef-Public-Domain".to_owned(),
+        ])
+    );
+
+    let license_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/licenses");
+    let shipped = fs::read_dir(&license_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        shipped,
+        BTreeSet::from(["CC-BY-2.0-FR.txt".to_owned(), "CC0-1.0.txt".to_owned(),])
+    );
+
+    let cc0_path = license_dir.join("CC0-1.0.txt");
+    let cc0 = fs::read_to_string(&cc0_path).unwrap();
+    assert_eq!(cc0.len(), 7_048);
+    assert_eq!(fnv1a(cc0.as_bytes()), 0xf92ec4039367c961);
+    assert!(cc0.contains("CC0 1.0 Universal"));
+    assert!(cc0.contains("1. Copyright and Related Rights."));
+    assert!(cc0.contains("4. Limitations and Disclaimers."));
+
+    let cc_by_fr_path = license_dir.join("CC-BY-2.0-FR.txt");
+    let cc_by_fr = fs::read_to_string(&cc_by_fr_path).unwrap();
+    assert_eq!(cc_by_fr.len(), 15_978);
+    assert_eq!(fnv1a(cc_by_fr.as_bytes()), 0xc38a2e100edabc1a);
+    for marker in [
+        "Paternité - 2.0",
+        "1. Définitions",
+        "3. Autorisation",
+        "4. Restrictions",
+        "7. Résiliation",
+        "8. Divers",
+    ] {
+        assert!(cc_by_fr.contains(marker), "missing {marker}");
+    }
+
+    let notice =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("THIRD_PARTY_NOTICES.md"))
+            .unwrap();
+    assert!(notice.contains("LicenseRef-Public-Domain"));
+    assert!(notice.contains("assets/licenses/CC0-1.0.txt"));
+    assert!(notice.contains("assets/licenses/CC-BY-2.0-FR.txt"));
+    for digest in [
+        "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+        "af0d7ada8b9be52a6874238f4533512d0b2568595bf7cb3427e41f7c38847b71",
+        "94690c30fa9b7650a55ea91f9158e3dab81a5e3a79ec1e07d9b0be8a5212b81a",
+    ] {
+        assert!(notice.contains(digest));
+    }
+}
+
+#[test]
+fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let notice = fs::read_to_string(root.join("THIRD_PARTY_NOTICES.md")).unwrap();
+    let collapsed_notice = collapse_whitespace(&notice);
+    let selection: FrozenSelection = serde_json::from_str(
+        &fs::read_to_string(root.join("assets/sources/tatoeba-selection.json")).unwrap(),
+    )
+    .unwrap();
+    let snapshot: FrozenSnapshot = serde_json::from_str(
+        &fs::read_to_string(root.join("assets/sources/tatoeba-snapshot.json")).unwrap(),
+    )
+    .unwrap();
+
+    for required in [
+        "Rust and JavaScript software is licensed under the MIT License",
+        "Practice data written by Typeul contributors is released under CC0 1.0 Universal",
+        "Third-party material keeps the license or public-domain status stated below",
+    ] {
+        assert!(collapsed_notice.contains(required));
+    }
+
+    let mut korean_by_author = BTreeMap::<String, Vec<u64>>::new();
+    for sentence in &selection.ko {
+        korean_by_author
+            .entry(sentence.author.clone())
+            .or_default()
+            .push(sentence.id);
+    }
+    for (author, ids) in korean_by_author {
+        let expected = format!(
+            "{author} ({}): {}",
+            ids.len(),
+            ids.iter()
+                .map(u64::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        assert!(
+            collapsed_notice.contains(&expected),
+            "missing grouped Korean attribution: {author}"
+        );
+    }
+
+    let english_authors = selection
+        .en
+        .iter()
+        .map(|sentence| sentence.author.as_str())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        english_authors,
+        BTreeSet::from(["Tatoeba CC0 contributors"])
+    );
+    let expected_english = format!(
+        "Tatoeba CC0 contributors ({}): {}",
+        selection.en.len(),
+        selection
+            .en
+            .iter()
+            .map(|sentence| sentence.id.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    assert!(collapsed_notice.contains(&expected_english));
+
+    assert!(
+        notice.contains(&format!("Retrieved: `{}`", snapshot.retrieved_at)),
+        "missing frozen retrieval date"
+    );
+    for export in snapshot.exports {
+        let expected = format!(
+            "| `{}` | {} | {} | `{}` | {} | `{}` |",
+            export.key,
+            export.url,
+            export.bytes,
+            export.sha256,
+            export.decompressed_bytes,
+            export.decompressed_sha256
+        );
+        assert!(
+            notice.contains(&expected),
+            "missing snapshot row: {}",
+            export.key
+        );
+    }
+
+    for pack in [
+        load_pack("ko-sentences.toml"),
+        load_pack("en-sentences.toml"),
+    ] {
+        assert!(notice.contains(&pack.source.license));
+        assert!(notice.contains(&pack.source.license_url));
+    }
+    for item in all_packs()
+        .into_iter()
+        .flat_map(|pack| pack.resolve_items().unwrap())
+        .filter(|item| item.source.license == "LicenseRef-Public-Domain")
+    {
+        assert!(notice.contains(item.title.as_deref().unwrap()));
+        assert!(notice.contains(&item.source.source_id));
+        assert!(notice.contains(&item.source.source_url));
+        assert!(notice.contains(&item.source.license_url));
+        assert!(notice.contains(&item.source.retrieved_at));
+    }
+    for item in all_packs()
+        .into_iter()
+        .flat_map(|pack| pack.resolve_items().unwrap())
+        .filter(|item| item.tags.iter().any(|tag| tag == "retelling"))
+    {
+        assert_eq!(item.source.author, "Typeul contributors");
+        assert_eq!(item.source.license, "CC0-1.0");
+        assert!(notice.contains(&item.id));
+        assert!(collapsed_notice.contains(&collapse_whitespace(item.title.as_deref().unwrap())));
+    }
+    for required in [
+        "https://www.law.go.kr/lawPetitionForm.do?menuId=13&subMenuId=79",
+        "https://www.archives.gov/founding-docs/constitution-transcript",
+        "https://www.archives.gov/founding-docs/downloads",
+        "https://tatoeba.org/",
+        "https://tatoeba.org/en/sentences/show/<sentence-id>",
+        "source_id = tatoeba:<sentence-id>",
+        "assets/sources/tatoeba-selection.json",
+        "assets/sources/tatoeba-snapshot.json",
+        "original rows (`base = 0`)",
+        "selection, packaging, and metadata",
+        "not normalized or otherwise modified (`modified = false`)",
+        "not 17 U.S.C. § 105",
+        "federal-government material",
+        "흥부와 놀부",
+        "해와 달이 된 오누이",
+        "The Tortoise and the Hare",
+        "Stone Soup",
+    ] {
+        assert!(notice.contains(required), "missing notice fact: {required}");
+    }
+}
+
+#[test]
+fn repository_tracks_only_frozen_metadata_not_raw_exports_or_work_files() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new("git")
+        .args(["ls-files", "-z"])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let tracked = String::from_utf8(output.stdout).unwrap();
+    for path in tracked.split('\0').filter(|path| !path.is_empty()) {
+        let lower = path.to_ascii_lowercase();
+        assert!(
+            ![
+                ".tsv", ".bz2", ".zip", ".tar", ".tar.gz", ".tgz", ".gz", ".xz", ".7z", ".tmp",
+                ".temp", ".bak", ".swp", ".orig", ".rej", "~",
+            ]
+            .iter()
+            .any(|suffix| lower.ends_with(suffix)),
+            "tracked raw/archive/temporary file: {path}"
+        );
+        assert!(
+            !lower.contains("proprietary") && !lower.contains("source-list"),
+            "tracked proprietary source list: {path}"
+        );
+    }
+
+    let source_files = fs::read_dir(root.join("assets/sources"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        source_files,
+        BTreeSet::from([
+            "tatoeba-selection.json".to_owned(),
+            "tatoeba-snapshot.json".to_owned(),
+        ])
+    );
+    assert!(!root.join("assets/licenses/KOGL-1.0.txt").exists());
 }
