@@ -160,8 +160,8 @@ fn bundled_text_packs_match_the_reviewed_5b2_contract() {
                     "retelling",
                 ),
                 (
-                    "ko-text-constitution-article-1",
-                    "대한민국헌법 제1조",
+                    "ko-text-constitution-articles-1-5",
+                    "대한민국헌법 제1조부터 제5조",
                     "public-domain",
                 ),
             ],
@@ -239,6 +239,8 @@ fn bundled_text_packs_match_the_reviewed_5b2_contract() {
                     .all(|paragraph| !paragraph.trim().is_empty()),
                 "{id}"
             );
+            let graphemes = item.text.graphemes(true).count();
+            assert!(graphemes >= 200, "{id} has only {graphemes} graphemes");
         }
 
         for (tag, count) in [
@@ -263,12 +265,12 @@ fn text_packs_have_exact_item_level_provenance() {
         (
             "ko-texts.toml",
             "ko-texts",
-            "ko-text-constitution-article-1",
+            "ko-text-constitution-articles-1-5",
             "대한민국",
-            "rok-constitution:article-1",
+            "rok-constitution:articles-1-5",
             "https://www.law.go.kr/법령/대한민국헌법",
             "https://www.law.go.kr/법령/저작권법/제7조",
-            "①대한민국은 민주공화국이다.\n\n②대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.",
+            "제1조 ①대한민국은 민주공화국이다.\n\n②대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.\n\n제2조 ①대한민국의 국민이 되는 요건은 법률로 정한다.\n\n②국가는 법률이 정하는 바에 의하여 재외국민을 보호할 의무를 진다.\n\n제3조 대한민국의 영토는 한반도와 그 부속도서로 한다.\n\n제4조 대한민국은 통일을 지향하며, 자유민주적 기본질서에 입각한 평화적 통일정책을 수립하고 이를 추진한다.\n\n제5조 ①대한민국은 국제평화의 유지에 노력하고 침략적 전쟁을 부인한다.\n\n②국군은 국가의 안전보장과 국토방위의 신성한 의무를 수행함을 사명으로 하며, 그 정치적 중립성은 준수된다.",
         ),
         (
             "en-texts.toml",
