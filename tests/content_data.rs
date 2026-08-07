@@ -795,15 +795,19 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
 }
 
 #[test]
-fn license_snapshots_are_forced_to_lf_by_git_attributes() {
+fn bundled_content_and_license_text_are_forced_to_lf_by_git_attributes() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let attributes = fs::read_to_string(root.join(".gitattributes")).unwrap();
 
-    assert!(
-        attributes
-            .lines()
-            .any(|line| line == "assets/licenses/*.txt text eol=lf")
-    );
+    for required in [
+        "assets/content/*.toml text eol=lf",
+        "assets/licenses/*.txt text eol=lf",
+    ] {
+        assert!(
+            attributes.lines().any(|line| line == required),
+            "missing Git attribute: {required}"
+        );
+    }
 }
 
 #[test]
