@@ -1,0 +1,317 @@
+use atomic_write_file::AtomicWriteFile;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
+    time::{Duration, Instant},
+};
+use time::{OffsetDateTime, macros::date};
+use typeul::{
+    config::Settings,
+    model::{Language, PracticeKind},
+    practice::PracticeEngine,
+    storage::{AppPaths, SessionRecord, load_sessions, save_session},
+};
+
+static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
+
+struct TestDir(PathBuf);
+
+impl TestDir {
+    fn new() -> Self {
+        let path = std::env::temp_dir().join(format!(
+            "typeul-storage-{}-{}",
+            std::process::id(),
+            NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&path).unwrap();
+        Self(path)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TestDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+fn fixture_session(id: &str) -> SessionRecord {
+    SessionRecord {
+        schema_version: 1,
+        id: id.into(),
+        started_at_unix_ms: 1_786_029_600_000,
+        local_date: date!(2026 - 08 - 07),
+        language: Language::En,
+        mode: PracticeKind::Words,
+        content_id: "en-word-001".into(),
+        difficulty: Some(1),
+        duration_ms: 60_000,
+        correct_units: 4,
+        attempted_units: 5,
+        errors: 1,
+        backspaces: 1,
+        cpm: 4.0,
+        kpm: 4.0,
+        wpm: 0.8,
+        accuracy: 80.0,
+        intended_keys: BTreeMap::from([('a', [4, 1])]),
+    }
+}
+
+#[test]
+fn override_keeps_every_path_under_one_root() {
+    let root = PathBuf::from("portable-typeul");
+    let paths = AppPaths::from_override(root.clone());
+
+    assert_eq!(paths.config, root.join("config.toml"));
+    assert_eq!(paths.sessions, root.join("sessions"));
+    assert_eq!(paths.content, root.join("content"));
+    assert_eq!(paths.themes, root.join("themes"));
+    assert_eq!(paths.update_cache, root.join("cache/update.json"));
+}
+
+#[test]
+fn missing_and_partial_config_use_defaults_without_eager_writes() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+
+    let missing = Settings::load(&paths).unwrap();
+    assert_eq!(missing.value, Settings::default());
+    assert!(missing.warnings.is_empty());
+    assert!(!paths.config.exists());
+
+    fs::create_dir_all(paths.config.parent().unwrap()).unwrap();
+    fs::write(
+        &paths.config,
+        "schema_version = 1\nlanguage = \"ko\"\nfuture_option = true\n",
+    )
+    .unwrap();
+    let partial = Settings::load(&paths).unwrap();
+    assert_eq!(partial.value.language, Language::Ko);
+    assert_eq!(partial.value.target_wpm, Settings::default().target_wpm);
+    assert!(partial.warnings.is_empty());
+}
+
+#[test]
+fn config_round_trip_atomically_replaces_the_previous_value() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let mut settings = Settings {
+        language: Language::Ko,
+        daily_minutes: 25,
+        ..Settings::default()
+    };
+    settings.save(&paths).unwrap();
+
+    settings.daily_minutes = 40;
+    settings.save(&paths).unwrap();
+
+    let loaded = Settings::load(&paths).unwrap();
+    assert_eq!(loaded.value, settings);
+    assert!(loaded.warnings.is_empty());
+    assert_eq!(
+        fs::read_dir(paths.config.parent().unwrap())
+            .unwrap()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn discarded_atomic_write_leaves_saved_config_unchanged() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    Settings::default().save(&paths).unwrap();
+    let original = fs::read(&paths.config).unwrap();
+
+    let mut uncommitted = AtomicWriteFile::open(&paths.config).unwrap();
+    uncommitted.write_all(b"not a complete config").unwrap();
+    drop(uncommitted);
+
+    assert_eq!(fs::read(&paths.config).unwrap(), original);
+}
+
+#[test]
+fn corrupt_and_unsupported_configs_are_preserved_with_a_warning() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    fs::create_dir_all(paths.config.parent().unwrap()).unwrap();
+
+    for original in [
+        b"schema_version = [".as_slice(),
+        b"schema_version = 2\nlanguage = \"ko\"\n".as_slice(),
+        b"schema_version = 1\ntarget_accuracy = 101.0\n".as_slice(),
+    ] {
+        fs::write(&paths.config, original).unwrap();
+        let loaded = Settings::load(&paths).unwrap();
+        assert_eq!(loaded.value, Settings::default());
+        assert_eq!(loaded.warnings.len(), 1);
+        assert_eq!(loaded.warnings[0].path, paths.config);
+        assert_eq!(fs::read(&paths.config).unwrap(), original);
+    }
+}
+
+#[test]
+fn session_from_result_copies_only_aggregate_engine_state() {
+    let start = Instant::now();
+    let mut engine = PracticeEngine::new(Language::En, PracticeKind::Words, "a", None).unwrap();
+    engine.input("private wrong input", start);
+    assert!(engine.backspace());
+    engine.input("a", start + Duration::from_secs(60));
+    let metrics = engine.metrics(start + Duration::from_secs(60));
+    let started_at = OffsetDateTime::from_unix_timestamp(1_786_093_200).unwrap();
+
+    let first = SessionRecord::from_result(
+        started_at,
+        Language::En,
+        PracticeKind::Words,
+        "en-word-001",
+        Some(1),
+        &metrics,
+        engine.intended_keys(),
+    );
+    let second = SessionRecord::from_result(
+        started_at,
+        Language::En,
+        PracticeKind::Words,
+        "en-word-001",
+        Some(1),
+        &metrics,
+        engine.intended_keys(),
+    );
+
+    assert_ne!(first.id, second.id);
+    assert!(
+        first
+            .id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-')
+    );
+    assert_eq!(first.started_at_unix_ms, 1_786_093_200_000);
+    assert_eq!(first.duration_ms, 60_000);
+    assert_eq!(first.correct_units, 1);
+    assert_eq!(first.attempted_units, 2);
+    assert_eq!(first.errors, 1);
+    assert_eq!(first.backspaces, 1);
+    assert_eq!(first.intended_keys.get(&'a'), Some(&[1, 1]));
+}
+
+#[test]
+fn session_round_trip_uses_one_immutable_file() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let session = fixture_session("session-a");
+
+    let saved = save_session(&paths, &session).unwrap();
+    assert_eq!(saved, paths.sessions.join("session-a.json"));
+    assert_eq!(load_sessions(&paths).unwrap().values, vec![session.clone()]);
+
+    let original = fs::read(&saved).unwrap();
+    assert!(save_session(&paths, &session).is_err());
+    assert_eq!(fs::read(saved).unwrap(), original);
+}
+
+#[test]
+fn an_empty_session_is_rejected_before_creating_storage() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let mut empty = fixture_session("empty");
+    empty.attempted_units = 0;
+
+    assert!(save_session(&paths, &empty).is_err());
+    assert!(!paths.sessions.exists());
+}
+
+#[test]
+fn sessions_load_by_filename_while_bad_siblings_remain_untouched() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    save_session(&paths, &fixture_session("b-session")).unwrap();
+    save_session(&paths, &fixture_session("a-session")).unwrap();
+    let broken = paths.sessions.join("broken.json");
+    let unsupported = paths.sessions.join("unsupported.json");
+    fs::write(&broken, b"{").unwrap();
+    fs::write(
+        &unsupported,
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 2,
+            "id": "unsupported"
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    let loaded = load_sessions(&paths).unwrap();
+
+    assert_eq!(
+        loaded
+            .values
+            .iter()
+            .map(|value| value.id.as_str())
+            .collect::<Vec<_>>(),
+        ["a-session", "b-session"]
+    );
+    assert_eq!(loaded.warnings.len(), 2);
+    assert_eq!(fs::read_to_string(&broken).unwrap(), "{");
+    assert!(unsupported.exists());
+}
+
+#[test]
+fn saved_json_contains_only_the_privacy_minimal_schema() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let saved = save_session(&paths, &fixture_session("privacy")).unwrap();
+    let bytes = fs::read(&saved).unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let keys = json
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        keys,
+        BTreeSet::from([
+            "accuracy",
+            "attempted_units",
+            "backspaces",
+            "content_id",
+            "correct_units",
+            "cpm",
+            "difficulty",
+            "duration_ms",
+            "errors",
+            "id",
+            "intended_keys",
+            "kpm",
+            "language",
+            "local_date",
+            "mode",
+            "schema_version",
+            "started_at_unix_ms",
+            "wpm",
+        ])
+    );
+    let text = String::from_utf8(bytes).unwrap();
+    for forbidden in [
+        "typed_text",
+        "target_text",
+        "custom_text",
+        "keystrokes",
+        "timestamps",
+        "filename",
+        "replay",
+    ] {
+        assert!(
+            !text.contains(forbidden),
+            "found forbidden field {forbidden}"
+        );
+    }
+}

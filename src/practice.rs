@@ -188,6 +188,10 @@ impl PracticeEngine {
         }
     }
 
+    pub fn intended_keys(&self) -> &BTreeMap<char, [u64; 2]> {
+        &self.intended
+    }
+
     pub fn is_finished(&self, now: Instant) -> bool {
         self.target_complete() || self.limit.is_some_and(|limit| self.active(now) >= limit)
     }
