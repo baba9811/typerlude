@@ -587,14 +587,14 @@ modified = false
 retrieved_at = "2026-08-07"
 
 [[items]]
-id = "en-tatoeba-7742006"
+id = "en-tatoeba-8895474"
 kind = "sentence"
-text = "English is often not pronounced in a phonological way."
+text = "The recipe calls for basmati rice."
 tags = ["tatoeba", "sentence"]
 [items.source]
 author = "Tatoeba CC0 contributors"
-source_id = "tatoeba:7742006"
-source_url = "https://tatoeba.org/en/sentences/show/7742006"
+source_id = "tatoeba:8895474"
+source_url = "https://tatoeba.org/en/sentences/show/8895474"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -839,14 +839,14 @@ modified = false
 retrieved_at = "2026-08-07"
 
 [[items]]
-id = "en-tatoeba-7880691"
+id = "en-tatoeba-11476060"
 kind = "sentence"
-text = "Please feel free to correct my grammar."
+text = "The sun and clouds create a shifting color palette on the badlands landscape."
 tags = ["tatoeba", "sentence"]
 [items.source]
 author = "Tatoeba CC0 contributors"
-source_id = "tatoeba:7880691"
-source_url = "https://tatoeba.org/en/sentences/show/7880691"
+source_id = "tatoeba:11476060"
+source_url = "https://tatoeba.org/en/sentences/show/11476060"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -1315,28 +1315,28 @@ modified = false
 retrieved_at = "2026-08-07"
 
 [[items]]
-id = "en-tatoeba-8289410"
+id = "en-tatoeba-9414186"
 kind = "sentence"
-text = "Smash the boiled pumpkin pieces then add some salt and spices."
+text = "Someone left their phone on the table."
 tags = ["tatoeba", "sentence"]
 [items.source]
 author = "Tatoeba CC0 contributors"
-source_id = "tatoeba:8289410"
-source_url = "https://tatoeba.org/en/sentences/show/8289410"
+source_id = "tatoeba:9414186"
+source_url = "https://tatoeba.org/en/sentences/show/9414186"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
 retrieved_at = "2026-08-07"
 
 [[items]]
-id = "en-tatoeba-8297994"
+id = "en-tatoeba-9805138"
 kind = "sentence"
-text = "Mathematics is just a subset of type theory."
+text = "How do I apply a bandage?"
 tags = ["tatoeba", "sentence"]
 [items.source]
 author = "Tatoeba CC0 contributors"
-source_id = "tatoeba:8297994"
-source_url = "https://tatoeba.org/en/sentences/show/8297994"
+source_id = "tatoeba:9805138"
+source_url = "https://tatoeba.org/en/sentences/show/9805138"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false

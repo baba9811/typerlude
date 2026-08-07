@@ -16,7 +16,8 @@
     "grapheme_range": [
       8,
       120
-    ]
+    ],
+    "selection_sha256": "ddaaf7c711ff7116ecdfc0f6f44208aa6c271a35ff77717b223cb977eafbd22a"
   },
   "ko": [
     {
@@ -250,9 +251,9 @@
       "author": "KoreanBeaver"
     },
     {
-      "id": 2655664,
+      "id": 13187817,
       "kind": "sentence",
-      "author": "KoreanBeaver"
+      "author": "atitarev"
     },
     {
       "id": 2655670,
@@ -585,9 +586,9 @@
       "author": "intertime"
     },
     {
-      "id": 11104766,
+      "id": 13148497,
       "kind": "quote",
-      "author": "intertime"
+      "author": "atitarev"
     },
     {
       "id": 11104770,
@@ -827,7 +828,7 @@
       "author": "Tatoeba CC0 contributors"
     },
     {
-      "id": 7742006,
+      "id": 8895474,
       "kind": "sentence",
       "author": "Tatoeba CC0 contributors"
     },
@@ -917,7 +918,7 @@
       "author": "Tatoeba CC0 contributors"
     },
     {
-      "id": 7880691,
+      "id": 11476060,
       "kind": "sentence",
       "author": "Tatoeba CC0 contributors"
     },
@@ -1087,12 +1088,12 @@
       "author": "Tatoeba CC0 contributors"
     },
     {
-      "id": 8289410,
+      "id": 9414186,
       "kind": "sentence",
       "author": "Tatoeba CC0 contributors"
     },
     {
-      "id": 8297994,
+      "id": 9805138,
       "kind": "sentence",
       "author": "Tatoeba CC0 contributors"
     },

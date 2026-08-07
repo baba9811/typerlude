@@ -5,19 +5,25 @@
       "key": "kor_detailed",
       "url": "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences_detailed.tsv.bz2",
       "bytes": 304243,
-      "sha256": "ffc266c1db3855728ee382b30530f854e3bf53760fb7c2bb36ddbd14d94efd96"
+      "sha256": "ffc266c1db3855728ee382b30530f854e3bf53760fb7c2bb36ddbd14d94efd96",
+      "decompressed_bytes": 1619506,
+      "decompressed_sha256": "d9ca57a59406753fea5510784ab60b778c713d5155cbf36fe84bc8909bda1687"
     },
     {
       "key": "kor_base",
       "url": "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences_base.tsv.bz2",
       "bytes": 93636,
-      "sha256": "805c8e9ecbf6c8e0ad34e05deba03403f30af5310edfb2de3f66140d7965c1f6"
+      "sha256": "805c8e9ecbf6c8e0ad34e05deba03403f30af5310edfb2de3f66140d7965c1f6",
+      "decompressed_bytes": 249817,
+      "decompressed_sha256": "8fe248bd4d755432cfe1894ca94c90b53b33946e3929d73fe137646a5455fcd8"
     },
     {
       "key": "eng_cc0",
       "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_CC0.tsv.bz2",
       "bytes": 1288524,
-      "sha256": "6ab169264a28008c25bf63042bf7535fc63137c9d7e09b7b8bd7812d10117d1b"
+      "sha256": "6ab169264a28008c25bf63042bf7535fc63137c9d7e09b7b8bd7812d10117d1b",
+      "decompressed_bytes": 4734738,
+      "decompressed_sha256": "9e8b3d587be1bd7cf299e09387aeec5707d48d988e1bea14cba091ebc5250262"
     }
   ]
 }

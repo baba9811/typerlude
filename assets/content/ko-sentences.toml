@@ -657,14 +657,14 @@ modified = false
 retrieved_at = "2026-08-07"
 
 [[items]]
-id = "ko-tatoeba-2655664"
+id = "ko-tatoeba-13187817"
 kind = "sentence"
-text = "개미 구멍이 둑을 무너뜨릴 수도 있다."
+text = "이 책이 저 책보다 더 재미있어요."
 tags = ["tatoeba", "sentence"]
 [items.source]
-author = "KoreanBeaver"
-source_id = "tatoeba:2655664"
-source_url = "https://tatoeba.org/en/sentences/show/2655664"
+author = "atitarev"
+source_id = "tatoeba:13187817"
+source_url = "https://tatoeba.org/en/sentences/show/13187817"
 license = "CC-BY-2.0-FR"
 license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
 modified = false
@@ -1595,14 +1595,14 @@ modified = false
 retrieved_at = "2026-08-07"
 
 [[items]]
-id = "ko-tatoeba-11104766"
+id = "ko-tatoeba-13148497"
 kind = "quote"
-text = "즐거운 추석 되세요."
+text = "잘 보이시나요?"
 tags = ["tatoeba", "quick"]
 [items.source]
-author = "intertime"
-source_id = "tatoeba:11104766"
-source_url = "https://tatoeba.org/en/sentences/show/11104766"
+author = "atitarev"
+source_id = "tatoeba:13148497"
+source_url = "https://tatoeba.org/en/sentences/show/13148497"
 license = "CC-BY-2.0-FR"
 license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
 modified = false

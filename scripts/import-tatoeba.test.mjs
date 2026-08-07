@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -46,17 +49,132 @@ test("renders exact reviewed splits with stable sentence provenance", () => {
   assert.match(first.en, /license = "CC0-1\.0"/);
 });
 
+test("rejects decompressed input bytes that do not match the frozen snapshot", () => {
+  const fixture = corpusFixture();
+  fixture.korDetailed = Buffer.from(
+    fixture.korDetailed.replace(
+      "안전한 연습 문장 1입니다.",
+      "새로운 연습 문장 1입니다.",
+    ),
+    "utf8",
+  );
+
+  assert.throws(
+    () => renderPacks(fixture),
+    /decompressed input does not match snapshot for kor_detailed/,
+  );
+
+  const wrongSize = corpusFixture();
+  wrongSize.snapshot.exports[0].decompressed_bytes += 1;
+  assert.throws(
+    () => renderPacks(wrongSize),
+    /decompressed input does not match snapshot for kor_detailed/,
+  );
+});
+
+test("requires exactly one snapshot entry for each supported export", () => {
+  const duplicate = corpusFixture();
+  duplicate.snapshot.exports.push({ ...duplicate.snapshot.exports[0] });
+  assert.throws(
+    () => renderPacks(duplicate),
+    /snapshot must contain exactly the three unique export keys/,
+  );
+
+  const missing = corpusFixture();
+  missing.snapshot.exports.pop();
+  assert.throws(
+    () => renderPacks(missing),
+    /snapshot must contain exactly the three unique export keys/,
+  );
+
+  const extra = corpusFixture();
+  extra.snapshot.exports.push({
+    ...extra.snapshot.exports[0],
+    key: "unexpected",
+  });
+  assert.throws(
+    () => renderPacks(extra),
+    /snapshot must contain exactly the three unique export keys/,
+  );
+});
+
+test("requires the complete reviewed method and grapheme range", () => {
+  const missingMethod = corpusFixture();
+  delete missingMethod.selection.review.method;
+  assert.throws(
+    () => renderPacks(missingMethod),
+    /selection review metadata is incomplete/,
+  );
+
+  const changedMethod = corpusFixture();
+  changedMethod.selection.review.method = "Only some rows were inspected.";
+  assert.throws(
+    () => renderPacks(changedMethod),
+    /selection review metadata is incomplete/,
+  );
+
+  const changedRange = corpusFixture();
+  changedRange.selection.review.grapheme_range = [1, 120];
+  assert.throws(
+    () => renderPacks(changedRange),
+    /selection review metadata is incomplete/,
+  );
+});
+
+test("rejects any ordered selection tuple change without a new review digest", () => {
+  const mutations = [
+    (selection) => {
+      [selection.ko[0], selection.ko[1]] = [selection.ko[1], selection.ko[0]];
+    },
+    (selection) => {
+      selection.ko[0].id = 999;
+    },
+    (selection) => {
+      selection.ko[0].kind = "quote";
+      selection.ko[100].kind = "sentence";
+    },
+    (selection) => {
+      selection.ko[0].author = "someone-else";
+    },
+  ];
+
+  for (const mutate of mutations) {
+    const fixture = corpusFixture();
+    mutate(fixture.selection);
+    assert.throws(
+      () => renderPacks(fixture),
+      /selection digest does not match reviewed tuples/,
+    );
+  }
+});
+
+test("the repository tracks no raw Tatoeba TSV or BZ2 export", () => {
+  const repositoryRoot = fileURLToPath(new URL("../", import.meta.url));
+  const tracked = execFileSync("git", ["ls-files", "-z"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+  })
+    .split("\0")
+    .filter(Boolean);
+  const rawExports = tracked.filter((path) => /\.(?:tsv|bz2)$/u.test(path));
+
+  assert.deepEqual(rawExports, []);
+});
+
 test("rejects derived, unattributed, non-NFC, and unsafe selected rows", () => {
   const derived = corpusFixture();
   derived.korBase = derived.korBase.replace("1\t0", "1\t9");
+  refreshInputMetadata(derived, "korBase", "kor_base");
   assert.throws(() => renderPacks(derived), /Korean sentence 1 must have base 0/);
 
   const unattributed = corpusFixture();
   unattributed.korDetailed = unattributed.korDetailed.replace("\twriter1\t", "\t\t");
+  refreshInputMetadata(unattributed, "korDetailed", "kor_detailed");
   assert.throws(() => renderPacks(unattributed), /Korean sentence 1 has no contributor/);
 
   const nonNfc = corpusFixture();
   nonNfc.engCc0 = nonNfc.engCc0.replace("Practice sentence 121.", "Cafe\u0301 practice line.");
+  refreshInputMetadata(nonNfc, "engCc0", "eng_cc0");
   assert.throws(() => renderPacks(nonNfc), /sentence 121 is not NFC/);
 
   const unsafe = corpusFixture();
@@ -64,6 +182,7 @@ test("rejects derived, unattributed, non-NFC, and unsafe selected rows", () => {
     "Practice sentence 121.",
     "Visit https://example.com now.",
   );
+  refreshInputMetadata(unsafe, "engCc0", "eng_cc0");
   assert.throws(() => renderPacks(unsafe), /sentence 121 contains a URL/);
 
   const unattributedCc0 = corpusFixture();
@@ -75,6 +194,7 @@ test("rejects derived, unattributed, non-NFC, and unsafe selected rows", () => {
 
   const mismatchedContributor = corpusFixture();
   mismatchedContributor.selection.ko[0].author = "someone-else";
+  refreshSelectionDigest(mismatchedContributor.selection);
   assert.throws(
     () => renderPacks(mismatchedContributor),
     /Korean sentence 1 contributor does not match the frozen selection/,
@@ -110,7 +230,7 @@ function corpusFixture() {
     });
   }
 
-  return {
+  const fixture = {
     korDetailed: ko.join("\n"),
     korBase: base.join("\n"),
     engCc0: en.join("\n"),
@@ -119,10 +239,13 @@ function corpusFixture() {
       reviewed_at: "2026-08-07",
       review: {
         reviewer: "Typeul corpus review",
+        method:
+          "Each selected TSV row was inspected individually for natural language quality, general-audience safety, privacy, and typing value after deterministic eligibility filtering.",
         criteria: ["language_quality", "general_audience_safety", "privacy", "typing_value"],
         normalization_changed: false,
         korean_original_only: true,
         english_explicit_cc0_only: true,
+        grapheme_range: [8, 120],
       },
       ko: koSelection,
       en: enSelection,
@@ -151,4 +274,32 @@ function corpusFixture() {
       ],
     },
   };
+
+  refreshInputMetadata(fixture, "korDetailed", "kor_detailed");
+  refreshInputMetadata(fixture, "korBase", "kor_base");
+  refreshInputMetadata(fixture, "engCc0", "eng_cc0");
+  refreshSelectionDigest(fixture.selection);
+  return fixture;
+}
+
+function refreshInputMetadata(fixture, inputKey, exportKey) {
+  const bytes = Buffer.from(fixture[inputKey], "utf8");
+  const metadata = fixture.snapshot.exports.find(({ key }) => key === exportKey);
+  metadata.decompressed_bytes = bytes.byteLength;
+  metadata.decompressed_sha256 = sha256(bytes);
+}
+
+function canonicalSelectionTuples(selection) {
+  return JSON.stringify({
+    ko: selection.ko.map(({ id, kind, author }) => [id, kind, author]),
+    en: selection.en.map(({ id, kind, author }) => [id, kind, author]),
+  });
+}
+
+function refreshSelectionDigest(selection) {
+  selection.review.selection_sha256 = sha256(canonicalSelectionTuples(selection));
+}
+
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
 }

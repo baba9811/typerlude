@@ -82,3 +82,80 @@ fn tatoeba_sentence_packs_have_exact_release_safe_provenance() {
         }
     }
 }
+
+#[test]
+fn reviewed_replacement_rows_are_verbatim_and_rejected_rows_are_absent() {
+    let cases = [
+        (
+            include_str!("../assets/content/ko-sentences.toml"),
+            vec![
+                (
+                    "ko-tatoeba-13187817",
+                    ContentKind::Sentence,
+                    "이 책이 저 책보다 더 재미있어요.",
+                    "atitarev",
+                ),
+                (
+                    "ko-tatoeba-13148497",
+                    ContentKind::Quote,
+                    "잘 보이시나요?",
+                    "atitarev",
+                ),
+            ],
+            vec!["ko-tatoeba-2655664", "ko-tatoeba-11104766"],
+        ),
+        (
+            include_str!("../assets/content/en-sentences.toml"),
+            vec![
+                (
+                    "en-tatoeba-8895474",
+                    ContentKind::Sentence,
+                    "The recipe calls for basmati rice.",
+                    "Tatoeba CC0 contributors",
+                ),
+                (
+                    "en-tatoeba-9414186",
+                    ContentKind::Sentence,
+                    "Someone left their phone on the table.",
+                    "Tatoeba CC0 contributors",
+                ),
+                (
+                    "en-tatoeba-9805138",
+                    ContentKind::Sentence,
+                    "How do I apply a bandage?",
+                    "Tatoeba CC0 contributors",
+                ),
+                (
+                    "en-tatoeba-11476060",
+                    ContentKind::Sentence,
+                    "The sun and clouds create a shifting color palette on the badlands landscape.",
+                    "Tatoeba CC0 contributors",
+                ),
+            ],
+            vec![
+                "en-tatoeba-7742006",
+                "en-tatoeba-8289410",
+                "en-tatoeba-8297994",
+                "en-tatoeba-7880691",
+            ],
+        ),
+    ];
+
+    for (source, replacements, rejected_ids) in cases {
+        let items = parse_pack(source).unwrap().resolve_items().unwrap();
+        for (id, kind, text, author) in replacements {
+            let item = items.iter().find(|item| item.id == id).unwrap();
+            assert_eq!(item.kind, kind, "{id}");
+            assert_eq!(item.text, text, "{id}");
+            assert_eq!(item.source.author, author, "{id}");
+            assert_eq!(
+                item.source.source_id,
+                format!("tatoeba:{}", id.rsplit('-').next().unwrap())
+            );
+            assert!(!item.source.modified, "{id}");
+        }
+        for id in rejected_ids {
+            assert!(items.iter().all(|item| item.id != id), "{id}");
+        }
+    }
+}

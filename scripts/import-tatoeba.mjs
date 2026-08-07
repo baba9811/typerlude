@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { TextDecoder } from "node:util";
 
 const EXPORT_URLS = {
   kor_detailed:
@@ -23,6 +25,10 @@ const LICENSES = {
     url: "https://creativecommons.org/publicdomain/zero/1.0/",
   },
 };
+
+const REVIEW_METHOD =
+  "Each selected TSV row was inspected individually for natural language quality, general-audience safety, privacy, and typing value after deterministic eligibility filtering.";
+const GRAPHEME_RANGE = [8, 120];
 
 export function parseDetailed(line) {
   const fields = line.split("\t");
@@ -66,21 +72,37 @@ export function selectedRows(rows, selectedIds) {
 }
 
 export function renderPacks({ korDetailed, korBase, engCc0, selection, snapshot }) {
-  validateSnapshot(snapshot);
+  const exportsByKey = validateSnapshot(snapshot);
   validateSelection(selection, snapshot.retrieved_at);
+
+  const verifiedKorDetailed = verifyAndDecodeInput(
+    "kor_detailed",
+    korDetailed,
+    exportsByKey.get("kor_detailed"),
+  );
+  const verifiedKorBase = verifyAndDecodeInput(
+    "kor_base",
+    korBase,
+    exportsByKey.get("kor_base"),
+  );
+  const verifiedEngCc0 = verifyAndDecodeInput(
+    "eng_cc0",
+    engCc0,
+    exportsByKey.get("eng_cc0"),
+  );
 
   const koSelections = selection.ko;
   const enSelections = selection.en;
   const koRows = selectedRows(
-    parseLines(korDetailed, parseDetailed),
+    parseLines(verifiedKorDetailed, parseDetailed),
     koSelections.map(({ id }) => id),
   );
   const koBases = selectedRows(
-    parseLines(korBase, parseBase),
+    parseLines(verifiedKorBase, parseBase),
     koSelections.map(({ id }) => id),
   );
   const enRows = selectedRows(
-    parseLines(engCc0, parseCc0),
+    parseLines(verifiedEngCc0, parseCc0),
     enSelections.map(({ id }) => id),
   );
 
@@ -111,8 +133,9 @@ export function renderPacks({ korDetailed, korBase, engCc0, selection, snapshot 
       language: "ko",
       rows: koRows,
       selected: koSelections,
-      snapshot,
+      retrievedAt: snapshot.retrieved_at,
       exportKey: "kor_detailed",
+      exportMeta: exportsByKey.get("kor_detailed"),
       license: LICENSES.ko,
     }),
     en: renderPack({
@@ -121,8 +144,9 @@ export function renderPacks({ korDetailed, korBase, engCc0, selection, snapshot 
       language: "en",
       rows: enRows,
       selected: enSelections,
-      snapshot,
+      retrievedAt: snapshot.retrieved_at,
       exportKey: "eng_cc0",
+      exportMeta: exportsByKey.get("eng_cc0"),
       license: LICENSES.en,
     }),
   };
@@ -140,17 +164,52 @@ function validateSnapshot(snapshot) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(snapshot?.retrieved_at ?? "")) {
     throw new Error("snapshot has invalid retrieval date");
   }
-  const exportsByKey = new Map((snapshot.exports ?? []).map((item) => [item.key, item]));
+  if (!Array.isArray(snapshot.exports) || snapshot.exports.length !== 3) {
+    throw new Error("snapshot must contain exactly the three unique export keys");
+  }
+  const exportsByKey = new Map();
+  for (const item of snapshot.exports) {
+    if (!Object.hasOwn(EXPORT_URLS, item?.key) || exportsByKey.has(item.key)) {
+      throw new Error("snapshot must contain exactly the three unique export keys");
+    }
+    exportsByKey.set(item.key, item);
+  }
+  if (exportsByKey.size !== 3) {
+    throw new Error("snapshot must contain exactly the three unique export keys");
+  }
   for (const [key, url] of Object.entries(EXPORT_URLS)) {
     const item = exportsByKey.get(key);
     if (
       item?.url !== url ||
       !Number.isSafeInteger(item.bytes) ||
       item.bytes <= 0 ||
-      !/^[0-9a-f]{64}$/.test(item.sha256 ?? "")
+      !/^[0-9a-f]{64}$/.test(item.sha256 ?? "") ||
+      !Number.isSafeInteger(item.decompressed_bytes) ||
+      item.decompressed_bytes <= 0 ||
+      !/^[0-9a-f]{64}$/.test(item.decompressed_sha256 ?? "")
     ) {
       throw new Error(`invalid snapshot metadata for ${key}`);
     }
+  }
+  return exportsByKey;
+}
+
+function verifyAndDecodeInput(key, input, metadata) {
+  const bytes =
+    typeof input === "string"
+      ? Buffer.from(input, "utf8")
+      : Buffer.from(input.buffer, input.byteOffset, input.byteLength);
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  if (
+    bytes.byteLength !== metadata.decompressed_bytes ||
+    digest !== metadata.decompressed_sha256
+  ) {
+    throw new Error(`decompressed input does not match snapshot for ${key}`);
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error(`decompressed input is not valid UTF-8 for ${key}`);
   }
 }
 
@@ -168,10 +227,13 @@ function validateSelection(selection, retrievedAt) {
   if (
     typeof review?.reviewer !== "string" ||
     !review.reviewer.trim() ||
+    review.method !== REVIEW_METHOD ||
     JSON.stringify(review.criteria) !== JSON.stringify(expectedCriteria) ||
     review.normalization_changed !== false ||
     review.korean_original_only !== true ||
-    review.english_explicit_cc0_only !== true
+    review.english_explicit_cc0_only !== true ||
+    JSON.stringify(review.grapheme_range) !== JSON.stringify(GRAPHEME_RANGE) ||
+    !/^[0-9a-f]{64}$/.test(review.selection_sha256 ?? "")
   ) {
     throw new Error("selection review metadata is incomplete");
   }
@@ -202,6 +264,19 @@ function validateSelection(selection, retrievedAt) {
       throw new Error(`${language} selection must contain 100 sentences and 20 quotes`);
     }
   }
+  const digest = createHash("sha256")
+    .update(canonicalSelectionTuples(selection), "utf8")
+    .digest("hex");
+  if (digest !== review.selection_sha256) {
+    throw new Error("selection digest does not match reviewed tuples");
+  }
+}
+
+export function canonicalSelectionTuples(selection) {
+  return JSON.stringify({
+    ko: selection.ko.map(({ id, kind, author }) => [id, kind, author]),
+    en: selection.en.map(({ id, kind, author }) => [id, kind, author]),
+  });
 }
 
 function validateText(row) {
@@ -217,13 +292,24 @@ function validateText(row) {
   }
   const length = [...new Intl.Segmenter("und", { granularity: "grapheme" }).segment(row.text)]
     .length;
-  if (length < 8 || length > 120) {
-    throw new Error(`sentence ${row.id} must contain 8 to 120 graphemes`);
+  if (length < GRAPHEME_RANGE[0] || length > GRAPHEME_RANGE[1]) {
+    throw new Error(
+      `sentence ${row.id} must contain ${GRAPHEME_RANGE[0]} to ${GRAPHEME_RANGE[1]} graphemes`,
+    );
   }
 }
 
-function renderPack({ id, title, language, rows, selected, snapshot, exportKey, license }) {
-  const exportMeta = snapshot.exports.find(({ key }) => key === exportKey);
+function renderPack({
+  id,
+  title,
+  language,
+  rows,
+  selected,
+  retrievedAt,
+  exportKey,
+  exportMeta,
+  license,
+}) {
   const lines = [
     "schema_version = 1",
     `id = ${tomlString(id)}`,
@@ -237,7 +323,7 @@ function renderPack({ id, title, language, rows, selected, snapshot, exportKey, 
     `license = ${tomlString(license.name)}`,
     `license_url = ${tomlString(license.url)}`,
     "modified = false",
-    `retrieved_at = ${tomlString(snapshot.retrieved_at)}`,
+    `retrieved_at = ${tomlString(retrievedAt)}`,
   ];
 
   rows.forEach((row, index) => {
@@ -256,7 +342,7 @@ function renderPack({ id, title, language, rows, selected, snapshot, exportKey, 
       `license = ${tomlString(license.name)}`,
       `license_url = ${tomlString(license.url)}`,
       "modified = false",
-      `retrieved_at = ${tomlString(snapshot.retrieved_at)}`,
+      `retrieved_at = ${tomlString(retrievedAt)}`,
     );
   });
 
@@ -285,9 +371,9 @@ function main(argv) {
   if (flags.size !== required.length) throw new Error("unknown argument");
 
   const packs = renderPacks({
-    korDetailed: readFileSync(flags.get("--kor-detailed"), "utf8"),
-    korBase: readFileSync(flags.get("--kor-base"), "utf8"),
-    engCc0: readFileSync(flags.get("--eng-cc0"), "utf8"),
+    korDetailed: readFileSync(flags.get("--kor-detailed")),
+    korBase: readFileSync(flags.get("--kor-base")),
+    engCc0: readFileSync(flags.get("--eng-cc0")),
     selection: JSON.parse(readFileSync(flags.get("--selection"), "utf8")),
     snapshot: JSON.parse(readFileSync(flags.get("--snapshot"), "utf8")),
   });
