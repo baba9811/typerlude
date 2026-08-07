@@ -5,7 +5,7 @@ use typeul::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-fn load_word_pack(file_name: &str) -> ContentPack {
+fn load_pack(file_name: &str) -> ContentPack {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("assets/content")
         .join(file_name);
@@ -27,7 +27,7 @@ fn bundled_word_packs_match_the_reviewed_5b1_contract() {
         assert_eq!(items.len(), 300, "{pack_id}");
         assert!(items.iter().all(|item| item.kind == ContentKind::Word));
 
-        let pack = load_word_pack(file_name);
+        let pack = load_pack(file_name);
         assert!(validate_pack(&pack).is_empty(), "{pack_id}");
         assert_eq!(pack.id, pack_id);
         assert_eq!(pack.language, language);
@@ -91,7 +91,7 @@ fn word_packs_have_exact_project_cc0_provenance_and_unique_catalog_keys() {
         ("ko-words.toml", "ko-words", "typeul-ko-words-v1.0.0"),
         ("en-words.toml", "en-words", "typeul-en-words-v1.0.0"),
     ] {
-        let pack = load_word_pack(file_name);
+        let pack = load_pack(file_name);
         assert_eq!(pack.id, pack_id);
         assert_eq!(pack.source.author, "Typeul contributors");
         assert_eq!(pack.source.source_id, source_id);
@@ -119,6 +119,222 @@ fn word_packs_have_exact_project_cc0_provenance_and_unique_catalog_keys() {
             "duplicate normalized text: {}",
             item.text
         );
+    }
+}
+
+#[test]
+fn bundled_text_packs_match_the_reviewed_5b2_contract() {
+    let catalog = ContentCatalog::load_builtins().unwrap();
+
+    for (language, pack_id, file_name, expected) in [
+        (
+            Language::Ko,
+            "ko-texts",
+            "ko-texts.toml",
+            [
+                (
+                    "ko-text-essay-room-to-revise",
+                    "고칠 자리를 남기는 일",
+                    "essay",
+                ),
+                ("ko-text-essay-window-routine", "창문을 닦는 순서", "essay"),
+                (
+                    "ko-text-fiction-blue-umbrella",
+                    "파란 우산의 행선지",
+                    "fiction",
+                ),
+                ("ko-text-fiction-last-seed", "마지막 씨앗 봉투", "fiction"),
+                (
+                    "ko-text-aphorism-daily-bearings",
+                    "생활의 작은 방위표",
+                    "aphorism",
+                ),
+                (
+                    "ko-text-retelling-heungbu-nolbu",
+                    "박씨 하나의 몫 — 흥부와 놀부 다시 쓰기",
+                    "retelling",
+                ),
+                (
+                    "ko-text-retelling-sun-moon-siblings",
+                    "하늘에 남은 두 빛 — 해와 달이 된 오누이 다시 쓰기",
+                    "retelling",
+                ),
+                (
+                    "ko-text-constitution-article-1",
+                    "대한민국헌법 제1조",
+                    "public-domain",
+                ),
+            ],
+        ),
+        (
+            Language::En,
+            "en-texts",
+            "en-texts.toml",
+            [
+                (
+                    "en-text-essay-useful-pause",
+                    "The Use of a Useful Pause",
+                    "essay",
+                ),
+                (
+                    "en-text-essay-mending-small-things",
+                    "The Habit of Mending Small Things",
+                    "essay",
+                ),
+                (
+                    "en-text-fiction-upper-window",
+                    "The Light in the Upper Window",
+                    "fiction",
+                ),
+                (
+                    "en-text-fiction-paper-bridge",
+                    "The Paper Bridge",
+                    "fiction",
+                ),
+                (
+                    "en-text-aphorism-steady-compass",
+                    "A Steady Compass",
+                    "aphorism",
+                ),
+                (
+                    "en-text-retelling-tortoise-hare",
+                    "Two Ways to the Finish — The Tortoise and the Hare Retold",
+                    "retelling",
+                ),
+                (
+                    "en-text-retelling-stone-soup",
+                    "The Empty Pot — Stone Soup Retold",
+                    "retelling",
+                ),
+                (
+                    "en-text-constitution-article-1-section-2-clauses-1-2",
+                    "U.S. Constitution, Article I, Section 2, Clauses 1–2",
+                    "public-domain",
+                ),
+            ],
+        ),
+    ] {
+        let items: Vec<_> = catalog
+            .items()
+            .filter(|item| item.language == language && item.pack_id == pack_id)
+            .collect();
+        assert_eq!(items.len(), 8, "{pack_id}");
+        assert!(items.iter().all(|item| item.kind == ContentKind::Text));
+
+        let pack = load_pack(file_name);
+        assert!(validate_pack(&pack).is_empty(), "{pack_id}");
+        assert_eq!(pack.id, pack_id);
+        assert_eq!(pack.language, language);
+        assert_eq!(pack.items.len(), 8, "{pack_id}");
+
+        for (id, title, tag) in expected {
+            let item = items.iter().find(|item| item.id == id).unwrap();
+            assert_eq!(item.title.as_deref(), Some(title), "{id}");
+            assert!(item.difficulty.is_some(), "{id}");
+            assert_eq!(item.tags, [tag], "{id}");
+            assert!(item.text.contains("\n\n"), "{id} is not multi-paragraph");
+            assert!(
+                item.text
+                    .split("\n\n")
+                    .all(|paragraph| !paragraph.trim().is_empty()),
+                "{id}"
+            );
+        }
+
+        for (tag, count) in [
+            ("essay", 2),
+            ("fiction", 2),
+            ("aphorism", 1),
+            ("retelling", 2),
+            ("public-domain", 1),
+        ] {
+            assert_eq!(
+                items.iter().filter(|item| item.tags == [tag]).count(),
+                count,
+                "{pack_id} {tag}"
+            );
+        }
+    }
+}
+
+#[test]
+fn text_packs_have_exact_item_level_provenance() {
+    let cases = [
+        (
+            "ko-texts.toml",
+            "ko-texts",
+            "ko-text-constitution-article-1",
+            "대한민국",
+            "rok-constitution:article-1",
+            "https://www.law.go.kr/법령/대한민국헌법",
+            "https://www.law.go.kr/법령/저작권법/제7조",
+            "①대한민국은 민주공화국이다.\n\n②대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.",
+        ),
+        (
+            "en-texts.toml",
+            "en-texts",
+            "en-text-constitution-article-1-section-2-clauses-1-2",
+            "Constitutional Convention of 1787",
+            "us-constitution:article-1-section-2-clauses-1-2",
+            "https://constitution.congress.gov/constitution/article-1/",
+            "https://copyright.gov/what-is-copyright/",
+            "The House of Representatives shall be composed of Members chosen every second Year by the People of the several States, and the Electors in each State shall have the Qualifications requisite for Electors of the most numerous Branch of the State Legislature.\n\nNo Person shall be a Representative who shall not have attained to the Age of twenty five Years, and been seven Years a Citizen of the United States, and who shall not, when elected, be an Inhabitant of that State in which he shall be chosen.",
+        ),
+    ];
+
+    for (
+        file_name,
+        pack_id,
+        constitution_id,
+        constitution_author,
+        constitution_source_id,
+        constitution_source_url,
+        constitution_license_url,
+        constitution_text,
+    ) in cases
+    {
+        let pack = load_pack(file_name);
+        let repository_url =
+            format!("https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/{file_name}");
+        assert_eq!(pack.source.author, "Typeul contributors");
+        assert_eq!(pack.source.source_id, format!("typeul-{pack_id}-v1.0.0"));
+        assert_eq!(pack.source.source_url, repository_url);
+        assert_eq!(pack.source.license, "CC0-1.0");
+        assert_eq!(
+            pack.source.license_url,
+            "https://creativecommons.org/publicdomain/zero/1.0/"
+        );
+        assert!(!pack.source.modified);
+        assert_eq!(pack.source.retrieved_at, "2026-08-07");
+        assert!(pack.items.iter().all(|item| item.source.is_some()));
+
+        for item in pack.resolve_items().unwrap() {
+            assert!(!item.source.modified, "{}", item.id);
+            assert_eq!(item.source.retrieved_at, "2026-08-07", "{}", item.id);
+            if item.id == constitution_id {
+                assert_eq!(item.source.author, constitution_author);
+                assert_eq!(item.source.source_id, constitution_source_id);
+                assert_eq!(item.source.source_url, constitution_source_url);
+                assert_eq!(item.source.license, "LicenseRef-Public-Domain");
+                assert_eq!(item.source.license_url, constitution_license_url);
+                assert_eq!(item.text, constitution_text);
+            } else {
+                assert_eq!(item.source.author, "Typeul contributors", "{}", item.id);
+                assert_eq!(
+                    item.source.source_id,
+                    format!("typeul:{}:v1.0.0", item.id),
+                    "{}",
+                    item.id
+                );
+                assert_eq!(item.source.source_url, repository_url, "{}", item.id);
+                assert_eq!(item.source.license, "CC0-1.0", "{}", item.id);
+                assert_eq!(
+                    item.source.license_url, "https://creativecommons.org/publicdomain/zero/1.0/",
+                    "{}",
+                    item.id
+                );
+            }
+        }
     }
 }
 
