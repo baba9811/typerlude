@@ -493,11 +493,11 @@ difficulty = 2
 
     #[test]
     fn valid_attributed_pack_resolves_source_defaults() {
-        let pack = parse_pack(include_str!("../assets/content/project-smoke.toml")).unwrap();
+        let pack = parse_pack(include_str!("../assets/content/ko-sentences.toml")).unwrap();
         assert!(validate_pack(&pack).is_empty());
         let item = pack.resolve_items().unwrap().remove(0);
-        assert_eq!(item.source.license, "CC0-1.0");
-        assert_eq!(item.text, "정확하게 입력합니다.");
+        assert_eq!(item.source.license, "CC-BY-2.0-FR");
+        assert_eq!(item.text, "지난 주말에 산으로 소풍을 갔다.");
     }
 
     #[test]
@@ -714,7 +714,7 @@ retrieved_at = "2026-08-06"
         let mut pack = fixture_pack();
         pack.id = "other-pack".into();
         pack.items[0].id = "other-item".into();
-        pack.items[0].text = "정확하게 입력합니다.".into();
+        pack.items[0].text = "지난 주말에 산으로 소풍을 갔다.".into();
 
         let error = catalog
             .conflicts(&pack)
@@ -727,6 +727,13 @@ retrieved_at = "2026-08-06"
 
     #[test]
     fn catalog_loads_builtins_skips_conflicting_users_and_ignores_disabled() {
+        let builtins = ContentCatalog::load_builtins().unwrap();
+        let builtin_en_words = builtins.count(Language::En, ContentKind::Word);
+        let builtin_ko_lines =
+            builtins.count_any(Language::Ko, &[ContentKind::Sentence, ContentKind::Quote]);
+        let builtin_en_easy_words = builtins
+            .select(Language::En, ContentKind::Word, Difficulty::Easy)
+            .len();
         let dir = temp_dir("catalog");
         fs::write(
             dir.join("a-valid.toml"),
@@ -752,7 +759,7 @@ text = "cat"
         .unwrap();
         let conflict = r#"
 schema_version = 1
-id = "project-smoke"
+id = "ko-sentences"
 title = "Conflict"
 language = "en"
 items = []
@@ -769,31 +776,34 @@ retrieved_at = "2026-08-07"
         fs::create_dir(dir.join("disabled")).unwrap();
         fs::write(
             dir.join("disabled/hidden.toml"),
-            conflict.replace("project-smoke", "hidden"),
+            conflict.replace("ko-sentences", "hidden"),
         )
         .unwrap();
 
         let loaded = ContentCatalog::load(&dir).unwrap();
-        assert_eq!(loaded.catalog.count(Language::En, ContentKind::Word), 1);
+        assert_eq!(
+            loaded.catalog.count(Language::En, ContentKind::Word),
+            builtin_en_words + 1
+        );
         assert_eq!(
             loaded
                 .catalog
                 .count_any(Language::Ko, &[ContentKind::Sentence, ContentKind::Quote]),
-            1
+            builtin_ko_lines
         );
         assert_eq!(
             loaded
                 .catalog
                 .select(Language::En, ContentKind::Word, Difficulty::Easy)
                 .len(),
-            1
+            builtin_en_easy_words + 1
         );
         assert!(loaded.catalog.items().all(|item| item.pack_id != "hidden"));
         assert!(
             loaded
                 .warnings
                 .iter()
-                .any(|e| e.pack_id == "project-smoke" && e.field == "id")
+                .any(|e| e.pack_id == "ko-sentences" && e.field == "id")
         );
         assert_eq!(
             fs::read_to_string(dir.join("b-conflict.toml")).unwrap(),
@@ -804,17 +814,18 @@ retrieved_at = "2026-08-07"
 
     #[test]
     fn a_user_pack_conflicting_on_an_item_id_is_skipped_whole() {
+        let builtin_item_count = ContentCatalog::load_builtins().unwrap().items().count();
         let dir = temp_dir("item-conflict");
         fs::write(
             dir.join("conflict.toml"),
-            include_str!("../assets/content/project-smoke.toml")
-                .replace("id = \"project-smoke\"", "id = \"other-pack\"")
-                .replace("title = \"Project Smoke\"", "title = \"Other Pack\""),
+            include_str!("../assets/content/ko-sentences.toml")
+                .replace("id = \"ko-sentences\"", "id = \"other-pack\"")
+                .replace("title = \"Korean Sentences\"", "title = \"Other Pack\""),
         )
         .unwrap();
 
         let loaded = ContentCatalog::load(&dir).unwrap();
-        assert_eq!(loaded.catalog.items().count(), 1);
+        assert_eq!(loaded.catalog.items().count(), builtin_item_count);
         assert!(
             loaded
                 .warnings

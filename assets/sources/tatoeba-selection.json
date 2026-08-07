@@ -1,0 +1,1225 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-08-07",
+  "review": {
+    "reviewer": "Typeul corpus review",
+    "method": "Each selected TSV row was inspected individually for natural language quality, general-audience safety, privacy, and typing value after deterministic eligibility filtering.",
+    "criteria": [
+      "language_quality",
+      "general_audience_safety",
+      "privacy",
+      "typing_value"
+    ],
+    "normalization_changed": false,
+    "korean_original_only": true,
+    "english_explicit_cc0_only": true,
+    "grapheme_range": [
+      8,
+      120
+    ]
+  },
+  "ko": [
+    {
+      "id": 906593,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906595,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906600,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906602,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906608,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906613,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906621,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906624,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906642,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 910371,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 914555,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 942427,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 943271,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 943331,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 951947,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 982062,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1022631,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 10572153,
+      "kind": "sentence",
+      "author": "ssuss32"
+    },
+    {
+      "id": 1022661,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1022647,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1218625,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1218633,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1218636,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1218638,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1218649,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1218669,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1219115,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1219121,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1219141,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1219159,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1219179,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1219181,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1637128,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1637156,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1637158,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1637160,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1637171,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906615,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 906604,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 5261931,
+      "kind": "sentence",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 2655609,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 6960364,
+      "kind": "sentence",
+      "author": "H_Liliom"
+    },
+    {
+      "id": 11104746,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 11104747,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 2655644,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655646,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655664,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655670,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655671,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655674,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655679,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655680,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655683,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655686,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655688,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655690,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655695,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655699,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655721,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2656056,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2656061,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658153,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658155,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658157,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658166,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658167,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658170,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658171,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658180,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2658132,
+      "kind": "sentence",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 10572155,
+      "kind": "sentence",
+      "author": "ssuss32"
+    },
+    {
+      "id": 1278329,
+      "kind": "sentence",
+      "author": "cueyayotl"
+    },
+    {
+      "id": 2856662,
+      "kind": "sentence",
+      "author": "cueyayotl"
+    },
+    {
+      "id": 2870614,
+      "kind": "sentence",
+      "author": "cueyayotl"
+    },
+    {
+      "id": 3655501,
+      "kind": "sentence",
+      "author": "rbbrbb"
+    },
+    {
+      "id": 3712940,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 3718218,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 11104748,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 11104759,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 10572158,
+      "kind": "sentence",
+      "author": "ssuss32"
+    },
+    {
+      "id": 3718270,
+      "kind": "sentence",
+      "author": "rainbow4us"
+    },
+    {
+      "id": 13147201,
+      "kind": "sentence",
+      "author": "atitarev"
+    },
+    {
+      "id": 3718338,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 13146473,
+      "kind": "sentence",
+      "author": "atitarev"
+    },
+    {
+      "id": 3718343,
+      "kind": "sentence",
+      "author": "ssuss32"
+    },
+    {
+      "id": 3718354,
+      "kind": "sentence",
+      "author": "rainbow4us"
+    },
+    {
+      "id": 11104763,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 11104764,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 11104768,
+      "kind": "sentence",
+      "author": "intertime"
+    },
+    {
+      "id": 13146489,
+      "kind": "sentence",
+      "author": "atitarev"
+    },
+    {
+      "id": 4950397,
+      "kind": "sentence",
+      "author": "rainbow4us"
+    },
+    {
+      "id": 4952644,
+      "kind": "sentence",
+      "author": "rainbow4us"
+    },
+    {
+      "id": 6304350,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 6304353,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 6305023,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 6305025,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 6305030,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 6305031,
+      "kind": "sentence",
+      "author": "Queserasera"
+    },
+    {
+      "id": 331283,
+      "kind": "sentence",
+      "author": "wubbol"
+    },
+    {
+      "id": 418360,
+      "kind": "sentence",
+      "author": "cueyayotl"
+    },
+    {
+      "id": 1022640,
+      "kind": "quote",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 1022653,
+      "kind": "quote",
+      "author": "Sudajaengi"
+    },
+    {
+      "id": 2655650,
+      "kind": "quote",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 11104749,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 2655654,
+      "kind": "quote",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655655,
+      "kind": "quote",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655656,
+      "kind": "quote",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 2655666,
+      "kind": "quote",
+      "author": "KoreanBeaver"
+    },
+    {
+      "id": 11104750,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 11104751,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 11104752,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 11104760,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 11104761,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 11104766,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 11104770,
+      "kind": "quote",
+      "author": "intertime"
+    },
+    {
+      "id": 13130044,
+      "kind": "quote",
+      "author": "atitarev"
+    },
+    {
+      "id": 13167418,
+      "kind": "quote",
+      "author": "atitarev"
+    },
+    {
+      "id": 13170177,
+      "kind": "quote",
+      "author": "atitarev"
+    },
+    {
+      "id": 13187950,
+      "kind": "quote",
+      "author": "atitarev"
+    },
+    {
+      "id": 13205186,
+      "kind": "quote",
+      "author": "atitarev"
+    }
+  ],
+  "en": [
+    {
+      "id": 331259,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 337215,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 403860,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 763114,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 2694734,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 2694737,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 2694740,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 2694741,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 2774346,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 2804844,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 3289035,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 3396931,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5047246,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8530262,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8679639,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8679712,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5047273,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5143055,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5153393,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5159451,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5200520,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 5342480,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6121806,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9158362,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6121968,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6122006,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6319960,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6366618,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6718211,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6893978,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6900474,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7036151,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7104289,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7108649,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8356983,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7166943,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7492431,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7545457,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7632877,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7677650,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8502928,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7742006,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7742013,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7744148,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7744152,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7744157,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7756804,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7792164,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7792237,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7799809,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7807073,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7807077,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7810087,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7842725,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7865527,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7880677,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8415581,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8415585,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8415601,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7880691,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7912910,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8636820,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8485239,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7948703,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7969669,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9415798,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8567766,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7977020,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7977027,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7983650,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8573070,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7983678,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8589152,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7987815,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8011630,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8014168,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8022176,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8047575,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8050968,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8089773,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8089833,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8104349,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9054425,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8105963,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8606090,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8121223,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8612859,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8123782,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8612869,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8180113,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8202928,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8286325,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8289409,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8289410,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8297994,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8302381,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8612882,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8310548,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8613709,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8354372,
+      "kind": "sentence",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 334553,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 384016,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9147454,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 6824078,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7052915,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9158885,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9158888,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7087093,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 7104386,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8033223,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8037983,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8354398,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8354700,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8354702,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9161891,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8356841,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9193323,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 9227170,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8356993,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    },
+    {
+      "id": 8357331,
+      "kind": "quote",
+      "author": "Tatoeba CC0 contributors"
+    }
+  ]
+}

@@ -1,0 +1,1693 @@
+schema_version = 1
+id = "en-sentences"
+title = "English Sentences"
+language = "en"
+
+[source]
+author = "Tatoeba contributors"
+source_id = "tatoeba-eng_cc0-6ab169264a28008c25bf63042bf7535fc63137c9d7e09b7b8bd7812d10117d1b"
+source_url = "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_CC0.tsv.bz2"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-331259"
+kind = "sentence"
+text = "Most people think computers will never be able to think."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:331259"
+source_url = "https://tatoeba.org/en/sentences/show/331259"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-337215"
+kind = "sentence"
+text = "How can video games inspire us to make better applications for e-learning?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:337215"
+source_url = "https://tatoeba.org/en/sentences/show/337215"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-403860"
+kind = "sentence"
+text = "I'm not good at multitasking."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:403860"
+source_url = "https://tatoeba.org/en/sentences/show/403860"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-763114"
+kind = "sentence"
+text = "Would you like to become a trusted user?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:763114"
+source_url = "https://tatoeba.org/en/sentences/show/763114"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-2694734"
+kind = "sentence"
+text = "We hear the plop of a frog jumping into the canal."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:2694734"
+source_url = "https://tatoeba.org/en/sentences/show/2694734"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-2694737"
+kind = "sentence"
+text = "Plop into the water and dive."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:2694737"
+source_url = "https://tatoeba.org/en/sentences/show/2694737"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-2694740"
+kind = "sentence"
+text = "There is nothing like the dull thud of nylon on nylon."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:2694740"
+source_url = "https://tatoeba.org/en/sentences/show/2694740"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-2694741"
+kind = "sentence"
+text = "The thud of hooves resonates around the ring."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:2694741"
+source_url = "https://tatoeba.org/en/sentences/show/2694741"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-2774346"
+kind = "sentence"
+text = "They finally succeeded after many months of travail."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:2774346"
+source_url = "https://tatoeba.org/en/sentences/show/2774346"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-2804844"
+kind = "sentence"
+text = "We squelched across the muddy field."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:2804844"
+source_url = "https://tatoeba.org/en/sentences/show/2804844"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-3289035"
+kind = "sentence"
+text = "I'm testing whether the language detection works again."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:3289035"
+source_url = "https://tatoeba.org/en/sentences/show/3289035"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-3396931"
+kind = "sentence"
+text = "We moved the project to a new server."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:3396931"
+source_url = "https://tatoeba.org/en/sentences/show/3396931"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5047246"
+kind = "sentence"
+text = "Have you tried turning it off and then turning it back on?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5047246"
+source_url = "https://tatoeba.org/en/sentences/show/5047246"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8530262"
+kind = "sentence"
+text = "If you need more room on the screen, you can toggle the sidebar off."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8530262"
+source_url = "https://tatoeba.org/en/sentences/show/8530262"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8679639"
+kind = "sentence"
+text = "However, the company does not provide technical support for the application."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8679639"
+source_url = "https://tatoeba.org/en/sentences/show/8679639"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8679712"
+kind = "sentence"
+text = "The implementation does not meet the specified requirements."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8679712"
+source_url = "https://tatoeba.org/en/sentences/show/8679712"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5047273"
+kind = "sentence"
+text = "Make sure you save everything before you turn it off."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5047273"
+source_url = "https://tatoeba.org/en/sentences/show/5047273"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5143055"
+kind = "sentence"
+text = "Trigonometry studies relationships involving lengths and angles of triangles."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5143055"
+source_url = "https://tatoeba.org/en/sentences/show/5143055"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5153393"
+kind = "sentence"
+text = "Philosophers distinguish between a priori and a posteriori knowledge."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5153393"
+source_url = "https://tatoeba.org/en/sentences/show/5153393"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5159451"
+kind = "sentence"
+text = "Catfish have no scales."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5159451"
+source_url = "https://tatoeba.org/en/sentences/show/5159451"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5200520"
+kind = "sentence"
+text = "How much is it in dollars?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5200520"
+source_url = "https://tatoeba.org/en/sentences/show/5200520"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-5342480"
+kind = "sentence"
+text = "Every good fighter needs a sparring partner."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:5342480"
+source_url = "https://tatoeba.org/en/sentences/show/5342480"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6121806"
+kind = "sentence"
+text = "Excuse me, what's the soup du jour?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6121806"
+source_url = "https://tatoeba.org/en/sentences/show/6121806"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9158362"
+kind = "sentence"
+text = "Can I take your order?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9158362"
+source_url = "https://tatoeba.org/en/sentences/show/9158362"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6121968"
+kind = "sentence"
+text = "I thought the brass section was a little off."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6121968"
+source_url = "https://tatoeba.org/en/sentences/show/6121968"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6122006"
+kind = "sentence"
+text = "This new and improved coffee maker will revolutionize the way you start your morning."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6122006"
+source_url = "https://tatoeba.org/en/sentences/show/6122006"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6319960"
+kind = "sentence"
+text = "The best way to get rid of an earworm is to replace it with another."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6319960"
+source_url = "https://tatoeba.org/en/sentences/show/6319960"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6366618"
+kind = "sentence"
+text = "Is that a mural of the building it's painted on?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6366618"
+source_url = "https://tatoeba.org/en/sentences/show/6366618"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6718211"
+kind = "sentence"
+text = "What does a cow say?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6718211"
+source_url = "https://tatoeba.org/en/sentences/show/6718211"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6893978"
+kind = "sentence"
+text = "The user must explicitly enter a value into this field."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6893978"
+source_url = "https://tatoeba.org/en/sentences/show/6893978"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6900474"
+kind = "sentence"
+text = "I could fall asleep in this chair."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6900474"
+source_url = "https://tatoeba.org/en/sentences/show/6900474"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7036151"
+kind = "sentence"
+text = "The websites of some predatory publishers look credible."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7036151"
+source_url = "https://tatoeba.org/en/sentences/show/7036151"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7104289"
+kind = "sentence"
+text = "A volleyball player must be a good smasher."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7104289"
+source_url = "https://tatoeba.org/en/sentences/show/7104289"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7108649"
+kind = "sentence"
+text = "Who would have thought that we would make it?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7108649"
+source_url = "https://tatoeba.org/en/sentences/show/7108649"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8356983"
+kind = "sentence"
+text = "Watch your step; there's a cat around here somewhere."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8356983"
+source_url = "https://tatoeba.org/en/sentences/show/8356983"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7166943"
+kind = "sentence"
+text = "Some infinities are bigger than other infinities."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7166943"
+source_url = "https://tatoeba.org/en/sentences/show/7166943"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7492431"
+kind = "sentence"
+text = "It's raining cats and dogs!"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7492431"
+source_url = "https://tatoeba.org/en/sentences/show/7492431"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7545457"
+kind = "sentence"
+text = "It is difficult to separate the wheat from the chaff."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7545457"
+source_url = "https://tatoeba.org/en/sentences/show/7545457"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7632877"
+kind = "sentence"
+text = "You saw yourself in the mirror."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7632877"
+source_url = "https://tatoeba.org/en/sentences/show/7632877"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7677650"
+kind = "sentence"
+text = "Humans are involved in mutualisms with other species, too."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7677650"
+source_url = "https://tatoeba.org/en/sentences/show/7677650"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8502928"
+kind = "sentence"
+text = "That's not a pencil; it's a pen."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8502928"
+source_url = "https://tatoeba.org/en/sentences/show/8502928"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7742006"
+kind = "sentence"
+text = "English is often not pronounced in a phonological way."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7742006"
+source_url = "https://tatoeba.org/en/sentences/show/7742006"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7742013"
+kind = "sentence"
+text = "It feels good to come to the aid of somebody."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7742013"
+source_url = "https://tatoeba.org/en/sentences/show/7742013"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7744148"
+kind = "sentence"
+text = "Our manufacturing plant uses precision instruments to make the best quality products."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7744148"
+source_url = "https://tatoeba.org/en/sentences/show/7744148"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7744152"
+kind = "sentence"
+text = "The clouds thickened and it started to precipitate."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7744152"
+source_url = "https://tatoeba.org/en/sentences/show/7744152"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7744157"
+kind = "sentence"
+text = "We lost this cricket match because of a few careless fumbles of the ball."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7744157"
+source_url = "https://tatoeba.org/en/sentences/show/7744157"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7756804"
+kind = "sentence"
+text = "I can't believe how big this little kitten has gotten!"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7756804"
+source_url = "https://tatoeba.org/en/sentences/show/7756804"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7792164"
+kind = "sentence"
+text = "Even if that were true, why would it matter?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7792164"
+source_url = "https://tatoeba.org/en/sentences/show/7792164"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7792237"
+kind = "sentence"
+text = "What is the largest prime number smaller than a googolplex?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7792237"
+source_url = "https://tatoeba.org/en/sentences/show/7792237"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7799809"
+kind = "sentence"
+text = "Two things result from this fact."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7799809"
+source_url = "https://tatoeba.org/en/sentences/show/7799809"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7807073"
+kind = "sentence"
+text = "Could you show me how to personalize my desktop?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7807073"
+source_url = "https://tatoeba.org/en/sentences/show/7807073"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7807077"
+kind = "sentence"
+text = "I think it would be difficult to personalize every wedding invitation."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7807077"
+source_url = "https://tatoeba.org/en/sentences/show/7807077"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7810087"
+kind = "sentence"
+text = "Fascia is made of connective tissue."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7810087"
+source_url = "https://tatoeba.org/en/sentences/show/7810087"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7842725"
+kind = "sentence"
+text = "In many languages, domestic cats are named after the \"meow\" sound they make."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7842725"
+source_url = "https://tatoeba.org/en/sentences/show/7842725"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7865527"
+kind = "sentence"
+text = "This movie's hard to watch nowadays."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7865527"
+source_url = "https://tatoeba.org/en/sentences/show/7865527"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7880677"
+kind = "sentence"
+text = "Please correct my mistakes."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7880677"
+source_url = "https://tatoeba.org/en/sentences/show/7880677"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8415581"
+kind = "sentence"
+text = "Why would you want a pet turtle?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8415581"
+source_url = "https://tatoeba.org/en/sentences/show/8415581"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8415585"
+kind = "sentence"
+text = "Pigs are very intelligent animals."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8415585"
+source_url = "https://tatoeba.org/en/sentences/show/8415585"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8415601"
+kind = "sentence"
+text = "I've never seen a koala in person before."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8415601"
+source_url = "https://tatoeba.org/en/sentences/show/8415601"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7880691"
+kind = "sentence"
+text = "Please feel free to correct my grammar."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7880691"
+source_url = "https://tatoeba.org/en/sentences/show/7880691"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7912910"
+kind = "sentence"
+text = "No one said self-control was easy."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7912910"
+source_url = "https://tatoeba.org/en/sentences/show/7912910"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8636820"
+kind = "sentence"
+text = "The truth isn't always somewhere in the middle."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8636820"
+source_url = "https://tatoeba.org/en/sentences/show/8636820"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8485239"
+kind = "sentence"
+text = "That's a very pretty tree."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8485239"
+source_url = "https://tatoeba.org/en/sentences/show/8485239"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7948703"
+kind = "sentence"
+text = "Would you like to share an orange with me?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7948703"
+source_url = "https://tatoeba.org/en/sentences/show/7948703"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7969669"
+kind = "sentence"
+text = "I'm not expecting details; just a summary is fine."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7969669"
+source_url = "https://tatoeba.org/en/sentences/show/7969669"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9415798"
+kind = "sentence"
+text = "Maybe I'm a perfectionist, but we could certainly do better."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9415798"
+source_url = "https://tatoeba.org/en/sentences/show/9415798"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8567766"
+kind = "sentence"
+text = "Most shoe soles nowadays are made from foam."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8567766"
+source_url = "https://tatoeba.org/en/sentences/show/8567766"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7977020"
+kind = "sentence"
+text = "Twenty-five percent of fifty is twelve and a half."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7977020"
+source_url = "https://tatoeba.org/en/sentences/show/7977020"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7977027"
+kind = "sentence"
+text = "Twenty divided by two is ten."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7977027"
+source_url = "https://tatoeba.org/en/sentences/show/7977027"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7983650"
+kind = "sentence"
+text = "I don't like hot coffee."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7983650"
+source_url = "https://tatoeba.org/en/sentences/show/7983650"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8573070"
+kind = "sentence"
+text = "Did you learn your lesson?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8573070"
+source_url = "https://tatoeba.org/en/sentences/show/8573070"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7983678"
+kind = "sentence"
+text = "I'm going on vacation this summer."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7983678"
+source_url = "https://tatoeba.org/en/sentences/show/7983678"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8589152"
+kind = "sentence"
+text = "There's a kitten on our porch."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8589152"
+source_url = "https://tatoeba.org/en/sentences/show/8589152"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7987815"
+kind = "sentence"
+text = "We have a lot of moorhens in our pond."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7987815"
+source_url = "https://tatoeba.org/en/sentences/show/7987815"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8011630"
+kind = "sentence"
+text = "I'm ready if you're ready."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8011630"
+source_url = "https://tatoeba.org/en/sentences/show/8011630"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8014168"
+kind = "sentence"
+text = "A semiprime is a natural number that is the product of two prime numbers."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8014168"
+source_url = "https://tatoeba.org/en/sentences/show/8014168"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8022176"
+kind = "sentence"
+text = "The proof is left as an exercise to the reader."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8022176"
+source_url = "https://tatoeba.org/en/sentences/show/8022176"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8047575"
+kind = "sentence"
+text = "Is a hot dog a sandwich?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8047575"
+source_url = "https://tatoeba.org/en/sentences/show/8047575"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8050968"
+kind = "sentence"
+text = "Your shirt is back to front."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8050968"
+source_url = "https://tatoeba.org/en/sentences/show/8050968"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8089773"
+kind = "sentence"
+text = "This pizza is nearly perfect."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8089773"
+source_url = "https://tatoeba.org/en/sentences/show/8089773"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8089833"
+kind = "sentence"
+text = "Wild animals are not pets."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8089833"
+source_url = "https://tatoeba.org/en/sentences/show/8089833"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8104349"
+kind = "sentence"
+text = "Don't forget to read your books."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8104349"
+source_url = "https://tatoeba.org/en/sentences/show/8104349"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9054425"
+kind = "sentence"
+text = "None of us yawned."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9054425"
+source_url = "https://tatoeba.org/en/sentences/show/9054425"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8105963"
+kind = "sentence"
+text = "What is consciousness and why did it evolve?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8105963"
+source_url = "https://tatoeba.org/en/sentences/show/8105963"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8606090"
+kind = "sentence"
+text = "I don't read the news."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8606090"
+source_url = "https://tatoeba.org/en/sentences/show/8606090"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8121223"
+kind = "sentence"
+text = "I did not understand anything."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8121223"
+source_url = "https://tatoeba.org/en/sentences/show/8121223"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8612859"
+kind = "sentence"
+text = "Where can I get pizza around here?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8612859"
+source_url = "https://tatoeba.org/en/sentences/show/8612859"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8123782"
+kind = "sentence"
+text = "Dinosaurs can be divided into avian dinosaurs and non-avian dinosaurs."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8123782"
+source_url = "https://tatoeba.org/en/sentences/show/8123782"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8612869"
+kind = "sentence"
+text = "What restaurants are nearby?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8612869"
+source_url = "https://tatoeba.org/en/sentences/show/8612869"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8180113"
+kind = "sentence"
+text = "It's a good article, but it could use some copyediting."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8180113"
+source_url = "https://tatoeba.org/en/sentences/show/8180113"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8202928"
+kind = "sentence"
+text = "Write it for me in a sentence."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8202928"
+source_url = "https://tatoeba.org/en/sentences/show/8202928"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8286325"
+kind = "sentence"
+text = "White cake glaze is made by mixing powdered sugar and boiling water."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8286325"
+source_url = "https://tatoeba.org/en/sentences/show/8286325"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8289409"
+kind = "sentence"
+text = "Cut all vegetables and fry them with spices."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8289409"
+source_url = "https://tatoeba.org/en/sentences/show/8289409"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8289410"
+kind = "sentence"
+text = "Smash the boiled pumpkin pieces then add some salt and spices."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8289410"
+source_url = "https://tatoeba.org/en/sentences/show/8289410"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8297994"
+kind = "sentence"
+text = "Mathematics is just a subset of type theory."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8297994"
+source_url = "https://tatoeba.org/en/sentences/show/8297994"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8302381"
+kind = "sentence"
+text = "Did you just learn that word?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8302381"
+source_url = "https://tatoeba.org/en/sentences/show/8302381"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8612882"
+kind = "sentence"
+text = "What song is playing right now?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8612882"
+source_url = "https://tatoeba.org/en/sentences/show/8612882"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8310548"
+kind = "sentence"
+text = "Click the microphone icon, then read the sentence aloud."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8310548"
+source_url = "https://tatoeba.org/en/sentences/show/8310548"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8613709"
+kind = "sentence"
+text = "I brought some puzzles."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8613709"
+source_url = "https://tatoeba.org/en/sentences/show/8613709"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8354372"
+kind = "sentence"
+text = "That probably didn't happen the way he said it did."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8354372"
+source_url = "https://tatoeba.org/en/sentences/show/8354372"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-334553"
+kind = "quote"
+text = "I should stop procrastinating."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:334553"
+source_url = "https://tatoeba.org/en/sentences/show/334553"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-384016"
+kind = "quote"
+text = "No, I'm not afraid of ghosts."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:384016"
+source_url = "https://tatoeba.org/en/sentences/show/384016"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9147454"
+kind = "quote"
+text = "Not all roses are red."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9147454"
+source_url = "https://tatoeba.org/en/sentences/show/9147454"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-6824078"
+kind = "quote"
+text = "I'm just asking questions."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:6824078"
+source_url = "https://tatoeba.org/en/sentences/show/6824078"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7052915"
+kind = "quote"
+text = "That's the worst joke I've ever heard."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7052915"
+source_url = "https://tatoeba.org/en/sentences/show/7052915"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9158885"
+kind = "quote"
+text = "I put too much flour in the cookie dough."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9158885"
+source_url = "https://tatoeba.org/en/sentences/show/9158885"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9158888"
+kind = "quote"
+text = "I think I used too much garlic."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9158888"
+source_url = "https://tatoeba.org/en/sentences/show/9158888"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7087093"
+kind = "quote"
+text = "You're a very good kitty."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7087093"
+source_url = "https://tatoeba.org/en/sentences/show/7087093"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-7104386"
+kind = "quote"
+text = "I will leave next week!"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:7104386"
+source_url = "https://tatoeba.org/en/sentences/show/7104386"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8033223"
+kind = "quote"
+text = "Enough of this whingeing!"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8033223"
+source_url = "https://tatoeba.org/en/sentences/show/8033223"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8037983"
+kind = "quote"
+text = "Would you like a cuppa?"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8037983"
+source_url = "https://tatoeba.org/en/sentences/show/8037983"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8354398"
+kind = "quote"
+text = "I'm not sure it's worth looking into."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8354398"
+source_url = "https://tatoeba.org/en/sentences/show/8354398"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8354700"
+kind = "quote"
+text = "The dog's getting old."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8354700"
+source_url = "https://tatoeba.org/en/sentences/show/8354700"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8354702"
+kind = "quote"
+text = "You can't expect everyone to understand."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8354702"
+source_url = "https://tatoeba.org/en/sentences/show/8354702"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9161891"
+kind = "quote"
+text = "Your order has shipped."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9161891"
+source_url = "https://tatoeba.org/en/sentences/show/9161891"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8356841"
+kind = "quote"
+text = "It's a bit silly, don't you think?"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8356841"
+source_url = "https://tatoeba.org/en/sentences/show/8356841"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9193323"
+kind = "quote"
+text = "That's not really true, though."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9193323"
+source_url = "https://tatoeba.org/en/sentences/show/9193323"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-9227170"
+kind = "quote"
+text = "Open the frame in a new tab."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:9227170"
+source_url = "https://tatoeba.org/en/sentences/show/9227170"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8356993"
+kind = "quote"
+text = "Don't step on the cat."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8356993"
+source_url = "https://tatoeba.org/en/sentences/show/8356993"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-tatoeba-8357331"
+kind = "quote"
+text = "You should go to bed immediately."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Tatoeba CC0 contributors"
+source_id = "tatoeba:8357331"
+source_url = "https://tatoeba.org/en/sentences/show/8357331"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"

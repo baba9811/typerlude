@@ -1,0 +1,1693 @@
+schema_version = 1
+id = "ko-sentences"
+title = "Korean Sentences"
+language = "ko"
+
+[source]
+author = "Tatoeba contributors"
+source_id = "tatoeba-kor_detailed-ffc266c1db3855728ee382b30530f854e3bf53760fb7c2bb36ddbd14d94efd96"
+source_url = "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences_detailed.tsv.bz2"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906593"
+kind = "sentence"
+text = "지난 주말에 산으로 소풍을 갔다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906593"
+source_url = "https://tatoeba.org/en/sentences/show/906593"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906595"
+kind = "sentence"
+text = "그 사람만큼 자격을 갖춘 직원은 대체하기가 어렵다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906595"
+source_url = "https://tatoeba.org/en/sentences/show/906595"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906600"
+kind = "sentence"
+text = "겨울철 운행 시간이 변경되었다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906600"
+source_url = "https://tatoeba.org/en/sentences/show/906600"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906602"
+kind = "sentence"
+text = "그들은 매월 한 번씩 연극을 보러 간다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906602"
+source_url = "https://tatoeba.org/en/sentences/show/906602"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906608"
+kind = "sentence"
+text = "전체적으로 볼 때 운이 매우 좋았다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906608"
+source_url = "https://tatoeba.org/en/sentences/show/906608"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906613"
+kind = "sentence"
+text = "내가 7시경에 오면 되겠습니까?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906613"
+source_url = "https://tatoeba.org/en/sentences/show/906613"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906621"
+kind = "sentence"
+text = "카드로도 지불할 수 있어요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906621"
+source_url = "https://tatoeba.org/en/sentences/show/906621"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906624"
+kind = "sentence"
+text = "배들은 등대의 불빛 신호로 방향을 찾을 수 있다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906624"
+source_url = "https://tatoeba.org/en/sentences/show/906624"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906642"
+kind = "sentence"
+text = "이 꽃들은 물이 필요하다. 잎들이 벌써 시들었다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906642"
+source_url = "https://tatoeba.org/en/sentences/show/906642"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-910371"
+kind = "sentence"
+text = "농부는 풀밭의 풀을 깎아서 꼴을 만든다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:910371"
+source_url = "https://tatoeba.org/en/sentences/show/910371"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-914555"
+kind = "sentence"
+text = "이 거리에서 글자를 알아볼 수 없다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:914555"
+source_url = "https://tatoeba.org/en/sentences/show/914555"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-942427"
+kind = "sentence"
+text = "봉투 필요하세요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:942427"
+source_url = "https://tatoeba.org/en/sentences/show/942427"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-943271"
+kind = "sentence"
+text = "그 비행기가 방향을 변경했다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:943271"
+source_url = "https://tatoeba.org/en/sentences/show/943271"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-943331"
+kind = "sentence"
+text = "몇몇 직원들은 금요일에는 오후 4시면 벌써 일을 끝마치려고 한다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:943331"
+source_url = "https://tatoeba.org/en/sentences/show/943331"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-951947"
+kind = "sentence"
+text = "번역에서는 분위기가 다르게 느껴진다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:951947"
+source_url = "https://tatoeba.org/en/sentences/show/951947"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-982062"
+kind = "sentence"
+text = "둘 사이에 무거운 침묵이 흘렀다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:982062"
+source_url = "https://tatoeba.org/en/sentences/show/982062"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1022631"
+kind = "sentence"
+text = "우리가 역사에서 배울 수 있는 것은 무엇일까요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1022631"
+source_url = "https://tatoeba.org/en/sentences/show/1022631"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-10572153"
+kind = "sentence"
+text = "각자의 의견은 주관적일 수밖에 없는 거 아닌가요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "ssuss32"
+source_id = "tatoeba:10572153"
+source_url = "https://tatoeba.org/en/sentences/show/10572153"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1022661"
+kind = "sentence"
+text = "우리가 잘못 들은 거 아닐까?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1022661"
+source_url = "https://tatoeba.org/en/sentences/show/1022661"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1022647"
+kind = "sentence"
+text = "우리의 요구 조건은 다음과 같다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1022647"
+source_url = "https://tatoeba.org/en/sentences/show/1022647"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1218625"
+kind = "sentence"
+text = "왜 그 단어를 잊어버렸니?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1218625"
+source_url = "https://tatoeba.org/en/sentences/show/1218625"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1218633"
+kind = "sentence"
+text = "그러한 기능을 가진 단어가 있어요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1218633"
+source_url = "https://tatoeba.org/en/sentences/show/1218633"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1218636"
+kind = "sentence"
+text = "강물이 잔잔히 흐릅니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1218636"
+source_url = "https://tatoeba.org/en/sentences/show/1218636"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1218638"
+kind = "sentence"
+text = "바닷물에 잔잔한 파도가 일어난다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1218638"
+source_url = "https://tatoeba.org/en/sentences/show/1218638"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1218649"
+kind = "sentence"
+text = "음악과 영화의 구조가 조화를 이루고 있어요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1218649"
+source_url = "https://tatoeba.org/en/sentences/show/1218649"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1218669"
+kind = "sentence"
+text = "문장을 외워야 합니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1218669"
+source_url = "https://tatoeba.org/en/sentences/show/1218669"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1219115"
+kind = "sentence"
+text = "오늘도 조금 늦을 것 같아요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1219115"
+source_url = "https://tatoeba.org/en/sentences/show/1219115"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1219121"
+kind = "sentence"
+text = "저도 이제서야 도착했어요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1219121"
+source_url = "https://tatoeba.org/en/sentences/show/1219121"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1219141"
+kind = "sentence"
+text = "즐거운 추석 되시기 바랍니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1219141"
+source_url = "https://tatoeba.org/en/sentences/show/1219141"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1219159"
+kind = "sentence"
+text = "선선하게 불어오는 가을바람에 계절이 변화함을 느낍니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1219159"
+source_url = "https://tatoeba.org/en/sentences/show/1219159"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1219179"
+kind = "sentence"
+text = "차표는 자동판매기에서도 구할 수 있습니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1219179"
+source_url = "https://tatoeba.org/en/sentences/show/1219179"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1219181"
+kind = "sentence"
+text = "이 나사는 느슨해요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1219181"
+source_url = "https://tatoeba.org/en/sentences/show/1219181"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1637128"
+kind = "sentence"
+text = "갑자기 겨울이 되어버렸다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1637128"
+source_url = "https://tatoeba.org/en/sentences/show/1637128"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1637156"
+kind = "sentence"
+text = "시청 앞에는 큰 주차장이 있다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1637156"
+source_url = "https://tatoeba.org/en/sentences/show/1637156"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1637158"
+kind = "sentence"
+text = "주말에는 시내에 항상 교통량이 많다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1637158"
+source_url = "https://tatoeba.org/en/sentences/show/1637158"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1637160"
+kind = "sentence"
+text = "운전자들은 항상 보행인을 살펴야 한다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1637160"
+source_url = "https://tatoeba.org/en/sentences/show/1637160"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1637171"
+kind = "sentence"
+text = "우리는 전 세계의 우표를 모은다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1637171"
+source_url = "https://tatoeba.org/en/sentences/show/1637171"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906615"
+kind = "sentence"
+text = "기름이나 석탄과 같은 원자재의 가격이 계속 상승하고 있다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906615"
+source_url = "https://tatoeba.org/en/sentences/show/906615"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-906604"
+kind = "sentence"
+text = "수십 년간의 산림녹화사업 이후에 민둥산이 거의 없다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:906604"
+source_url = "https://tatoeba.org/en/sentences/show/906604"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-5261931"
+kind = "sentence"
+text = "현실에서는 양상이 아주 다르다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:5261931"
+source_url = "https://tatoeba.org/en/sentences/show/5261931"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655609"
+kind = "sentence"
+text = "사랑과 우정 사이에 경계선을 긋는 것은 매우 어려운 일이다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655609"
+source_url = "https://tatoeba.org/en/sentences/show/2655609"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6960364"
+kind = "sentence"
+text = "들어오면 손과 발을 깨끗이 씻고, 양치질도 해야 돼요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "H_Liliom"
+source_id = "tatoeba:6960364"
+source_url = "https://tatoeba.org/en/sentences/show/6960364"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104746"
+kind = "sentence"
+text = "설날에는 가족들과 떡국을 먹는다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104746"
+source_url = "https://tatoeba.org/en/sentences/show/11104746"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104747"
+kind = "sentence"
+text = "떡국을 먹으면 나이가 한 살 많아진다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104747"
+source_url = "https://tatoeba.org/en/sentences/show/11104747"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655644"
+kind = "sentence"
+text = "그런 일을 내가 알 리 만무하지 않나?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655644"
+source_url = "https://tatoeba.org/en/sentences/show/2655644"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655646"
+kind = "sentence"
+text = "기쁨은 나누면 배가 되고 슬픔은 나누면 반이 된다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655646"
+source_url = "https://tatoeba.org/en/sentences/show/2655646"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655664"
+kind = "sentence"
+text = "개미 구멍이 둑을 무너뜨릴 수도 있다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655664"
+source_url = "https://tatoeba.org/en/sentences/show/2655664"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655670"
+kind = "sentence"
+text = "하늘의 무지개를 볼 때 내 마음은 설렌다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655670"
+source_url = "https://tatoeba.org/en/sentences/show/2655670"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655671"
+kind = "sentence"
+text = "모든 일에는 도가 있다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655671"
+source_url = "https://tatoeba.org/en/sentences/show/2655671"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655674"
+kind = "sentence"
+text = "눈썰미가 있구나."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655674"
+source_url = "https://tatoeba.org/en/sentences/show/2655674"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655679"
+kind = "sentence"
+text = "그들의 설명은 모호했다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655679"
+source_url = "https://tatoeba.org/en/sentences/show/2655679"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655680"
+kind = "sentence"
+text = "이 노래는 반복이 너무 많다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655680"
+source_url = "https://tatoeba.org/en/sentences/show/2655680"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655683"
+kind = "sentence"
+text = "그들은 테니스가 인연이 되어 친해졌다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655683"
+source_url = "https://tatoeba.org/en/sentences/show/2655683"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655686"
+kind = "sentence"
+text = "할머니는 구수한 옛날 얘기를 들려주시곤 했다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655686"
+source_url = "https://tatoeba.org/en/sentences/show/2655686"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655688"
+kind = "sentence"
+text = "밖은 아직 환해요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655688"
+source_url = "https://tatoeba.org/en/sentences/show/2655688"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655690"
+kind = "sentence"
+text = "그는 내 시선을 외면했다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655690"
+source_url = "https://tatoeba.org/en/sentences/show/2655690"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655695"
+kind = "sentence"
+text = "조용한 고양이가 쥐를 잡는다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655695"
+source_url = "https://tatoeba.org/en/sentences/show/2655695"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655699"
+kind = "sentence"
+text = "일이 이렇게 많으니 밤새우게 생겼네요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655699"
+source_url = "https://tatoeba.org/en/sentences/show/2655699"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655721"
+kind = "sentence"
+text = "기름과 물은 혼합되지 않는다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655721"
+source_url = "https://tatoeba.org/en/sentences/show/2655721"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2656056"
+kind = "sentence"
+text = "아무리 머리를 굴려 봐도 답이 안 나와."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2656056"
+source_url = "https://tatoeba.org/en/sentences/show/2656056"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2656061"
+kind = "sentence"
+text = "상황에 따라 달라요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2656061"
+source_url = "https://tatoeba.org/en/sentences/show/2656061"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658153"
+kind = "sentence"
+text = "좀 늦어도 괜찮지 싶어."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658153"
+source_url = "https://tatoeba.org/en/sentences/show/2658153"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658155"
+kind = "sentence"
+text = "무난히 해결했어요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658155"
+source_url = "https://tatoeba.org/en/sentences/show/2658155"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658157"
+kind = "sentence"
+text = "저는 떠들썩한 잔치를 안 좋아해요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658157"
+source_url = "https://tatoeba.org/en/sentences/show/2658157"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658166"
+kind = "sentence"
+text = "컴퓨터가 다운되어 모든 자료가 날아갔다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658166"
+source_url = "https://tatoeba.org/en/sentences/show/2658166"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658167"
+kind = "sentence"
+text = "지금은 바빠서 못 가."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658167"
+source_url = "https://tatoeba.org/en/sentences/show/2658167"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658170"
+kind = "sentence"
+text = "별일 없으세요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658170"
+source_url = "https://tatoeba.org/en/sentences/show/2658170"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658171"
+kind = "sentence"
+text = "이제는 일이 손에 어느 정도 익었어요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658171"
+source_url = "https://tatoeba.org/en/sentences/show/2658171"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658180"
+kind = "sentence"
+text = "요즘 여행 준비하느라 아주 바쁘시지요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658180"
+source_url = "https://tatoeba.org/en/sentences/show/2658180"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2658132"
+kind = "sentence"
+text = "웃음이 나오기도 해요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2658132"
+source_url = "https://tatoeba.org/en/sentences/show/2658132"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-10572155"
+kind = "sentence"
+text = "사실 이게 저의 솔직한 의견입니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "ssuss32"
+source_id = "tatoeba:10572155"
+source_url = "https://tatoeba.org/en/sentences/show/10572155"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1278329"
+kind = "sentence"
+text = "비가 오니까 우산을 가지고 오세요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "cueyayotl"
+source_id = "tatoeba:1278329"
+source_url = "https://tatoeba.org/en/sentences/show/1278329"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2856662"
+kind = "sentence"
+text = "봄에 피는 꽃은 여러 가지가 있습니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "cueyayotl"
+source_id = "tatoeba:2856662"
+source_url = "https://tatoeba.org/en/sentences/show/2856662"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2870614"
+kind = "sentence"
+text = "겨울에 이 모자를 쓰고 다녀야 될 것 같아."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "cueyayotl"
+source_id = "tatoeba:2870614"
+source_url = "https://tatoeba.org/en/sentences/show/2870614"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3655501"
+kind = "sentence"
+text = "세상은 넓고, 그 안엔 다양한 삶과 언어, 문화들이 존재한다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "rbbrbb"
+source_id = "tatoeba:3655501"
+source_url = "https://tatoeba.org/en/sentences/show/3655501"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3712940"
+kind = "sentence"
+text = "우리는 집에 가는 중입니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:3712940"
+source_url = "https://tatoeba.org/en/sentences/show/3712940"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3718218"
+kind = "sentence"
+text = "오늘은 너무 바빴어."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:3718218"
+source_url = "https://tatoeba.org/en/sentences/show/3718218"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104748"
+kind = "sentence"
+text = "떡국을 맛있게 끓였다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104748"
+source_url = "https://tatoeba.org/en/sentences/show/11104748"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104759"
+kind = "sentence"
+text = "서울에는 사람이 정말 많다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104759"
+source_url = "https://tatoeba.org/en/sentences/show/11104759"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-10572158"
+kind = "sentence"
+text = "그게 쉽지 않다는 거는 저도 잘 압니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "ssuss32"
+source_id = "tatoeba:10572158"
+source_url = "https://tatoeba.org/en/sentences/show/10572158"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3718270"
+kind = "sentence"
+text = "이 경우에는 문제가 없다고 본다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "rainbow4us"
+source_id = "tatoeba:3718270"
+source_url = "https://tatoeba.org/en/sentences/show/3718270"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13147201"
+kind = "sentence"
+text = "주말인데 영화 보러 갈까요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13147201"
+source_url = "https://tatoeba.org/en/sentences/show/13147201"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3718338"
+kind = "sentence"
+text = "어제는 좋은 날이었다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:3718338"
+source_url = "https://tatoeba.org/en/sentences/show/3718338"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13146473"
+kind = "sentence"
+text = "이 단어를 다시 읽으세요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13146473"
+source_url = "https://tatoeba.org/en/sentences/show/13146473"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3718343"
+kind = "sentence"
+text = "일과를 마칠 때 즈음, 저녁을 만들어 먹고 기타를 쳤다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "ssuss32"
+source_id = "tatoeba:3718343"
+source_url = "https://tatoeba.org/en/sentences/show/3718343"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-3718354"
+kind = "sentence"
+text = "빨리 스페인어가 늘었으면 좋겠네."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "rainbow4us"
+source_id = "tatoeba:3718354"
+source_url = "https://tatoeba.org/en/sentences/show/3718354"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104763"
+kind = "sentence"
+text = "한강의 경치가 예쁘다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104763"
+source_url = "https://tatoeba.org/en/sentences/show/11104763"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104764"
+kind = "sentence"
+text = "주말에 등산 가자."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104764"
+source_url = "https://tatoeba.org/en/sentences/show/11104764"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104768"
+kind = "sentence"
+text = "추석이라 도로가 차로 꽉 막혔다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104768"
+source_url = "https://tatoeba.org/en/sentences/show/11104768"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13146489"
+kind = "sentence"
+text = "잠시만 기다려 주세요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13146489"
+source_url = "https://tatoeba.org/en/sentences/show/13146489"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-4950397"
+kind = "sentence"
+text = "이 국 너무 짜요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "rainbow4us"
+source_id = "tatoeba:4950397"
+source_url = "https://tatoeba.org/en/sentences/show/4950397"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-4952644"
+kind = "sentence"
+text = "이 컵 가져도 돼요?"
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "rainbow4us"
+source_id = "tatoeba:4952644"
+source_url = "https://tatoeba.org/en/sentences/show/4952644"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6304350"
+kind = "sentence"
+text = "그 문장은 틀렸습니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:6304350"
+source_url = "https://tatoeba.org/en/sentences/show/6304350"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6304353"
+kind = "sentence"
+text = "시계를 보세요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:6304353"
+source_url = "https://tatoeba.org/en/sentences/show/6304353"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6305023"
+kind = "sentence"
+text = "이 사이트는 유용합니다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:6305023"
+source_url = "https://tatoeba.org/en/sentences/show/6305023"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6305025"
+kind = "sentence"
+text = "제 사과를 받아 주세요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:6305025"
+source_url = "https://tatoeba.org/en/sentences/show/6305025"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6305030"
+kind = "sentence"
+text = "영어는 어렵지 않아요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:6305030"
+source_url = "https://tatoeba.org/en/sentences/show/6305030"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-6305031"
+kind = "sentence"
+text = "이 문장은 완벽해요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "Queserasera"
+source_id = "tatoeba:6305031"
+source_url = "https://tatoeba.org/en/sentences/show/6305031"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-331283"
+kind = "sentence"
+text = "네, 그래요. 공기 중에 습기가 너무 많아요."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "wubbol"
+source_id = "tatoeba:331283"
+source_url = "https://tatoeba.org/en/sentences/show/331283"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-418360"
+kind = "sentence"
+text = "나는 자주 버스에서 졸다가 내릴 정류장을 지나쳐간다."
+tags = ["tatoeba", "sentence"]
+[items.source]
+author = "cueyayotl"
+source_id = "tatoeba:418360"
+source_url = "https://tatoeba.org/en/sentences/show/418360"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1022640"
+kind = "quote"
+text = "그렇다면 돌아가야지."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1022640"
+source_url = "https://tatoeba.org/en/sentences/show/1022640"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-1022653"
+kind = "quote"
+text = "생각보다 쉽지 않군."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "Sudajaengi"
+source_id = "tatoeba:1022653"
+source_url = "https://tatoeba.org/en/sentences/show/1022653"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655650"
+kind = "quote"
+text = "세상 참 좁네요!"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655650"
+source_url = "https://tatoeba.org/en/sentences/show/2655650"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104749"
+kind = "quote"
+text = "길고 긴 밤이었다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104749"
+source_url = "https://tatoeba.org/en/sentences/show/11104749"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655654"
+kind = "quote"
+text = "떡 본 김에 제사 지낸다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655654"
+source_url = "https://tatoeba.org/en/sentences/show/2655654"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655655"
+kind = "quote"
+text = "사공이 많으면 배가 산으로 간다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655655"
+source_url = "https://tatoeba.org/en/sentences/show/2655655"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655656"
+kind = "quote"
+text = "배보다 배꼽이 크다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655656"
+source_url = "https://tatoeba.org/en/sentences/show/2655656"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-2655666"
+kind = "quote"
+text = "고양이가 발톱을 감춘다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "KoreanBeaver"
+source_id = "tatoeba:2655666"
+source_url = "https://tatoeba.org/en/sentences/show/2655666"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104750"
+kind = "quote"
+text = "길고 긴 하루였어."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104750"
+source_url = "https://tatoeba.org/en/sentences/show/11104750"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104751"
+kind = "quote"
+text = "운명을 받아들여라."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104751"
+source_url = "https://tatoeba.org/en/sentences/show/11104751"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104752"
+kind = "quote"
+text = "운명을 극복해야 한다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104752"
+source_url = "https://tatoeba.org/en/sentences/show/11104752"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104760"
+kind = "quote"
+text = "집에 가고 싶다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104760"
+source_url = "https://tatoeba.org/en/sentences/show/11104760"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104761"
+kind = "quote"
+text = "오늘 저녁으로 뭘 먹지?"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104761"
+source_url = "https://tatoeba.org/en/sentences/show/11104761"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104766"
+kind = "quote"
+text = "즐거운 추석 되세요."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104766"
+source_url = "https://tatoeba.org/en/sentences/show/11104766"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-11104770"
+kind = "quote"
+text = "무궁화 꽃이 피었습니다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "intertime"
+source_id = "tatoeba:11104770"
+source_url = "https://tatoeba.org/en/sentences/show/11104770"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13130044"
+kind = "quote"
+text = "너무 비싸네요."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13130044"
+source_url = "https://tatoeba.org/en/sentences/show/13130044"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13167418"
+kind = "quote"
+text = "아주 맛있어요!"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13167418"
+source_url = "https://tatoeba.org/en/sentences/show/13167418"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13170177"
+kind = "quote"
+text = "정말 귀여워요!"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13170177"
+source_url = "https://tatoeba.org/en/sentences/show/13170177"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13187950"
+kind = "quote"
+text = "오늘은 제 차례입니다."
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13187950"
+source_url = "https://tatoeba.org/en/sentences/show/13187950"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-tatoeba-13205186"
+kind = "quote"
+text = "어떻게 지냈어요?"
+tags = ["tatoeba", "quick"]
+[items.source]
+author = "atitarev"
+source_id = "tatoeba:13205186"
+source_url = "https://tatoeba.org/en/sentences/show/13205186"
+license = "CC-BY-2.0-FR"
+license_url = "https://creativecommons.org/licenses/by/2.0/fr/"
+modified = false
+retrieved_at = "2026-08-07"

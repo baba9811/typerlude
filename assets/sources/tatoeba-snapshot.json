@@ -1,0 +1,23 @@
+{
+  "retrieved_at": "2026-08-07",
+  "exports": [
+    {
+      "key": "kor_detailed",
+      "url": "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences_detailed.tsv.bz2",
+      "bytes": 304243,
+      "sha256": "ffc266c1db3855728ee382b30530f854e3bf53760fb7c2bb36ddbd14d94efd96"
+    },
+    {
+      "key": "kor_base",
+      "url": "https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences_base.tsv.bz2",
+      "bytes": 93636,
+      "sha256": "805c8e9ecbf6c8e0ad34e05deba03403f30af5310edfb2de3f66140d7965c1f6"
+    },
+    {
+      "key": "eng_cc0",
+      "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_CC0.tsv.bz2",
+      "bytes": 1288524,
+      "sha256": "6ab169264a28008c25bf63042bf7535fc63137c9d7e09b7b8bd7812d10117d1b"
+    }
+  ]
+}
