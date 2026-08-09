@@ -203,11 +203,31 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         frame.render_widget(no_data(language, styles), inner);
         return;
     };
+    let regions = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(inner);
     frame.render_widget(
-        Paragraph::new(Text::from(target_lines(active, inner.width, styles))).style(styles.base),
-        inner,
+        Paragraph::new(Text::from(target_lines(active, regions[0].width, styles)))
+            .style(styles.base),
+        regions[0],
     );
-    if let Some(cursor) = practice_cursor(inner, active) {
+    let mut footer = Vec::new();
+    if active.kind() != PracticeKind::Test {
+        let action = if active.engine.is_paused() {
+            TextKey::Resume
+        } else {
+            TextKey::Pause
+        };
+        footer.push(Line::from(format!(
+            "{}: Esc / Ctrl+P",
+            text(language, action)
+        )));
+    }
+    if let Some(status) = app.practice_status() {
+        footer.push(Line::from(terminal_safe(status)));
+    }
+    frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[1]);
+    if !active.engine.is_paused()
+        && let Some(cursor) = practice_cursor(regions[0], active)
+    {
         frame.set_cursor_position(cursor);
     }
 }

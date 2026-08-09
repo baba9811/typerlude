@@ -15,9 +15,10 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
 };
+use time::OffsetDateTime;
 use time::macros::date;
 use typeul::{
-    app::{App, Grade, ItemDelta, ModeRequest, PracticeMode, ResultView, Screen, StopRule},
+    app::{App, Grade, ItemDelta, ModeRequest, PracticeMode, ResultView, Screen, StopRule, grade},
     config::Settings,
     content::ContentCatalog,
     model::{Difficulty, Language, PracticeKind},
@@ -1057,11 +1058,16 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
     let (_root, mut practice) = fixture_app();
     practice
         .start_mode(
-            request(PracticeKind::Words, Language::En, "ab", StopRule::TargetEnd),
+            request(
+                PracticeKind::Words,
+                Language::En,
+                "q?jkz",
+                StopRule::TargetEnd,
+            ),
             Instant::now(),
         )
         .unwrap();
-    for printable in ['q', '?', 'j', 'k'] {
+    for (index, printable) in ['q', '?', 'j', 'k'].into_iter().enumerate() {
         practice
             .handle_event(key(KeyCode::Char(printable)), Instant::now())
             .unwrap();
@@ -1075,7 +1081,7 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
                 .engine
                 .metrics(Instant::now())
                 .attempted_units,
-            0
+            (index + 1) as u64
         );
     }
 }
@@ -1128,7 +1134,6 @@ fn non_key_events_do_not_change_domain_state() {
     for event in [
         Event::FocusGained,
         Event::FocusLost,
-        Event::Paste("ab".into()),
         Event::Resize(1, 1),
         Event::Mouse(MouseEvent {
             kind: MouseEventKind::Moved,
@@ -1290,4 +1295,421 @@ fn invalid_start_is_transactional_for_all_owned_state() {
     assert_eq!(app.retry_request(), Some(&retry));
     assert_eq!(app.result, result);
     assert_eq!(app.active_practice().unwrap().engine.metrics(now), metrics);
+}
+
+#[test]
+fn practice_events_route_text_backspace_pause_paste_and_expiry() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Words,
+            Language::En,
+            "aBc",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+
+    app.handle_event(
+        key_with(
+            KeyCode::Char('x'),
+            KeyModifiers::NONE,
+            KeyEventKind::Release,
+        ),
+        start,
+    )
+    .unwrap();
+    app.handle_event(
+        key_with(
+            KeyCode::Char('z'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ),
+        start,
+    )
+    .unwrap();
+    assert_eq!(
+        app.active_practice()
+            .unwrap()
+            .engine
+            .metrics(start)
+            .attempted_units,
+        0
+    );
+
+    app.handle_event(key(KeyCode::Char('x')), start).unwrap();
+    app.handle_event(
+        key_with(KeyCode::Backspace, KeyModifiers::NONE, KeyEventKind::Repeat),
+        start,
+    )
+    .unwrap();
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(
+        key_with(KeyCode::Char('B'), KeyModifiers::SHIFT, KeyEventKind::Press),
+        start,
+    )
+    .unwrap();
+    let before_pause = app.active_practice().unwrap().engine.metrics(start);
+    assert_eq!(before_pause.attempted_units, 3);
+    assert_eq!(before_pause.errors, 1);
+    assert_eq!(before_pause.backspaces, 1);
+
+    app.handle_event(
+        key_with(
+            KeyCode::Char('p'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ),
+        start,
+    )
+    .unwrap();
+    assert!(app.active_practice().unwrap().engine.is_paused());
+    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("Resume"));
+    app.handle_event(key(KeyCode::Char('c')), start).unwrap();
+    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().engine.metrics(start),
+        before_pause
+    );
+
+    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    assert!(!app.active_practice().unwrap().engine.is_paused());
+    let paste_at = start + Duration::from_secs(1);
+    app.handle_event(Event::Paste("private-paste".into()), paste_at)
+        .unwrap();
+    let after_paste = app.active_practice().unwrap().engine.metrics(paste_at);
+    assert_eq!(after_paste.correct_units, before_pause.correct_units);
+    assert_eq!(after_paste.attempted_units, before_pause.attempted_units);
+    assert_eq!(after_paste.errors, before_pause.errors);
+    assert_eq!(after_paste.backspaces, before_pause.backspaces);
+    assert_eq!(app.practice_status(), Some("Paste ignored"));
+    let pasted = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(pasted.contains("Paste ignored"));
+    assert!(pasted.contains("aBc"));
+
+    app.tick(paste_at + Duration::from_millis(2_999)).unwrap();
+    assert_eq!(app.practice_status(), Some("Paste ignored"));
+    app.tick(paste_at + Duration::from_secs(3)).unwrap();
+    assert_eq!(app.practice_status(), None);
+    assert!(!buffer_text(&draw(&app, 80, 24).buffer).contains("Paste ignored"));
+    app.active_practice_mut().unwrap().status = Some((
+        "bad\u{1b}]0;owned\u{7} visible-status".into(),
+        paste_at + Duration::from_secs(10),
+    ));
+    let sanitized = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(!sanitized.contains('\u{1b}'));
+    assert!(!sanitized.contains('\u{7}'));
+    assert!(sanitized.contains("visible-status"));
+
+    app.handle_event(
+        key_with(KeyCode::Char('c'), KeyModifiers::NONE, KeyEventKind::Repeat),
+        paste_at + Duration::from_secs(4),
+    )
+    .unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+    let session = &app.result.as_ref().unwrap().session;
+    assert_eq!(session.attempted_units, 4);
+    assert_eq!(session.correct_units, 3);
+    assert_eq!(session.errors, 1);
+    assert_eq!(session.backspaces, 1);
+
+    let (_korean_root, mut korean) = fixture_app();
+    korean.settings.ui_language = Language::Ko;
+    korean
+        .start_mode(
+            request(
+                PracticeKind::Words,
+                Language::Ko,
+                "한글",
+                StopRule::TargetEnd,
+            ),
+            start,
+        )
+        .unwrap();
+    korean
+        .handle_event(Event::Paste("비공개".into()), start)
+        .unwrap();
+    assert_eq!(korean.practice_status(), Some("붙여넣기 무시됨"));
+}
+
+#[test]
+fn typing_tests_refuse_both_pause_keys() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::En,
+            "abc",
+            StopRule::ActiveTime(Duration::from_secs(60)),
+        ),
+        start,
+    )
+    .unwrap();
+    let footer = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(!footer.contains("Pause: Esc / Ctrl+P"), "{footer}");
+
+    for pause in [
+        key(KeyCode::Esc),
+        key_with(
+            KeyCode::Char('p'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ),
+    ] {
+        app.handle_event(pause, start).unwrap();
+        assert_eq!(app.screen(), Screen::Practice);
+        assert!(!app.active_practice().unwrap().engine.is_paused());
+    }
+}
+
+#[test]
+fn a_deadline_crossing_key_is_consumed_instead_of_becoming_a_result_command() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::En,
+            "abc",
+            StopRule::ActiveTime(Duration::from_secs(1)),
+        ),
+        start,
+    )
+    .unwrap();
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+
+    app.handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(1))
+        .unwrap();
+
+    assert_eq!(app.screen(), Screen::Result);
+    assert!(app.result.is_some());
+    assert!(app.active_practice().is_none());
+    assert_eq!(app.sessions.len(), 1);
+
+    let (_root, mut quit) = fixture_app();
+    quit.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::En,
+            "abc",
+            StopRule::ActiveTime(Duration::from_secs(1)),
+        ),
+        start,
+    )
+    .unwrap();
+    quit.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    quit.handle_event(
+        key_with(
+            KeyCode::Char('c'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ),
+        start + Duration::from_secs(1),
+    )
+    .unwrap();
+    assert_eq!(quit.screen(), Screen::Result);
+    assert!(quit.should_quit());
+    assert_eq!(quit.sessions.len(), 1);
+}
+
+#[test]
+fn active_time_finishes_from_tick_not_from_target_exhaustion_and_saves_privately() {
+    let (root, mut app) = fixture_app();
+    app.warnings.clear();
+    let start = Instant::now();
+    let private_target = "private target phrase";
+    app.start_mode(
+        ModeRequest {
+            content_ids: vec!["fixture-content".into()],
+            ..request(
+                PracticeKind::Test,
+                Language::En,
+                private_target,
+                StopRule::ActiveTime(Duration::from_secs(5)),
+            )
+        },
+        start,
+    )
+    .unwrap();
+
+    let before = OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000;
+    app.handle_event(key(KeyCode::Char('p')), start).unwrap();
+    let after = OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000;
+    app.handle_event(
+        Event::Paste("private paste material".into()),
+        start + Duration::from_secs(1),
+    )
+    .unwrap();
+    assert_eq!(app.screen(), Screen::Practice);
+    app.tick(start + Duration::from_secs(4)).unwrap();
+    assert_eq!(app.screen(), Screen::Practice);
+    app.tick(start + Duration::from_secs(5)).unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+
+    let result = app.result.as_ref().unwrap();
+    assert!(result.save_error.is_none());
+    assert_eq!(result.session.duration_ms, 5_000);
+    assert!(result.session.started_at_unix_ms >= before);
+    assert!(result.session.started_at_unix_ms <= after);
+    assert_eq!(result.session.content_id, "fixture-content");
+    assert_eq!(app.sessions.len(), 1);
+    assert_eq!(app.sessions[0], result.session);
+
+    let paths = fs::read_dir(&app.paths.sessions)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(paths.len(), 1);
+    let json = fs::read_to_string(&paths[0]).unwrap();
+    for private in [
+        private_target,
+        "private paste material",
+        "\"target\"",
+        "\"typed\"",
+    ] {
+        assert!(
+            !json.contains(private),
+            "private value leaked: {private}: {json}"
+        );
+    }
+    assert!(root.path().exists());
+}
+
+#[test]
+fn zero_attempt_finish_is_transactional_and_save_failure_stays_in_result() {
+    let (root, mut empty) = fixture_app();
+    let start = Instant::now();
+    empty
+        .start_mode(
+            request(PracticeKind::Words, Language::En, "a", StopRule::TargetEnd),
+            start,
+        )
+        .unwrap();
+    assert!(empty.finish_practice(start).is_err());
+    assert_eq!(empty.screen(), Screen::Practice);
+    assert!(empty.active_practice().is_some());
+    assert!(empty.result.is_none());
+    assert!(empty.sessions.is_empty());
+    assert!(!empty.paths.sessions.exists());
+
+    let (failure_root, mut failed) = fixture_app();
+    fs::create_dir_all(failed.paths.sessions.parent().unwrap()).unwrap();
+    fs::write(&failed.paths.sessions, b"preserved sentinel").unwrap();
+    failed
+        .start_mode(
+            ModeRequest {
+                content_ids: vec!["failure-content".into()],
+                ..request(PracticeKind::Words, Language::En, "λβ", StopRule::TargetEnd)
+            },
+            start,
+        )
+        .unwrap();
+    failed.handle_event(key(KeyCode::Char('λ')), start).unwrap();
+    failed
+        .handle_event(key(KeyCode::Char('β')), start + Duration::from_secs(1))
+        .unwrap();
+
+    assert_eq!(failed.screen(), Screen::Result);
+    assert!(failed.sessions.is_empty());
+    assert_eq!(
+        fs::read(&failed.paths.sessions).unwrap(),
+        b"preserved sentinel"
+    );
+    let error = failed
+        .result
+        .as_ref()
+        .unwrap()
+        .save_error
+        .as_deref()
+        .unwrap();
+    assert!(!error.is_empty());
+    assert!(!error.contains("λβ"));
+    assert!(!error.contains(failure_root.path().to_string_lossy().as_ref()));
+    assert!(buffer_text(&draw(&failed, 80, 24).buffer).contains("Save failed"));
+    assert!(root.path().exists());
+}
+
+#[test]
+fn result_uses_same_language_mode_history_goals_and_relative_grade_boundaries() {
+    fn prior(
+        id: &str,
+        started_at_unix_ms: i128,
+        language: Language,
+        mode: PracticeKind,
+        speed: f64,
+    ) -> SessionRecord {
+        let mut session = result_view(id).session;
+        session.started_at_unix_ms = started_at_unix_ms;
+        session.language = language;
+        session.mode = mode;
+        session.wpm = speed;
+        session.kpm = speed;
+        session
+    }
+
+    let (_root, mut app) = fixture_app();
+    app.settings.target_wpm = 1;
+    app.settings.target_accuracy = 98.0;
+    app.settings.daily_minutes = 1;
+    app.sessions = vec![
+        prior("older", 100, Language::En, PracticeKind::Words, 0.5),
+        prior("best", 200, Language::En, PracticeKind::Words, 1.2),
+        prior("newest", 300, Language::En, PracticeKind::Words, 0.7),
+        prior("other-mode", 400, Language::En, PracticeKind::Test, 999.0),
+        prior(
+            "other-language",
+            500,
+            Language::Ko,
+            PracticeKind::Words,
+            999.0,
+        ),
+    ];
+    let start = Instant::now();
+    app.start_mode(
+        ModeRequest {
+            content_ids: vec!["comparison-content".into()],
+            ..request(
+                PracticeKind::Words,
+                Language::En,
+                "abcde",
+                StopRule::TargetEnd,
+            )
+        },
+        start,
+    )
+    .unwrap();
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    for character in ['b', 'c', 'd', 'e'] {
+        app.handle_event(
+            key(KeyCode::Char(character)),
+            start + Duration::from_secs(60),
+        )
+        .unwrap();
+    }
+
+    let result = app.result.as_ref().unwrap();
+    assert_eq!(result.session.wpm, 1.0);
+    assert_eq!(result.previous_speed, Some(0.7));
+    assert_eq!(result.best_speed, Some(1.2));
+    assert!((result.speed_delta.unwrap() - 0.3).abs() < f64::EPSILON * 4.0);
+    assert!(result.speed_goal_met);
+    assert!(result.accuracy_goal_met);
+    assert!(result.daily_minutes_met);
+    assert_eq!(result.grade, None);
+    assert_eq!(result.session.difficulty, Some(3));
+    assert_eq!(app.sessions.len(), 6);
+
+    assert_eq!(grade(80.0, 80.0, 98.0, 98.0), Grade::A);
+    assert_eq!(grade(64.0, 80.0, 95.0, 98.0), Grade::B);
+    assert_eq!(grade(48.0, 80.0, 90.0, 98.0), Grade::C);
+    assert_eq!(grade(47.9, 80.0, 100.0, 98.0), Grade::D);
+    assert_eq!(grade(80.0, 80.0, 96.0, 97.0), Grade::B);
 }

@@ -33,6 +33,7 @@ pub struct PracticeEngine {
     target: Vec<String>,
     input: Vec<Cell>,
     started_at: Option<Instant>,
+    finalized_at: Option<Instant>,
     paused_at: Option<Instant>,
     paused_total: Duration,
     limit: Option<Duration>,
@@ -68,6 +69,7 @@ impl PracticeEngine {
             target,
             input: Vec::new(),
             started_at: None,
+            finalized_at: None,
             paused_at: None,
             paused_total: Duration::ZERO,
             limit,
@@ -118,7 +120,7 @@ impl PracticeEngine {
     }
 
     pub fn backspace(&mut self) -> bool {
-        if self.target_complete() {
+        if self.finalized_at.is_some() || self.paused_at.is_some() || self.target_complete() {
             return false;
         }
         if self.input.pop().is_some() {
@@ -130,7 +132,7 @@ impl PracticeEngine {
     }
 
     pub fn toggle_pause(&mut self, now: Instant) -> bool {
-        if self.kind == PracticeKind::Test {
+        if self.finalized_at.is_some() || self.kind == PracticeKind::Test {
             return false;
         }
 
@@ -192,6 +194,18 @@ impl PracticeEngine {
         &self.intended
     }
 
+    pub const fn language(&self) -> Language {
+        self.language
+    }
+
+    pub const fn is_paused(&self) -> bool {
+        self.paused_at.is_some()
+    }
+
+    pub const fn attempted_units(&self) -> u64 {
+        self.attempted_units
+    }
+
     pub fn cursor(&self) -> usize {
         self.input.len()
     }
@@ -209,11 +223,33 @@ impl PracticeEngine {
         })
     }
 
-    pub fn is_finished(&self, now: Instant) -> bool {
-        self.target_complete() || self.limit.is_some_and(|limit| self.active(now) >= limit)
+    pub fn extend_target(&mut self, separator: &str, target: &str) -> Result<()> {
+        if self.finalized_at.is_some() {
+            bail!("cannot extend finalized practice");
+        }
+        let target = split_graphemes(target);
+        if target.is_empty() {
+            bail!("practice target extension cannot be empty");
+        }
+        self.target.extend(split_graphemes(separator));
+        self.target.extend(target);
+        Ok(())
     }
 
-    fn target_complete(&self) -> bool {
+    pub fn finalize(&mut self, now: Instant) -> Metrics {
+        self.finalized_at.get_or_insert(now);
+        self.metrics(now)
+    }
+
+    pub fn time_limit_reached(&self, now: Instant) -> bool {
+        self.limit.is_some_and(|limit| self.active(now) >= limit)
+    }
+
+    pub fn is_finished(&self, now: Instant) -> bool {
+        self.finalized_at.is_some() || self.target_complete() || self.time_limit_reached(now)
+    }
+
+    pub fn target_complete(&self) -> bool {
         self.input.len() == self.target.len() && self.input.iter().all(|cell| cell.correct)
     }
 
@@ -221,6 +257,7 @@ impl PracticeEngine {
         let Some(started_at) = self.started_at else {
             return Duration::ZERO;
         };
+        let now = self.finalized_at.unwrap_or(now);
         let current_pause = self.paused_at.map_or(Duration::ZERO, |paused_at| {
             now.saturating_duration_since(paused_at)
         });
@@ -404,5 +441,103 @@ mod tests {
             InputOutcome::Finished
         );
         assert_eq!(timed.metrics(start + Duration::from_secs(1)), at_deadline);
+    }
+
+    #[test]
+    fn extending_a_completed_target_preserves_time_totals_and_normalizes() {
+        let start = Instant::now();
+        let mut engine = PracticeEngine::new(Language::En, PracticeKind::Words, "a", None).unwrap();
+
+        assert_eq!(engine.input("x", start), InputOutcome::Accepted);
+        assert!(engine.backspace());
+        assert_eq!(engine.input("a", start), InputOutcome::Finished);
+        assert!(engine.target_complete());
+        assert!(engine.toggle_pause(start + Duration::from_secs(10)));
+        assert!(engine.toggle_pause(start + Duration::from_secs(40)));
+        engine.extend_target(" ", "e\u{301}").unwrap();
+        assert!(!engine.target_complete());
+        assert_eq!(
+            engine
+                .target_cells()
+                .map(|(grapheme, _)| grapheme)
+                .collect::<String>(),
+            "a é"
+        );
+
+        assert_eq!(
+            engine.input(" é", start + Duration::from_secs(70)),
+            InputOutcome::Finished
+        );
+        let metrics = engine.metrics(start + Duration::from_secs(70));
+        assert_eq!(metrics.active, Duration::from_secs(40));
+        assert_eq!(metrics.correct_units, 3);
+        assert_eq!(metrics.attempted_units, 4);
+        assert_eq!(engine.attempted_units(), 4);
+        assert_eq!(metrics.errors, 1);
+        assert_eq!(metrics.backspaces, 1);
+        assert_eq!(metrics.cpm, 4.5);
+        assert_eq!(metrics.accuracy, 75.0);
+        assert_eq!(engine.intended_keys().get(&'a'), Some(&[1, 1]));
+    }
+
+    #[test]
+    fn empty_or_finalized_extension_is_transactional_and_finalization_freezes() {
+        let start = Instant::now();
+        let mut engine =
+            PracticeEngine::new(Language::En, PracticeKind::Words, "ab", None).unwrap();
+        engine.input("a", start);
+        let target_before = engine
+            .target_cells()
+            .map(|(grapheme, entered)| (grapheme.to_owned(), entered))
+            .collect::<Vec<_>>();
+        let metrics_before = engine.metrics(start + Duration::from_secs(10));
+
+        assert!(engine.extend_target(" ", "").is_err());
+        assert_eq!(
+            engine
+                .target_cells()
+                .map(|(grapheme, entered)| (grapheme.to_owned(), entered))
+                .collect::<Vec<_>>(),
+            target_before
+        );
+        assert_eq!(
+            engine.metrics(start + Duration::from_secs(10)),
+            metrics_before
+        );
+
+        let frozen = engine.finalize(start + Duration::from_secs(10));
+        assert_eq!(engine.metrics(start + Duration::from_secs(60)), frozen);
+        assert!(engine.extend_target(" ", "c").is_err());
+        assert_eq!(
+            engine.input("b", start + Duration::from_secs(60)),
+            InputOutcome::Finished
+        );
+        assert!(!engine.backspace());
+        assert!(!engine.toggle_pause(start + Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn pause_blocks_backspace_and_time_limit_is_distinct_from_target_completion() {
+        let start = Instant::now();
+        let mut paused =
+            PracticeEngine::new(Language::En, PracticeKind::Words, "ab", None).unwrap();
+        paused.input("a", start);
+        assert!(paused.toggle_pause(start));
+        assert!(paused.is_paused());
+        assert!(!paused.backspace());
+        assert_eq!(paused.cursor(), 1);
+
+        let mut timed = PracticeEngine::new(
+            Language::En,
+            PracticeKind::Test,
+            "a",
+            Some(Duration::from_secs(60)),
+        )
+        .unwrap();
+        timed.input("a", start);
+        assert!(timed.target_complete());
+        assert!(!timed.time_limit_reached(start + Duration::from_secs(59)));
+        assert!(timed.time_limit_reached(start + Duration::from_secs(60)));
+        assert_eq!(timed.language(), Language::En);
     }
 }
