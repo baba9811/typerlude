@@ -77,6 +77,20 @@ test("rejects invalid versions and tags", () => {
   }
 });
 
+test("reports a mismatched optional dependency from a fixture", () => {
+  withFixture((root) => {
+    const file = path.join(root, "package.json");
+    const pkg = JSON.parse(fs.readFileSync(file));
+    pkg.optionalDependencies["typeul-linux-x64"] = "1.2.4";
+    fs.writeFileSync(file, JSON.stringify(pkg));
+  }, (root) => {
+    assert.throws(
+      () => validateVersions(readVersions(root), "v1.2.3"),
+      /optionalDependencies\.typeul-linux-x64 \(1\.2\.4\)/,
+    );
+  });
+});
+
 test("uses a positional release tag", () => {
   const valid = spawnSync(process.execPath, ["scripts/check-versions.mjs", "v1.0.0"], { cwd: process.cwd(), encoding: "utf8" });
   assert.equal(valid.status, 0, valid.stderr);
@@ -84,4 +98,12 @@ test("uses a positional release tag", () => {
   const invalid = spawnSync(process.execPath, ["scripts/check-versions.mjs", "v1.0.1"], { cwd: process.cwd(), encoding: "utf8" });
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.stderr, /Tag must be v1\.0\.0/);
+});
+
+test("ignores a branch ref when no release tag is supplied", () => {
+  const result = spawnSync(process.execPath, ["scripts/check-versions.mjs"], {
+    cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_REF_NAME: "main" },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "1.0.0\n");
 });

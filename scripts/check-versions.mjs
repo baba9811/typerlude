@@ -79,5 +79,5 @@ export function validateVersions(records, optionalTag) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log(validateVersions(readVersions(process.cwd()), process.argv[2] ?? process.env.GITHUB_REF_NAME));
+  console.log(validateVersions(readVersions(process.cwd()), process.argv[2]));
 }
