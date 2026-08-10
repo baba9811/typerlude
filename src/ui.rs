@@ -1,11 +1,12 @@
 use crate::{
     app::{
-        ActivePractice, App, CustomTextSource, Grade, PracticeMode, Screen, StopRule, key_stages,
+        ActivePractice, App, CustomTextSource, Grade, PracticeMode, QUICK_COUNT_PRESETS,
+        QUICK_TIME_PRESETS, Screen, StopRule, TEST_DURATION_PRESETS, key_stages,
     },
     cli::terminal_safe,
     content::ContentKind,
     i18n::{TextKey, text},
-    model::{Language, PracticeKind},
+    model::{Difficulty, Language, PracticeKind},
     stats::{adaptive_candidates, history, intended_key_counts, streak, summarize, weak_keys},
     theme::ThemeStyles,
 };
@@ -49,6 +50,7 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     match app.screen() {
         Screen::Home => render_home(frame, app, main, styles),
         Screen::ModeSelect => render_mode_select(frame, app, main, styles),
+        Screen::ModeOptions => render_mode_options(frame, app, main, styles),
         Screen::Practice => render_practice(frame, app, main, styles),
         Screen::Result => render_result(frame, app, main, styles),
         Screen::Stats => render_stats(frame, app, main, styles),
@@ -225,6 +227,181 @@ fn render_mode_select(frame: &mut Frame<'_>, app: &App, area: Rect, styles: Them
         ))
         .style(styles.dim),
         regions[1],
+    );
+}
+
+fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
+    let language = app.settings.ui_language;
+    let options = app.mode_options();
+    let block = titled(practice_name(language, options.kind), styles);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let row = |index: usize, label: &str, value: String| {
+        Line::from(vec![
+            Span::styled(focus_marker(app, index), styles.accent),
+            Span::styled(format!("{label}: {value}"), styles.base),
+        ])
+    };
+    let start = |index| {
+        Line::from(vec![
+            Span::styled(focus_marker(app, index), styles.accent),
+            Span::styled(text(language, TextKey::Start), styles.base),
+        ])
+    };
+    let mut lines = match options.kind {
+        PracticeKind::Quick => {
+            let source = match options.quick_source {
+                crate::app::QuickSource::Words => text(language, TextKey::Words),
+                crate::app::QuickSource::Quote => text(language, TextKey::Quote),
+            };
+            let stop = if options.quick_items {
+                text(language, TextKey::Items)
+            } else {
+                text(language, TextKey::Time)
+            };
+            let preset = if options.quick_items {
+                QUICK_COUNT_PRESETS[options.quick_preset].to_string()
+            } else {
+                format!("{}s", QUICK_TIME_PRESETS[options.quick_preset])
+            };
+            vec![
+                row(
+                    0,
+                    text(language, TextKey::Language),
+                    language_name(options.language).into(),
+                ),
+                row(1, text(language, TextKey::Source), source.into()),
+                row(2, text(language, TextKey::Stop), stop.into()),
+                row(3, text(language, TextKey::Preset), preset),
+                start(4),
+            ]
+        }
+        PracticeKind::Key => vec![
+            row(
+                0,
+                text(language, TextKey::Language),
+                language_name(options.language).into(),
+            ),
+            row(
+                1,
+                text(language, TextKey::Stage),
+                format!(
+                    "{}: {}",
+                    options.key_stage,
+                    key_stages(options.language)[usize::from(options.key_stage - 1)].title
+                ),
+            ),
+            row(
+                2,
+                text(language, TextKey::Random),
+                toggle_name(language, options.key_random).into(),
+            ),
+            row(
+                3,
+                text(language, TextKey::RepeatWeakKeys),
+                toggle_name(language, options.key_weak_repeat).into(),
+            ),
+            start(4),
+        ],
+        PracticeKind::Words => vec![
+            row(
+                0,
+                text(language, TextKey::Language),
+                language_name(options.language).into(),
+            ),
+            row(
+                1,
+                text(language, TextKey::Difficulty),
+                difficulty_name(language, options.word_difficulty).into(),
+            ),
+            start(2),
+        ],
+        PracticeKind::Sentence => vec![
+            row(
+                0,
+                text(language, TextKey::Language),
+                language_name(options.language).into(),
+            ),
+            start(1),
+        ],
+        PracticeKind::Long => {
+            let items = app.long_items(options.language, None);
+            let mut lines = vec![row(
+                0,
+                text(language, TextKey::Language),
+                language_name(options.language).into(),
+            )];
+            lines.extend(items.iter().enumerate().map(|(index, item)| {
+                row(
+                    index + 1,
+                    item.title.as_deref().unwrap_or(&item.id),
+                    String::new(),
+                )
+            }));
+            if let Some(item) = items.get(options.long_selection) {
+                lines.extend([
+                    Line::from(""),
+                    Line::from(format!(
+                        "{}: {}",
+                        text(language, TextKey::Title),
+                        terminal_safe(item.title.as_deref().unwrap_or(&item.id))
+                    )),
+                    Line::from(format!(
+                        "{}: {}",
+                        text(language, TextKey::Author),
+                        terminal_safe(&item.source.author)
+                    )),
+                    Line::from(format!(
+                        "{}: {}",
+                        text(language, TextKey::Source),
+                        terminal_safe(&item.source.source_url)
+                    )),
+                    Line::from(format!(
+                        "{}: {}",
+                        text(language, TextKey::License),
+                        terminal_safe(&item.source.license)
+                    )),
+                    Line::from(format!(
+                        "{}: {}",
+                        text(language, TextKey::Difficulty),
+                        item.difficulty
+                            .map_or_else(|| "-".into(), |value| value.to_string())
+                    )),
+                    Line::from(format!(
+                        "{}: {}",
+                        text(language, TextKey::Tags),
+                        terminal_safe(&item.tags.join(", "))
+                    )),
+                ]);
+            } else {
+                lines.push(Line::from(text(language, TextKey::NoData)));
+            }
+            lines
+        }
+        PracticeKind::Test => vec![
+            row(
+                0,
+                text(language, TextKey::Language),
+                language_name(options.language).into(),
+            ),
+            row(
+                1,
+                text(language, TextKey::Duration),
+                format!("{}s", TEST_DURATION_PRESETS[options.test_preset]),
+            ),
+            start(2),
+        ],
+    };
+    lines.push(Line::from(format!(
+        "←→ / Enter {} · Esc {}",
+        text(language, TextKey::Confirm),
+        text(language, TextKey::Back)
+    )));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .style(styles.base)
+            .wrap(Wrap { trim: false }),
+        inner,
     );
 }
 
@@ -1655,6 +1832,18 @@ const fn toggle_name(language: Language, enabled: bool) -> &'static str {
         (Language::En, true) => "true",
         (Language::En, false) => "false",
     }
+}
+
+const fn difficulty_name(language: Language, difficulty: Difficulty) -> &'static str {
+    text(
+        language,
+        match difficulty {
+            Difficulty::Easy => TextKey::Easy,
+            Difficulty::Medium => TextKey::Medium,
+            Difficulty::Hard => TextKey::Hard,
+            Difficulty::Mixed => TextKey::Mixed,
+        },
+    )
 }
 
 fn practice_name(language: Language, kind: PracticeKind) -> &'static str {

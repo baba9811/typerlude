@@ -85,6 +85,46 @@ fn key_with(code: KeyCode, modifiers: KeyModifiers, kind: KeyEventKind) -> Event
     Event::Key(KeyEvent::new_with_kind(code, modifiers, kind))
 }
 
+fn open_mode_options(app: &mut App, index: usize, now: Instant) {
+    for _ in 0..index {
+        app.handle_event(key(KeyCode::Tab), now).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    assert_eq!(app.screen(), Screen::ModeSelect);
+    assert_eq!(app.focus(), index);
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    assert_eq!(app.screen(), Screen::ModeOptions);
+    assert_eq!(app.focus(), 0);
+}
+
+fn press(app: &mut App, code: KeyCode, count: usize, now: Instant) {
+    for _ in 0..count {
+        app.handle_event(key(code), now).unwrap();
+    }
+}
+
+fn launch_mode_options(
+    app: &mut App,
+    mode: usize,
+    language: Language,
+    changes: &[(usize, usize)],
+    start: usize,
+    now: Instant,
+) {
+    open_mode_options(app, mode, now);
+    if language == Language::Ko {
+        press(app, KeyCode::Right, 1, now);
+    }
+    let mut focus = 0;
+    for &(row, count) in changes {
+        press(app, KeyCode::Tab, row - focus, now);
+        press(app, KeyCode::Right, count, now);
+        focus = row;
+    }
+    press(app, KeyCode::Tab, start - focus, now);
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+}
+
 fn type_text(app: &mut App, value: &str, now: Instant) {
     for character in value.chars() {
         let code = if character == '\n' {
@@ -257,6 +297,8 @@ fn required_label(screen: Screen, language: Language) -> &'static str {
         (Screen::Home, Language::En) => "Typeul",
         (Screen::ModeSelect, Language::Ko) => "빠른 연습",
         (Screen::ModeSelect, Language::En) => "Quick practice",
+        (Screen::ModeOptions, Language::Ko) => "빠른 연습",
+        (Screen::ModeOptions, Language::En) => "Quick practice",
         (Screen::Practice, Language::Ko) => "진행",
         (Screen::Practice, Language::En) => "Progress",
         (Screen::Result, Language::Ko) => "결과",
@@ -357,7 +399,7 @@ fn home_renders_exactly_ten_actions_and_marks_the_focused_one() {
 }
 
 #[test]
-fn every_home_practice_action_can_start_its_default_mode() {
+fn every_home_practice_action_opens_its_matching_mode_options() {
     let now = Instant::now();
     for (index, kind, label) in [
         (0, PracticeKind::Quick, "Quick practice"),
@@ -380,8 +422,8 @@ fn every_home_practice_action_can_start_its_default_mode() {
         assert!(selection.contains(&format!("> {label}")), "{selection}");
 
         app.handle_event(key(KeyCode::Enter), now).unwrap();
-        assert_eq!(app.screen(), Screen::Practice, "{kind:?}");
-        assert_eq!(app.active_practice().unwrap().kind(), kind);
+        assert_eq!(app.screen(), Screen::ModeOptions, "{kind:?}");
+        assert!(app.active_practice().is_none(), "{kind:?}");
     }
 }
 
@@ -397,6 +439,251 @@ fn mode_select_focus_moves_across_all_six_practice_modes() {
 
     app.handle_event(key(KeyCode::BackTab), now).unwrap();
     assert_eq!(app.focus(), 0);
+}
+
+#[test]
+fn mode_options_reach_every_documented_quick_key_word_and_test_choice() {
+    let now = Instant::now();
+
+    for (source, source_changes, kind) in [
+        (QuickSource::Words, 0, ContentKind::Word),
+        (QuickSource::Quote, 1, ContentKind::Quote),
+    ] {
+        for (items, preset, stop) in [
+            (false, 0, StopRule::ActiveTime(Duration::from_secs(15))),
+            (false, 1, StopRule::ActiveTime(Duration::from_secs(30))),
+            (false, 2, StopRule::ActiveTime(Duration::from_secs(60))),
+            (false, 3, StopRule::ActiveTime(Duration::from_secs(120))),
+            (true, 0, StopRule::Items(10)),
+            (true, 1, StopRule::Items(25)),
+            (true, 2, StopRule::Items(50)),
+            (true, 3, StopRule::Items(100)),
+        ] {
+            let (_root, mut app) = fixture_app();
+            launch_mode_options(
+                &mut app,
+                0,
+                Language::En,
+                &[
+                    (1, source_changes),
+                    (2, items as usize),
+                    (3, (preset + 3) % 4),
+                ],
+                4,
+                now,
+            );
+
+            let active = app.active_practice().unwrap();
+            assert_eq!(active.kind(), PracticeKind::Quick);
+            assert_eq!(active.engine.language(), Language::En);
+            assert_eq!(active.stop, stop);
+            assert!(
+                active.content_ids.iter().all(|id| {
+                    app.content
+                        .items()
+                        .any(|item| item.id == *id && item.kind == kind)
+                }),
+                "{source:?} {stop:?}"
+            );
+        }
+    }
+
+    for language in [Language::En, Language::Ko] {
+        for stage in 1..=key_stages(language).len() as u8 {
+            for random in [false, true] {
+                for weak_repeat in [false, true] {
+                    let (_root, mut app) = fixture_app();
+                    launch_mode_options(
+                        &mut app,
+                        1,
+                        language,
+                        &[
+                            (1, usize::from(stage - 1)),
+                            (2, random as usize),
+                            (3, weak_repeat as usize),
+                        ],
+                        4,
+                        now,
+                    );
+
+                    let active = app.active_practice().unwrap();
+                    assert_eq!(active.engine.language(), language);
+                    assert_eq!(
+                        active.mode,
+                        PracticeMode::Key {
+                            stage,
+                            random,
+                            weak_repeat,
+                        }
+                    );
+                }
+            }
+        }
+    }
+
+    for (difficulty, changes) in [
+        (Difficulty::Easy, 1),
+        (Difficulty::Medium, 2),
+        (Difficulty::Hard, 3),
+        (Difficulty::Mixed, 4),
+    ] {
+        let (_root, mut app) = fixture_app();
+        launch_mode_options(&mut app, 2, Language::Ko, &[(1, changes)], 2, now);
+
+        let active = app.active_practice().unwrap();
+        assert_eq!(active.engine.language(), Language::Ko);
+        assert_eq!(
+            active.mode,
+            PracticeMode::Words {
+                difficulty,
+                completed: 0,
+                streak: 0,
+            }
+        );
+    }
+
+    let (_root, mut sentence) = fixture_app();
+    launch_mode_options(&mut sentence, 3, Language::Ko, &[], 1, now);
+    assert_eq!(
+        sentence.active_practice().unwrap().kind(),
+        PracticeKind::Sentence
+    );
+    assert_eq!(
+        sentence.active_practice().unwrap().engine.language(),
+        Language::Ko
+    );
+
+    for (preset, seconds) in [60, 180, 300, 600].into_iter().enumerate() {
+        let (_root, mut app) = fixture_app();
+        let language = if preset % 2 == 0 {
+            Language::Ko
+        } else {
+            Language::En
+        };
+        launch_mode_options(&mut app, 5, language, &[(1, (preset + 2) % 4)], 2, now);
+
+        let active = app.active_practice().unwrap();
+        assert_eq!(active.kind(), PracticeKind::Test);
+        assert_eq!(active.engine.language(), language);
+        assert_eq!(
+            active.stop,
+            StopRule::ActiveTime(Duration::from_secs(seconds))
+        );
+    }
+
+    let (_root, mut quick) = fixture_app();
+    open_mode_options(&mut quick, 0, now);
+    press(&mut quick, KeyCode::BackTab, 1, now);
+    assert_eq!(quick.focus(), 4);
+    press(&mut quick, KeyCode::Tab, 1, now);
+    assert_eq!(quick.focus(), 0);
+    quick.handle_event(key(KeyCode::Esc), now).unwrap();
+    assert_eq!(quick.screen(), Screen::ModeSelect);
+
+    let (_root, mut key_app) = fixture_app();
+    open_mode_options(&mut key_app, 1, now);
+    press(&mut key_app, KeyCode::Tab, 1, now);
+    press(
+        &mut key_app,
+        KeyCode::Right,
+        key_stages(Language::En).len() - 1,
+        now,
+    );
+    press(&mut key_app, KeyCode::BackTab, 1, now);
+    press(&mut key_app, KeyCode::Right, 1, now);
+    press(&mut key_app, KeyCode::Tab, 4, now);
+    key_app.handle_event(key(KeyCode::Enter), now).unwrap();
+    assert_eq!(
+        key_app.active_practice().unwrap().mode,
+        PracticeMode::Key {
+            stage: key_stages(Language::Ko).len() as u8,
+            random: false,
+            weak_repeat: false,
+        }
+    );
+}
+
+#[test]
+fn long_options_render_metadata_and_launch_every_filtered_item() {
+    let now = Instant::now();
+    for language in [Language::En, Language::Ko] {
+        let (_root, app) = fixture_app();
+        let items = app
+            .long_items(language, None)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(!items.is_empty());
+        drop(app);
+
+        for (index, item) in items.into_iter().enumerate() {
+            let (_root, mut app) = fixture_app();
+            open_mode_options(&mut app, 4, now);
+            if language == Language::Ko {
+                press(&mut app, KeyCode::Right, 1, now);
+            }
+            press(&mut app, KeyCode::Tab, index + 1, now);
+
+            let output = buffer_text(&draw(&app, 80, 24).buffer);
+            assert!(
+                output.contains(item.title.as_deref().unwrap_or(&item.id)),
+                "{output}"
+            );
+            assert!(output.contains(&item.source.author), "{output}");
+            assert!(output.contains(&item.source.source_url), "{output}");
+            assert!(output.contains(&item.source.license), "{output}");
+            assert!(
+                output.contains(&item.difficulty.unwrap_or_default().to_string()),
+                "{output}"
+            );
+            for tag in &item.tags {
+                assert!(output.contains(tag), "{output}");
+            }
+
+            app.handle_event(key(KeyCode::Enter), now).unwrap();
+            let active = app.active_practice().unwrap();
+            assert_eq!(active.engine.language(), language);
+            assert_eq!(
+                active.mode,
+                PracticeMode::Long {
+                    item_id: item.id.clone(),
+                    paragraph: 0,
+                }
+            );
+            assert_eq!(active.content_ids, [item.id]);
+        }
+    }
+
+    let (_root, mut app) = fixture_app();
+    let (english_count, expected) = {
+        let english_items = app.long_items(Language::En, None);
+        let korean_items = app.long_items(Language::Ko, None);
+        let selection = english_items
+            .len()
+            .saturating_sub(1)
+            .min(korean_items.len().saturating_sub(1));
+        (
+            english_items.len(),
+            korean_items[selection]
+                .title
+                .as_deref()
+                .unwrap_or(&korean_items[selection].id)
+                .to_owned(),
+        )
+    };
+    open_mode_options(&mut app, 4, now);
+    press(&mut app, KeyCode::Tab, english_count, now);
+    press(&mut app, KeyCode::BackTab, english_count, now);
+    press(&mut app, KeyCode::Right, 1, now);
+    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains(&expected));
+
+    let (_root, mut empty) = fixture_app();
+    empty.content = ContentCatalog::default();
+    open_mode_options(&mut empty, 4, now);
+    press(&mut empty, KeyCode::Tab, 1, now);
+    empty.handle_event(key(KeyCode::Enter), now).unwrap();
+    assert_eq!(empty.screen(), Screen::ModeOptions);
+    assert!(empty.active_practice().is_none());
 }
 
 #[test]
@@ -1538,6 +1825,7 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
         [
             Screen::Home,
             Screen::ModeSelect,
+            Screen::ModeOptions,
             Screen::Practice,
             Screen::Result,
             Screen::Stats,
@@ -1551,7 +1839,7 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
             Screen::Help,
         ]
     );
-    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 13);
+    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 14);
 
     let (_root, app) = fixture_app();
     assert_eq!(app.screen(), Screen::Home);

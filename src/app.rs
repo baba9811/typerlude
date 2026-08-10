@@ -32,6 +32,7 @@ use unicode_segmentation::UnicodeSegmentation;
 pub enum Screen {
     Home,
     ModeSelect,
+    ModeOptions,
     Practice,
     Result,
     Stats,
@@ -46,9 +47,10 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Home,
         Self::ModeSelect,
+        Self::ModeOptions,
         Self::Practice,
         Self::Result,
         Self::Stats,
@@ -228,14 +230,60 @@ pub struct QuickOptions {
     stop: StopRule,
 }
 
+pub(crate) const QUICK_TIME_PRESETS: &[u64] = &[15, 30, 60, 120];
+pub(crate) const QUICK_COUNT_PRESETS: &[usize] = &[10, 25, 50, 100];
+pub(crate) const TEST_DURATION_PRESETS: &[u64] = &[60, 180, 300, 600];
+
+#[derive(Clone, Debug)]
+pub(crate) struct ModeOptions {
+    pub(crate) kind: PracticeKind,
+    pub(crate) language: Language,
+    pub(crate) quick_source: QuickSource,
+    pub(crate) quick_items: bool,
+    pub(crate) quick_preset: usize,
+    pub(crate) key_stage: u8,
+    pub(crate) key_random: bool,
+    pub(crate) key_weak_repeat: bool,
+    pub(crate) word_difficulty: Difficulty,
+    pub(crate) test_preset: usize,
+    pub(crate) long_selection: usize,
+}
+
+impl ModeOptions {
+    fn new(kind: PracticeKind, language: Language) -> Self {
+        Self {
+            kind,
+            language,
+            quick_source: QuickSource::Words,
+            quick_items: false,
+            quick_preset: 1,
+            key_stage: 1,
+            key_random: false,
+            key_weak_repeat: false,
+            word_difficulty: Difficulty::Mixed,
+            test_preset: 2,
+            long_selection: 0,
+        }
+    }
+
+    fn quick_stop(&self) -> StopRule {
+        if self.quick_items {
+            StopRule::Items(QUICK_COUNT_PRESETS[self.quick_preset])
+        } else {
+            StopRule::ActiveTime(Duration::from_secs(QUICK_TIME_PRESETS[self.quick_preset]))
+        }
+    }
+}
+
 impl QuickOptions {
     pub fn new(language: Language, source: QuickSource, stop: StopRule) -> Result<Self> {
         let valid = match stop {
-            StopRule::ActiveTime(duration) => [15, 30, 60, 120]
-                .into_iter()
+            StopRule::ActiveTime(duration) => QUICK_TIME_PRESETS
+                .iter()
+                .copied()
                 .map(Duration::from_secs)
                 .any(|allowed| duration == allowed),
-            StopRule::Items(items) => [10, 25, 50, 100].contains(&items),
+            StopRule::Items(items) => QUICK_COUNT_PRESETS.contains(&items),
             StopRule::TargetEnd => false,
         };
         if !valid {
@@ -509,6 +557,7 @@ pub struct App {
     parent: Screen,
     parent_before_help: Option<Screen>,
     focus: usize,
+    mode_options: ModeOptions,
     quit: bool,
     retry_request: Option<ModeRequest>,
     retry_stream: Option<CatalogStream>,
@@ -541,12 +590,14 @@ impl App {
         warnings: Vec<String>,
     ) -> Self {
         let stats_language = settings.language;
+        let mode_options = ModeOptions::new(PracticeKind::Quick, settings.language);
         let content_pack_summaries = collect_content_packs(&content, &paths.content);
         Self {
             screen: Screen::Home,
             parent: Screen::Home,
             parent_before_help: None,
             focus: 0,
+            mode_options,
             quit: false,
             retry_request: None,
             retry_stream: None,
@@ -580,6 +631,10 @@ impl App {
 
     pub const fn focus(&self) -> usize {
         self.focus
+    }
+
+    pub(crate) const fn mode_options(&self) -> &ModeOptions {
+        &self.mode_options
     }
 
     pub const fn should_quit(&self) -> bool {
@@ -1027,7 +1082,7 @@ impl App {
         now: Instant,
     ) -> Result<()> {
         let seconds = seconds.unwrap_or(300);
-        if ![60, 180, 300, 600].contains(&seconds) {
+        if !TEST_DURATION_PRESETS.contains(&seconds) {
             bail!("invalid typing-test duration");
         }
         let stream = CatalogStream {
@@ -1661,6 +1716,12 @@ impl App {
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
+            Screen::ModeOptions => {
+                self.screen = Screen::ModeSelect;
+                self.parent = Screen::Home;
+                self.parent_before_help = None;
+                self.focus = 0;
+            }
             Screen::Help => {
                 let destination = self.parent;
                 let restored_parent = self.parent_before_help.take().unwrap_or(Screen::Home);
@@ -1696,6 +1757,15 @@ impl App {
         match self.screen {
             Screen::Home => 10,
             Screen::ModeSelect => 6,
+            Screen::ModeOptions => match self.mode_options.kind {
+                PracticeKind::Quick | PracticeKind::Key => 5,
+                PracticeKind::Words | PracticeKind::Test => 3,
+                PracticeKind::Sentence => 2,
+                PracticeKind::Long => self
+                    .long_items(self.mode_options.language, None)
+                    .len()
+                    .saturating_add(1),
+            },
             Screen::Stats => 5,
             Screen::History => 3,
             Screen::Goals => 4,
@@ -1716,9 +1786,19 @@ impl App {
         } else {
             (self.focus + 1) % count
         };
+        if self.screen == Screen::ModeOptions
+            && self.mode_options.kind == PracticeKind::Long
+            && self.focus != 0
+        {
+            self.mode_options.long_selection = self.focus - 1;
+        }
     }
 
     fn adjust(&mut self, delta: isize) {
+        if self.screen == Screen::ModeOptions {
+            self.adjust_mode_options(delta);
+            return;
+        }
         match (self.screen, self.focus) {
             (Screen::Stats | Screen::History, 0) => {
                 self.stats_range = cycle_range(self.stats_range, delta);
@@ -1747,6 +1827,74 @@ impl App {
                 let _ = self.set_daily_minutes(value);
             }
             (Screen::Settings, _) => self.activate_setting(),
+            _ => {}
+        }
+    }
+
+    fn adjust_mode_options(&mut self, delta: isize) {
+        if self.focus == 0 {
+            self.mode_options.language = other_language(self.mode_options.language);
+            match self.mode_options.kind {
+                PracticeKind::Key => {
+                    self.mode_options.key_stage = self
+                        .mode_options
+                        .key_stage
+                        .min(key_stages(self.mode_options.language).len() as u8);
+                }
+                PracticeKind::Long => {
+                    let item_count = self.long_items(self.mode_options.language, None).len();
+                    self.mode_options.long_selection = self
+                        .mode_options
+                        .long_selection
+                        .min(item_count.saturating_sub(1));
+                    self.focus = self.focus.min(item_count);
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        match (self.mode_options.kind, self.focus) {
+            (PracticeKind::Quick, 1) => {
+                self.mode_options.quick_source = match self.mode_options.quick_source {
+                    QuickSource::Words => QuickSource::Quote,
+                    QuickSource::Quote => QuickSource::Words,
+                };
+            }
+            (PracticeKind::Quick, 2) => {
+                self.mode_options.quick_items = !self.mode_options.quick_items;
+            }
+            (PracticeKind::Quick, 3) => {
+                let presets = if self.mode_options.quick_items {
+                    QUICK_COUNT_PRESETS.len()
+                } else {
+                    QUICK_TIME_PRESETS.len()
+                };
+                self.mode_options.quick_preset =
+                    cycle_index(self.mode_options.quick_preset, presets, delta);
+            }
+            (PracticeKind::Key, 1) => {
+                self.mode_options.key_stage = (cycle_index(
+                    usize::from(self.mode_options.key_stage.saturating_sub(1)),
+                    key_stages(self.mode_options.language).len(),
+                    delta,
+                ) + 1) as u8;
+            }
+            (PracticeKind::Key, 2) => self.mode_options.key_random = !self.mode_options.key_random,
+            (PracticeKind::Key, 3) => {
+                self.mode_options.key_weak_repeat = !self.mode_options.key_weak_repeat;
+            }
+            (PracticeKind::Words, 1) => {
+                self.mode_options.word_difficulty =
+                    cycle_difficulty(self.mode_options.word_difficulty, delta);
+            }
+            (PracticeKind::Test, 1) => {
+                self.mode_options.test_preset = cycle_index(
+                    self.mode_options.test_preset,
+                    TEST_DURATION_PRESETS.len(),
+                    delta,
+                );
+            }
             _ => {}
         }
     }
@@ -1782,7 +1930,55 @@ impl App {
                 .copied() else {
                     return Ok(());
                 };
-                self.start_default(kind, self.settings.language, None, fastrand::u64(..), now)?;
+                self.mode_options = ModeOptions::new(kind, self.settings.language);
+                self.open(Screen::ModeOptions);
+            }
+            Screen::ModeOptions => {
+                let options = self.mode_options.clone();
+                match (options.kind, self.focus) {
+                    (PracticeKind::Quick, 4) => self.start_quick(
+                        QuickOptions::new(
+                            options.language,
+                            options.quick_source,
+                            options.quick_stop(),
+                        )?,
+                        fastrand::u64(..),
+                        now,
+                    )?,
+                    (PracticeKind::Key, 4) => self.start_key(
+                        options.language,
+                        options.key_stage,
+                        options.key_random,
+                        options.key_weak_repeat,
+                        fastrand::u64(..),
+                        now,
+                    )?,
+                    (PracticeKind::Words, 2) => self.start_words(
+                        options.language,
+                        options.word_difficulty,
+                        fastrand::u64(..),
+                        now,
+                    )?,
+                    (PracticeKind::Sentence, 1) => {
+                        self.start_sentence(options.language, fastrand::u64(..), now)?;
+                    }
+                    (PracticeKind::Long, focus) if focus != 0 => {
+                        let item_id = self
+                            .long_items(options.language, None)
+                            .get(options.long_selection)
+                            .map(|item| item.id.clone());
+                        if let Some(item_id) = item_id {
+                            self.start_long(&item_id, now)?;
+                        }
+                    }
+                    (PracticeKind::Test, 2) => self.start_test(
+                        options.language,
+                        Some(TEST_DURATION_PRESETS[options.test_preset]),
+                        fastrand::u64(..),
+                        now,
+                    )?,
+                    _ => self.adjust(1),
+                }
             }
             Screen::Stats => match self.focus {
                 0..=2 => self.adjust(1),
@@ -2069,6 +2265,20 @@ fn adjusted(value: u32, delta: isize, step: u32, minimum: u32, maximum: u32) -> 
     } else {
         value.saturating_add(step).min(maximum)
     }
+}
+
+fn cycle_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {
+    let values = [
+        Difficulty::Easy,
+        Difficulty::Medium,
+        Difficulty::Hard,
+        Difficulty::Mixed,
+    ];
+    let index = values
+        .iter()
+        .position(|value| *value == difficulty)
+        .unwrap_or_default();
+    values[cycle_index(index, values.len(), delta)]
 }
 
 const WORD_KINDS: &[ContentKind] = &[ContentKind::Word];
