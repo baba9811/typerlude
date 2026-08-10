@@ -155,7 +155,8 @@ function argumentsFrom(argv) {
   const values = {};
   for (let index = 0; index < argv.length; index += 2) {
     const option = argv[index];
-    if (!['--package-dir', '--binary', '--out'].includes(option) || values[option] || argv[index + 1] === undefined) {
+    if (!['--package-dir', '--binary', '--out'].includes(option)
+        || Object.hasOwn(values, option) || argv[index + 1] === undefined) {
       throw new Error("usage: stage-platform-package.mjs --package-dir DIR --binary FILE --out DIR");
     }
     values[option] = argv[index + 1];

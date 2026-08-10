@@ -3,9 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { stagePlatform } from "./stage-platform-package.mjs";
-import { commandNeedsShell, prependPath, validatePackRecord, validatePackedManifest } from "./verify-package.mjs";
+import {
+  assertLicenseTreeClean, prependPath, resolveNpmCli, runNodeCli,
+  validateInstalledPackageTree, validateNativeManifests, validatePackRecord,
+  validatePackedManifest,
+} from "./verify-package.mjs";
 
 const sourceRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -320,8 +325,111 @@ test("fake npm prepends the existing Windows Path spelling without a duplicate P
     Path: "fake-bin;real-bin",
     HOME: "home",
   });
-  assert.equal(commandNeedsShell("npm.cmd", "win32"), true);
-  assert.equal(commandNeedsShell("npx.cmd", "win32"), true);
-  assert.equal(commandNeedsShell("untrusted.cmd", "win32"), false);
-  assert.equal(commandNeedsShell("npm", "linux"), false);
+});
+
+test("Node CLI execution preserves shell metacharacters as exact arguments", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul cli &^()%! "));
+  try {
+    const cli = path.join(root, "npm cli &^()%!.mjs");
+    fs.writeFileSync(cli, "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n");
+    const args = [
+      path.join(root, "package & root.tgz"),
+      "literal|pipe", "redirect<input", "redirect>output", "caret^value",
+      "percent%value", "bang!value", "(parentheses)",
+    ];
+    assert.deepEqual(JSON.parse(runNodeCli(cli, args)), args);
+
+    const npmDir = path.join(root, "node_modules", "npm", "bin");
+    fs.mkdirSync(npmDir, { recursive: true });
+    const npmCli = path.join(npmDir, "npm-cli.js");
+    fs.writeFileSync(npmCli, "// fixture\n");
+    assert.equal(resolveNpmCli({ npm_execpath: npmCli }, path.join(root, "node.exe"), "win32"), fs.realpathSync(npmCli));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("installed package trees reject extra, missing, replaced, and linked legal files", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-installed-tree-"));
+  try {
+    const source = path.join(root, "source-LICENSE");
+    const installed = path.join(root, "installed");
+    fs.mkdirSync(installed);
+    fs.writeFileSync(source, "license bytes\n");
+    fs.writeFileSync(path.join(installed, "package.json"), "{}\n");
+    fs.writeFileSync(path.join(installed, "LICENSE"), "license bytes\n");
+    const expected = ["LICENSE", "package.json"];
+    const copies = new Map([["LICENSE", source]]);
+    validateInstalledPackageTree(installed, expected, copies);
+
+    fs.writeFileSync(path.join(installed, ".private"), "not allowed");
+    assert.throws(() => validateInstalledPackageTree(installed, expected, copies), /files|private/);
+    fs.rmSync(path.join(installed, ".private"));
+
+    fs.rmSync(path.join(installed, "LICENSE"));
+    assert.throws(() => validateInstalledPackageTree(installed, expected, copies), /files|LICENSE/);
+    fs.writeFileSync(path.join(installed, "LICENSE"), "");
+    assert.throws(() => validateInstalledPackageTree(installed, expected, copies), /LICENSE.*source|differs/);
+
+    if (process.platform !== "win32") {
+      fs.rmSync(path.join(installed, "LICENSE"));
+      fs.symlinkSync(source, path.join(installed, "LICENSE"));
+      assert.throws(() => validateInstalledPackageTree(installed, expected, copies), /symlink|regular/);
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("all source native manifests are validated before selecting the host", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-native-manifests-"));
+  try {
+    fs.cpSync(path.join(sourceRoot, "npm"), path.join(root, "npm"), { recursive: true });
+    validateNativeManifests(root, "1.0.0");
+    const host = process.platform === "win32"
+      ? `typeul-${process.platform}-${process.arch}-msvc`
+      : `typeul-${process.platform}-${process.arch}`;
+    const nonHost = fs.readdirSync(path.join(root, "npm")).find((name) => name !== host);
+    changeManifest(path.join(root, "npm", nonHost), (manifest) => {
+      manifest.dependencies = { "private-registry-code": "1.0.0" };
+    });
+    assert.throws(() => validateNativeManifests(root, "1.0.0"), new RegExp(`${nonHost}.*dependencies|dependencies.*${nonHost}`, "s"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("CLI duplicate flags reject an empty first value", () => {
+  const result = spawnSync(process.execPath, [
+    path.join(sourceRoot, "scripts", "stage-platform-package.mjs"),
+    "--package-dir", "", "--package-dir", "second",
+    "--binary", "binary", "--out", "out",
+  ], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /usage:/);
+});
+
+test("license cleanliness rejects tracked changes and untracked license files", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-license-git-"));
+  const git = (...args) => {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  try {
+    git("init", "--quiet");
+    fs.mkdirSync(path.join(root, "assets", "licenses"), { recursive: true });
+    fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "generated\n");
+    fs.writeFileSync(path.join(root, "assets", "licenses", "known.txt"), "known\n");
+    git("add", ".");
+    git("-c", "user.name=Typeul Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "fixture");
+    assertLicenseTreeClean(root);
+
+    fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "stale\n");
+    assert.throws(() => assertLicenseTreeClean(root), /generated license files differ/);
+    fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "generated\n");
+    fs.writeFileSync(path.join(root, "assets", "licenses", "untracked.txt"), "new\n");
+    assert.throws(() => assertLicenseTreeClean(root), /untracked license files.*untracked\.txt/s);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

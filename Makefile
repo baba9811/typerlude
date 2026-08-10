@@ -21,6 +21,6 @@ licenses:
 	cargo about generate about.hbs -o THIRD_PARTY_LICENSES.html
 
 package-check: test licenses
+	node scripts/verify-package.mjs --check-license-tree
 	cargo publish --dry-run --locked
-	npm pack --dry-run --json
 	npm run package-check

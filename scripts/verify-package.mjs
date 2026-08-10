@@ -8,6 +8,7 @@ import { readVersions, validateVersions } from "./check-versions.mjs";
 import { stagePlatform } from "./stage-platform-package.mjs";
 
 const { packageFor } = createRequire(import.meta.url)("../bin/typeul.js");
+const sourceRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const supportedPairs = [
   ["darwin", "arm64"], ["darwin", "x64"], ["linux", "arm64"],
   ["linux", "x64"], ["win32", "arm64"], ["win32", "x64"],
@@ -22,16 +23,20 @@ const lifecycleScripts = new Set([
   "prepublish", "prepublishOnly",
 ]);
 
-export function commandNeedsShell(executable, platform = process.platform) {
-  return platform === "win32"
-    && ["npm.cmd", "npx.cmd"].includes(path.win32.basename(executable).toLowerCase());
-}
-
 function regularFile(value, label) {
   const resolved = path.resolve(value);
   const metadata = fs.lstatSync(resolved);
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
     throw new Error(`${label} must be a regular file: ${resolved}`);
+  }
+  return fs.realpathSync(resolved);
+}
+
+function realDirectory(value, label) {
+  const resolved = path.resolve(value);
+  const metadata = fs.lstatSync(resolved);
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    throw new Error(`${label} must be a real directory: ${resolved}`);
   }
   return fs.realpathSync(resolved);
 }
@@ -52,7 +57,6 @@ function run(executable, args, options = {}) {
     input: "",
     maxBuffer: 16 * 1024 * 1024,
     timeout: options.timeout ?? 10 * 60 * 1000,
-    shell: commandNeedsShell(executable),
     windowsHide: false,
   });
   const command = [executable, ...args].join(" ");
@@ -62,6 +66,63 @@ function run(executable, args, options = {}) {
     throw new Error(`${command}: exited ${result.status}\n${result.stdout}${result.stderr}`);
   }
   return result.stdout;
+}
+
+export function runNodeCli(cli, args, options = {}) {
+  return run(process.execPath, [regularFile(cli, "Node CLI"), ...args], options);
+}
+
+function validNpmCli(value) {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  try {
+    const cli = regularFile(value, "npm CLI");
+    return path.basename(cli) === "npm-cli.js"
+      && path.basename(path.dirname(cli)) === "bin"
+      && path.basename(path.dirname(path.dirname(cli))) === "npm"
+      ? cli : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveNpmCli(environment = process.env, execPath = process.execPath, platform = process.platform) {
+  const fromEnvironment = validNpmCli(environment.npm_execpath);
+  if (fromEnvironment) return fromEnvironment;
+
+  const executableDirectory = path.dirname(path.resolve(execPath));
+  const candidates = platform === "win32"
+    ? [path.join(executableDirectory, "node_modules", "npm", "bin", "npm-cli.js")]
+    : [path.resolve(executableDirectory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")];
+  const pathKey = Object.keys(environment).find((name) => name.toLowerCase() === "path");
+  for (const directory of String(pathKey ? environment[pathKey] : "").split(platform === "win32" ? ";" : ":")) {
+    if (!directory) continue;
+    if (platform === "win32") {
+      candidates.push(path.join(directory, "node_modules", "npm", "bin", "npm-cli.js"));
+    } else {
+      try {
+        candidates.push(fs.realpathSync(path.join(directory, "npm")));
+      } catch {}
+    }
+  }
+  for (const candidate of candidates) {
+    const cli = validNpmCli(candidate);
+    if (cli) return cli;
+  }
+  throw new Error("npm-cli.js was not found via npm_execpath, the Node installation, or PATH");
+}
+
+function resolveNpxCli(environment) {
+  const npmCli = resolveNpmCli(environment);
+  const npxCli = path.join(path.dirname(npmCli), "npx-cli.js");
+  return regularFile(npxCli, "npx CLI");
+}
+
+function runNpm(args, options = {}) {
+  return runNodeCli(resolveNpmCli(options.env ?? process.env), args, options);
+}
+
+function runNpx(args, options = {}) {
+  return runNodeCli(resolveNpxCli(options.env ?? process.env), args, options);
 }
 
 function exactArray(actual, expected, label) {
@@ -174,7 +235,7 @@ function licenseFiles(root, prefix) {
 }
 
 function pack(cwd, destination, expected) {
-  const output = run(npmExecutable(), ["pack", "--json", "--pack-destination", destination], { cwd });
+  const output = runNpm(["pack", "--json", "--pack-destination", destination], { cwd });
   let records;
   try {
     records = JSON.parse(output);
@@ -186,16 +247,8 @@ function pack(cwd, destination, expected) {
   return regularFile(path.join(destination, filename), "packed tarball");
 }
 
-function npmExecutable() {
-  return process.platform === "win32" ? "npm.cmd" : "npm";
-}
-
-function npxExecutable() {
-  return process.platform === "win32" ? "npx.cmd" : "npx";
-}
-
-function installed(npx, args, cwd, home, env = process.env) {
-  return run(npx, ["--no-install", "typeul", ...args], {
+function installed(args, cwd, home, env = process.env) {
+  return runNpx(["--no-install", "typeul", ...args], {
     cwd,
     env: { ...env, TYPEUL_HOME: home },
   });
@@ -226,6 +279,91 @@ function nativeDependencies(version) {
   return Object.fromEntries(supportedPairs.map(([os, cpu]) => [packageFor(os, cpu)[0], version]));
 }
 
+export function validateNativeManifests(rootValue, version) {
+  const root = realDirectory(rootValue, "package root");
+  const npm = realDirectory(path.join(root, "npm"), "native manifest directory");
+  const expectedNames = supportedPairs.map(([os, cpu]) => packageFor(os, cpu)[0]).sort();
+  const actualNames = fs.readdirSync(npm, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
+    .map((entry) => entry.name)
+    .sort();
+  exactArray(actualNames, expectedNames, "source native manifest directories");
+  const manifests = new Map();
+  for (const [os, cpu] of supportedPairs) {
+    const [name, executable] = packageFor(os, cpu);
+    const manifest = readJson(path.join(npm, name, "package.json"), `${name} manifest`);
+    try {
+      validatePackedManifest(manifest, {
+        name, version, files: [executable, ...legalRoots, "licenses"], os, cpu,
+        bin: null, dependencies: {}, optionalDependencies: {}, peerDependencies: {},
+        peerDependenciesMeta: {},
+      });
+    } catch (error) {
+      throw new Error(`${name}: ${error.message}`);
+    }
+    manifests.set(name, manifest);
+  }
+  return manifests;
+}
+
+export function validateInstalledPackageTree(packageDirValue, expectedFiles, sourceFiles = new Map()) {
+  const packageDir = realDirectory(packageDirValue, "installed package");
+  const actual = [];
+  function visit(directory, relative) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const file = path.join(directory, entry.name);
+      const name = path.posix.join(relative, entry.name);
+      const metadata = fs.lstatSync(file);
+      if (metadata.isSymbolicLink()) throw new Error(`installed package contains a symlink: ${name}`);
+      if (metadata.isDirectory()) visit(file, name);
+      else if (metadata.isFile()) actual.push(name);
+      else throw new Error(`installed package entry must be regular: ${name}`);
+    }
+  }
+  visit(packageDir, "");
+  const missing = expectedFiles.filter((name) => !actual.includes(name));
+  const extra = actual.filter((name) => !expectedFiles.includes(name));
+  if (missing.length || extra.length) {
+    throw new Error(`installed package files mismatch; missing: ${missing.join(", ") || "none"}; extra: ${extra.join(", ") || "none"}`);
+  }
+  for (const [name, source] of sourceFiles) {
+    if (!fs.readFileSync(path.join(packageDir, name)).equals(fs.readFileSync(regularFile(source, `${name} source`)))) {
+      throw new Error(`installed ${name} differs from source`);
+    }
+  }
+}
+
+function sourceLicenseNames() {
+  return licenseFiles(sourceRoot, "");
+}
+
+function sourceCopies(prefix, includeReadmeAndLauncher = false) {
+  const copies = new Map(legalRoots.map((name) => [name, path.join(sourceRoot, name)]));
+  for (const name of sourceLicenseNames()) {
+    copies.set(path.posix.join(prefix, name), path.join(sourceRoot, "assets", "licenses", ...name.split("/")));
+  }
+  if (includeReadmeAndLauncher) {
+    copies.set("README.md", path.join(sourceRoot, "README.md"));
+    copies.set("bin/typeul.js", path.join(sourceRoot, "bin", "typeul.js"));
+  }
+  return copies;
+}
+
+export function assertLicenseTreeClean(rootValue) {
+  const root = realDirectory(rootValue, "repository root");
+  const git = (args) => spawnSync("git", args, { cwd: root, encoding: "utf8", windowsHide: false });
+  const changed = git(["diff", "--quiet", "HEAD", "--", "THIRD_PARTY_LICENSES.html", "assets/licenses"]);
+  if (changed.error) throw new Error(`failed to inspect generated licenses: ${changed.error.message}`);
+  if (changed.status !== 0) {
+    throw new Error("generated license files differ from HEAD; regenerate and commit THIRD_PARTY_LICENSES.html and assets/licenses");
+  }
+  const untracked = git(["ls-files", "--others", "--exclude-standard", "--", "assets/licenses"]);
+  if (untracked.error || untracked.status !== 0) {
+    throw new Error(`failed to inspect untracked license files: ${untracked.error?.message ?? untracked.stderr}`);
+  }
+  if (untracked.stdout.trim()) throw new Error(`untracked license files are not allowed:\n${untracked.stdout.trim()}`);
+}
+
 export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) {
   const rootTgz = regularFile(rootTgzValue, "root tarball");
   const platformTgz = regularFile(platformTgzValue, "platform tarball");
@@ -238,18 +376,31 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   if (fs.existsSync(install)) throw new Error(`install directory must be absent: ${install}`);
   fs.mkdirSync(install, { mode: 0o755 });
   fs.writeFileSync(path.join(install, "package.json"), "{\"name\":\"typeul-package-check\",\"private\":true}\n");
-  run(npmExecutable(), [
+  runNpm([
     "install", rootTgz, platformTgz, "--ignore-scripts", "--no-audit", "--no-fund",
   ], { cwd: install });
 
-  const rootManifest = readJson(path.join(install, "node_modules", "typeul", "package.json"), "installed root manifest");
+  const licenseNames = sourceLicenseNames();
+  const rootPackageDir = path.join(install, "node_modules", "typeul");
+  validateInstalledPackageTree(rootPackageDir, [
+    "package.json", "bin/typeul.js", "LICENSE", "README.md",
+    "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md",
+    ...licenseNames.map((name) => path.posix.join("assets/licenses", name)),
+  ], sourceCopies("assets/licenses", true));
+  const platformPackageDir = path.join(install, "node_modules", platformName);
+  validateInstalledPackageTree(platformPackageDir, [
+    "package.json", executable, ...legalRoots,
+    ...licenseNames.map((name) => path.posix.join("licenses", name)),
+  ], sourceCopies("licenses"));
+
+  const rootManifest = readJson(path.join(rootPackageDir, "package.json"), "installed root manifest");
   validatePackedManifest(rootManifest, {
     name: "typeul", version: expectedVersion, files: rootManifestFiles,
     bin: { typeul: "bin/typeul.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
   const platformManifestFiles = [executable, ...legalRoots, "licenses"];
-  const platformManifest = readJson(path.join(install, "node_modules", platformName, "package.json"), "installed platform manifest");
+  const platformManifest = readJson(path.join(platformPackageDir, "package.json"), "installed platform manifest");
   validatePackedManifest(platformManifest, {
     name: platformName, version: expectedVersion, files: platformManifestFiles,
     os: process.platform, cpu: process.arch, bin: null, dependencies: {},
@@ -257,25 +408,24 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   });
 
   const home = path.join(temporary, "typeul-home");
-  const npx = npxExecutable();
-  const version = installed(npx, ["--version"], install, home);
+  const version = installed(["--version"], install, home);
   if (version !== `typeul ${expectedVersion}\n`) throw new Error(`installed --version returned ${JSON.stringify(version)}`);
-  const paths = installed(npx, ["paths"], install, home);
+  const paths = installed(["paths"], install, home);
   for (const relative of ["config.toml", "sessions", "content", "themes", "cache/update.json"]) {
     if (!paths.includes(path.join(home, relative))) throw new Error(`installed paths omitted ${relative}`);
   }
-  const licenses = installed(npx, ["licenses"], install, home);
+  const licenses = installed(["licenses"], install, home);
   for (const text of ["===== LICENSE =====", "THIRD_PARTY_NOTICES.md", "CC0 1.0 Universal", "Sven Greb"]) {
     if (!licenses.includes(text)) throw new Error(`installed licenses omitted ${text}`);
   }
-  const smoke = installed(npx, ["--smoke"], install, home);
+  const smoke = installed(["--smoke"], install, home);
   if (!/^smoke ok: \d+ content items, 0 sessions\n$/.test(smoke)) {
     throw new Error(`installed --smoke returned ${JSON.stringify(smoke)}`);
   }
 
   const fake = path.join(temporary, "fake-npm");
   fakeNpm(fake);
-  const update = installed(npx, ["update"], install, home, prependPath(process.env, fake));
+  const update = installed(["update"], install, home, prependPath(process.env, fake));
   for (const text of ["latest: 99.0.0", "update: npm install -g typeul@latest · npx typeul@latest"]) {
     if (!update.includes(text)) throw new Error(`installed update omitted ${text}`);
   }
@@ -284,9 +434,10 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
 function main() {
   const root = fs.realpathSync(process.cwd());
   const expectedVersion = validateVersions(readVersions(root));
+  const nativeManifests = validateNativeManifests(root, expectedVersion);
   const [platformName, executable] = packageFor(process.platform, process.arch);
   const platformDir = path.join(root, "npm", platformName);
-  const platformManifest = readJson(path.join(platformDir, "package.json"), "platform manifest");
+  const platformManifest = nativeManifests.get(platformName);
   const rootManifest = readJson(path.join(root, "package.json"), "root manifest");
   validatePackedManifest(rootManifest, {
     name: "typeul", version: expectedVersion, files: rootManifestFiles,
@@ -345,7 +496,13 @@ function main() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    main();
+    if (process.argv.length === 3 && process.argv[2] === "--check-license-tree") {
+      assertLicenseTreeClean(process.cwd());
+    } else if (process.argv.length === 2) {
+      main();
+    } else {
+      throw new Error("usage: verify-package.mjs [--check-license-tree]");
+    }
   } catch (error) {
     console.error(`verify-package: ${error.message}`);
     process.exitCode = 1;
