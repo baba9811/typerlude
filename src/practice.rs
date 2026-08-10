@@ -283,9 +283,15 @@ impl PracticeEngine {
         let current_pause = self.paused_at.map_or(Duration::ZERO, |paused_at| {
             now.saturating_duration_since(paused_at)
         });
-        now.saturating_duration_since(started_at)
+        let active = now
+            .saturating_duration_since(started_at)
             .saturating_sub(self.paused_total)
-            .saturating_sub(current_pause)
+            .saturating_sub(current_pause);
+        if self.finalized_at.is_some() {
+            self.limit.map_or(active, |limit| active.min(limit))
+        } else {
+            active
+        }
     }
 
     fn target_grapheme(&self, index: usize) -> Option<&str> {
@@ -424,6 +430,37 @@ mod tests {
 
         assert!(!engine.is_finished(start + Duration::from_secs(59)));
         assert!(engine.is_finished(start + Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn timed_finalization_clamps_late_active_time_and_then_freezes() {
+        let start = Instant::now();
+        let mut test = PracticeEngine::new(
+            Language::En,
+            PracticeKind::Test,
+            "abcdef",
+            Some(Duration::from_secs(60)),
+        )
+        .unwrap();
+        test.input("a", start);
+        let test_metrics = test.finalize(start + Duration::from_secs(90));
+        assert_eq!(test_metrics.active, Duration::from_secs(60));
+        assert_eq!(test.metrics(start + Duration::from_secs(300)), test_metrics);
+
+        let mut quick = PracticeEngine::new(
+            Language::En,
+            PracticeKind::Quick,
+            "abcdef",
+            Some(Duration::from_secs(60)),
+        )
+        .unwrap();
+        quick.input("a", start);
+        assert!(quick.toggle_pause(start + Duration::from_secs(10)));
+        assert!(quick.toggle_pause(start + Duration::from_secs(40)));
+        assert_eq!(
+            quick.finalize(start + Duration::from_secs(100)).active,
+            Duration::from_secs(60)
+        );
     }
 
     #[test]

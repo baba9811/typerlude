@@ -13,9 +13,10 @@ repository at commit `272f22fc9ea1ac6b08f01704af52c4ac338df4e2`:
 https://github.com/soc/option-ext/tree/272f22fc9ea1ac6b08f01704af52c4ac338df4e2.
 The Typeul MIT license does not replace or restrict the MPL-2.0 terms.
 
-The complete offline legal texts are bundled at
-`assets/licenses/CC0-1.0.txt`, `assets/licenses/CC-BY-2.0-FR.txt`, and
-`assets/licenses/NORD-MIT.txt`.
+The complete offline legal texts are bundled under `assets/licenses/` in the
+source tree, Cargo package, and root npm package, and under `licenses/` in
+native npm packages and native archives. These layouts contain the same
+snapshot bytes for `CC0-1.0.txt`, `CC-BY-2.0-FR.txt`, and `NORD-MIT.txt`.
 The canonical online texts are:
 
 - CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt

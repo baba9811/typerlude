@@ -8,6 +8,26 @@ The workflow is deliberately not cross-registry atomic. A registry outage can le
 some npm packages published while the GitHub release remains a draft. Inspect registry state
 before retrying; never assume a failed run published nothing.
 
+## Partial npm publication recovery / npm 부분 배포 복구
+
+Do not bump the version or publish individual tarballs manually after a partial npm success.
+Rerun the failed protected workflow jobs while the immutable release artifact is retained:
+
+```bash
+run_id=REPLACE_WITH_FAILED_RUN_ID
+gh run view "$run_id" --repo baba9811/typeul
+gh run rerun "$run_id" --failed --repo baba9811/typeul
+gh run watch "$run_id" --repo baba9811/typeul --exit-status
+```
+
+For each of the seven packages, in native-package order with `typeul` last, the workflow queries
+only `https://registry.npmjs.org/`. A structured npm `E404` means the version is absent and the
+exact local tarball is published. If the version exists, the workflow computes that tarball's
+SHA-512 SRI and skips it only when it exactly equals `dist.integrity`. An integrity mismatch,
+malformed response, authentication or network error, or any non-`E404` query failure stops the
+job before later packages. Bootstrap reruns retain explicit provenance; OIDC reruns retain token
+isolation and trusted-publication provenance. Never put an auth token in these commands or logs.
+
 ## 1. Public repository and protections / 공개 저장소와 보호 설정
 
 - Create `baba9811/typeul` as a **public** repository only if it does not exist.

@@ -25,7 +25,7 @@ use typeul::{
     content::{ContentCatalog, ContentKind},
     model::{Difficulty, Language, PracticeKind},
     practice::{InputOutcome, PracticeEngine},
-    stats::{KeyAccuracy, Range, adaptive_candidates},
+    stats::{KeyAccuracy, Range, adaptive_candidates, summarize},
     storage::{AppPaths, SessionRecord},
     theme::ThemeCatalog,
     ui::{practice_cursor, render},
@@ -375,6 +375,47 @@ fn user_long_pack(item_id: &str) -> String {
     user_pack("collision")
         .replace("id = \"collision-item\"", &format!("id = \"{item_id}\""))
         .replace("kind = \"word\"", "kind = \"text\"")
+}
+
+fn many_long_pack(count: usize) -> String {
+    let mut pack = r#"schema_version = 1
+id = "viewport"
+title = "Viewport test pack"
+language = "en"
+
+[source]
+author = "Viewport author"
+source_id = "viewport-pack"
+source_url = "https://example.com/viewport"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-10"
+"#
+    .to_owned();
+    for index in 0..count {
+        pack.push_str(&format!(
+            r#"
+[[items]]
+id = "viewport-text-{index:02}"
+kind = "text"
+title = "Viewport item {index:02}"
+difficulty = 3
+tags = ["viewport-tag-{index:02}"]
+text = "Unique viewport text {index:02}."
+
+[items.source]
+author = "Viewport author"
+source_id = "viewport-source-{index:02}"
+source_url = "https://example.com/viewport/{index:02}"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-10"
+"#
+        ));
+    }
+    pack
 }
 
 struct Drawn {
@@ -811,6 +852,53 @@ fn long_options_render_metadata_and_launch_every_filtered_item() {
     empty.handle_event(key(KeyCode::Enter), now).unwrap();
     assert_eq!(empty.screen(), Screen::ModeOptions);
     assert!(empty.active_practice().is_none());
+}
+
+#[test]
+fn long_options_keep_the_focused_tail_and_metadata_visible_with_warnings() {
+    let (_root, mut app) = fixture_app();
+    fs::create_dir_all(&app.paths.content).unwrap();
+    fs::write(app.paths.content.join("viewport.toml"), many_long_pack(24)).unwrap();
+    let loaded = ContentCatalog::load(&app.paths.content).unwrap();
+    assert!(loaded.warnings.is_empty());
+    app.content = loaded.catalog;
+    let expected_id = "viewport-text-23";
+    let index = app
+        .long_items(Language::En, None)
+        .iter()
+        .position(|item| item.id == expected_id)
+        .unwrap();
+
+    let now = Instant::now();
+    open_mode_options(&mut app, 4, now);
+    press(&mut app, KeyCode::Tab, index + 1, now);
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+
+    for visible in [
+        "> Viewport item 23",
+        "Language: en",
+        "Title: Viewport item 23",
+        "Author: Viewport author",
+        "Source: https://example.com/viewport/23",
+        "License: CC0-1.0",
+        "Difficulty: 3",
+        "Tags: viewport-tag-23",
+        "Enter Confirm",
+        "Esc Back",
+        "review warning",
+    ] {
+        assert!(output.contains(visible), "missing {visible:?}: {output}");
+    }
+    assert!(!output.contains("Viewport item 00"), "{output}");
+
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().mode,
+        PracticeMode::Long {
+            item_id: expected_id.into(),
+            paragraph: 0,
+        }
+    );
 }
 
 #[test]
@@ -1818,6 +1906,43 @@ fn help_explains_all_keyboard_and_cli_actions_in_both_languages() {
         ] {
             assert!(output.contains(command), "missing {command:?}: {output}");
         }
+    }
+}
+
+#[test]
+fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
+    for (language, required) in [
+        (
+            Language::En,
+            [
+                "Non-Test: Esc / Ctrl+P pause",
+                "Test: Esc opens/cancels leave · q confirms",
+                "r: exact target/options",
+                "n: Quick/Words/Sentence/catalog Long only",
+            ],
+        ),
+        (
+            Language::Ko,
+            [
+                "시험 외: Esc / Ctrl+P 일시 정지",
+                "시험: Esc 나가기 확인 열기/취소 · q 확인",
+                "r: 같은 대상/설정",
+                "n: 빠른/단어/문장/카탈로그 긴 글만",
+            ],
+        ),
+    ] {
+        let (_root, mut app) = fixture_app();
+        app.settings.ui_language = language;
+        app.open(Screen::Help);
+        let output = buffer_text(&draw(&app, 80, 24).buffer);
+        for text in required {
+            assert!(output.contains(text), "missing {text:?}: {output}");
+        }
+        assert!(
+            output.contains("typeul FILE | typeul practice FILE"),
+            "{output}"
+        );
+        assert!(output.contains("review warning"), "{output}");
     }
 }
 
@@ -2945,6 +3070,36 @@ fn active_time_finishes_from_tick_not_from_target_exhaustion_and_saves_privately
 }
 
 #[test]
+fn a_late_timed_poll_uses_the_selected_limit_for_session_daily_total_and_speed() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.daily_minutes = 1;
+    let start = Instant::now();
+    app.start_mode(
+        ModeRequest {
+            content_ids: vec!["late-test".into()],
+            ..request(
+                PracticeKind::Test,
+                Language::En,
+                "abcde",
+                StopRule::ActiveTime(Duration::from_secs(60)),
+            )
+        },
+        start,
+    )
+    .unwrap();
+    type_text(&mut app, "abcde", start);
+
+    app.tick(start + Duration::from_secs(90)).unwrap();
+
+    let result = app.result.as_ref().unwrap();
+    assert_eq!(result.session.duration_ms, 60_000);
+    assert_eq!(result.session.wpm, 1.0);
+    assert!(result.daily_minutes_met);
+    assert_eq!(summarize(&app.sessions).total, Duration::from_secs(60));
+}
+
+#[test]
 fn zero_attempt_finish_is_transactional_and_save_failure_stays_in_result() {
     let (root, mut empty) = fixture_app();
     let start = Instant::now();
@@ -3473,6 +3628,119 @@ fn practice_renderer_uses_stored_live_and_item_fields() {
             .abs()
             < f64::EPSILON * 4.0
     );
+}
+
+#[test]
+fn live_metric_visibility_settings_apply_in_both_languages_and_every_mode() {
+    let now = Instant::now();
+    for language in [Language::Ko, Language::En] {
+        let (speed_label, accuracy_label, errors_label, remaining_label, streak_label) =
+            match language {
+                Language::Ko => ("속도:", "정확도:", "오류:", "남은", "연속"),
+                Language::En => ("Speed:", "Accuracy:", "Errors:", "Remaining", "Streak"),
+            };
+        for (show_speed, show_accuracy) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            for kind in [
+                PracticeKind::Quick,
+                PracticeKind::Key,
+                PracticeKind::Words,
+                PracticeKind::Sentence,
+                PracticeKind::Long,
+                PracticeKind::Test,
+            ] {
+                let (_root, mut app) = fixture_app();
+                app.warnings.clear();
+                app.settings.ui_language = language;
+                app.settings.show_live_speed = show_speed;
+                app.settings.show_accuracy = show_accuracy;
+                let stop = if matches!(kind, PracticeKind::Quick | PracticeKind::Test) {
+                    StopRule::ActiveTime(Duration::from_secs(60))
+                } else {
+                    StopRule::TargetEnd
+                };
+                app.start_mode(request(kind, language, "ab", stop), now)
+                    .unwrap();
+
+                let output = buffer_text(&draw(&app, 80, 24).buffer);
+                assert_eq!(
+                    output.contains(accuracy_label),
+                    show_accuracy,
+                    "{language:?} {kind:?} speed={show_speed} accuracy={show_accuracy}: {output}"
+                );
+                if kind != PracticeKind::Key {
+                    assert_eq!(
+                        output.contains(speed_label),
+                        show_speed,
+                        "{language:?} {kind:?} speed={show_speed} accuracy={show_accuracy}: {output}"
+                    );
+                }
+                if kind == PracticeKind::Words {
+                    for item_speed_label in match language {
+                        Language::Ko => ["현재:", "평균:"],
+                        Language::En => ["Current:", "Average:"],
+                    } {
+                        assert_eq!(
+                            output.contains(item_speed_label),
+                            show_speed,
+                            "{language:?} {kind:?}: {output}"
+                        );
+                    }
+                }
+                assert!(
+                    output.contains(errors_label),
+                    "{language:?} {kind:?}: {output}"
+                );
+                assert!(
+                    output.contains(match kind {
+                        PracticeKind::Quick | PracticeKind::Test => remaining_label,
+                        PracticeKind::Key | PracticeKind::Words => streak_label,
+                        PracticeKind::Sentence | PracticeKind::Long => match language {
+                            Language::Ko => "진행",
+                            Language::En => "Progress",
+                        },
+                    }),
+                    "{language:?} {kind:?}: {output}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn result_metrics_ignore_live_visibility_settings() {
+    for language in [Language::Ko, Language::En] {
+        for (show_speed, show_accuracy) in
+            [(false, false), (false, true), (true, false), (true, true)]
+        {
+            let (_root, mut app) = fixture_app();
+            app.warnings.clear();
+            app.settings.ui_language = language;
+            app.settings.show_live_speed = show_speed;
+            app.settings.show_accuracy = show_accuracy;
+            let mut result = result_view("visibility-result");
+            result.session.language = language;
+            app.result = Some(result);
+            app.open(Screen::Result);
+
+            let output = buffer_text(&draw(&app, 80, 24).buffer);
+            assert!(
+                output.contains(match language {
+                    Language::Ko => "60.0 KPM",
+                    Language::En => "12.0 WPM",
+                }),
+                "{language:?} speed={show_speed} accuracy={show_accuracy}: {output}"
+            );
+            assert!(
+                output.contains(match language {
+                    Language::Ko => "정확도: 100.0%",
+                    Language::En => "Accuracy: 100.0%",
+                }),
+                "{language:?} speed={show_speed} accuracy={show_accuracy}: {output}"
+            );
+        }
+    }
 }
 
 #[test]

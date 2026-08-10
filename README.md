@@ -83,13 +83,14 @@ with exit code 2 when no usable terminal is attached.
 | `Tab`, `Shift+Tab`, `↑`, `↓`, `j`, `k` | 포커스 이동 / Move focus |
 | `Enter` | 선택·입력 확정 / Select or commit a newline while typing |
 | `←`, `→` | 필터·목표 값 변경 / Change filters or goal values |
-| `Esc` | 뒤로; 연습 중 일시 정지 / Back; pause during practice |
-| `Ctrl+P` | 연습 일시 정지·계속 / Pause or resume practice |
-| `q` | 화면 종료; 일시 정지 중 두 번 누르면 연습 종료 / Quit; press twice while paused to leave practice |
+| `Esc` | 뒤로; 시험 외 연습 일시 정지; 시험 나가기 확인 열기·취소 / Back; pause non-Test practice; open or cancel Test leave confirmation |
+| `Ctrl+P` | 시험 외 연습 일시 정지·계속 / Pause or resume non-Test practice |
+| `q` | 화면 종료; 정지 중 두 번으로 연습 종료; 시험 나가기 확인 / Quit; press twice while paused; confirm Test leave |
 | `Ctrl+C` | 어디서나 즉시 종료 / Quit globally |
 | `?` | 도움말 / Help |
 | `Backspace` | 현재 항목 안에서 수정 / Correct within the current item |
-| `r` | 결과 화면에서 같은 연습 재시도 / Retry from Result |
+| `r` | 결과에서 같은 대상·설정 재시도 / Retry the exact target and options from Result |
+| `n` | 빠른·단어·문장·카탈로그 긴 글 결과에서만 다음 연습 / Next only after Quick, Words, Sentence, or catalog Long |
 | `d` twice | 사용자 콘텐츠 상세 화면에서 비활성화 / Disable a user pack in Content Detail |
 | `l`, `s` | 표시된 업데이트 알림을 나중에 보기 / 해당 버전 건너뛰기 |
 

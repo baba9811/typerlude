@@ -17,7 +17,7 @@
   ],
   "engines": { "node": ">=18" },
   "scripts": {
-    "test": "node --test tests/launcher.test.js scripts/import-tatoeba.test.mjs scripts/check-versions.test.mjs scripts/stage-platform-package.test.mjs && node scripts/check-versions.mjs",
+    "test": "node --test tests/launcher.test.js scripts/import-tatoeba.test.mjs scripts/check-versions.test.mjs scripts/stage-platform-package.test.mjs scripts/publish-npm-packages.test.mjs && node scripts/check-versions.mjs",
     "test:launcher": "node --test tests/launcher.test.js",
     "package-check": "node scripts/verify-package.mjs"
   },

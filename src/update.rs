@@ -11,7 +11,7 @@ use std::{
     env,
     ffi::OsStr,
     fmt, fs,
-    io::{IsTerminal, Read},
+    io::{ErrorKind, IsTerminal, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -25,6 +25,8 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const MAX_COMMAND_OUTPUT_BYTES: usize = 4 * 1024;
 const MAX_CACHE_BYTES: u64 = 4 * 1024;
+const NPM_REGISTRY: &str = "https://registry.npmjs.org/";
+const CRATES_IO_INDEX: &str = "sparse+https://index.crates.io/";
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct StableVersion(pub u64, pub u64, pub u64);
@@ -217,17 +219,33 @@ fn parse_cargo_version(output: &str) -> Result<StableVersion> {
         .context("cargo search returned an invalid stable version")
 }
 
+#[cfg(test)]
 fn run_registry_command(
     executable: &Path,
     arguments: &[&str],
     timeout: Duration,
 ) -> Result<String> {
+    let current = env::current_dir().context("failed to resolve registry command directory")?;
+    run_registry_command_in(executable, arguments, &current, &[], timeout)
+}
+
+fn run_registry_command_in(
+    executable: &Path,
+    arguments: &[&str],
+    current_dir: &Path,
+    environment: &[(&str, &OsStr)],
+    timeout: Duration,
+) -> Result<String> {
     let mut command = Command::new(executable);
     command
         .args(arguments)
+        .current_dir(current_dir)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    for &(key, value) in environment {
+        command.env(key, value);
+    }
     let mut child = command
         .group_spawn()
         .with_context(|| format!("failed to start {}", executable.display()))?;
@@ -286,23 +304,94 @@ fn npm_executable() -> &'static Path {
     }
 }
 
+struct RegistryWorkspace(PathBuf);
+
+impl RegistryWorkspace {
+    fn new() -> Result<Self> {
+        for _ in 0..10 {
+            let path = env::temp_dir().join(format!(
+                "typeul-registry-{}-{}",
+                std::process::id(),
+                fastrand::u64(..)
+            ));
+            match fs::create_dir(&path) {
+                Ok(()) => {
+                    return fs::canonicalize(path)
+                        .map(Self)
+                        .context("failed to resolve registry workspace");
+                }
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+                Err(error) => return Err(error).context("failed to create registry workspace"),
+            }
+        }
+        bail!("failed to create a unique registry workspace")
+    }
+}
+
+impl Drop for RegistryWorkspace {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
 fn registry_version(method: InstallMethod, timeout: Duration) -> Result<Option<StableVersion>> {
+    if method == InstallMethod::Standalone {
+        return Ok(None);
+    }
+    let workspace = RegistryWorkspace::new()?;
     match method {
-        InstallMethod::Npm => run_registry_command(
-            npm_executable(),
-            &["view", "typeul", "version", "--silent"],
-            timeout,
-        )
-        .and_then(|output| parse_npm_version(&output))
-        .map(Some),
-        InstallMethod::Cargo => run_registry_command(
-            Path::new("cargo"),
-            &["search", "typeul", "--limit", "1"],
-            timeout,
-        )
-        .and_then(|output| parse_cargo_version(&output))
-        .map(Some),
-        InstallMethod::Standalone => Ok(None),
+        InstallMethod::Npm => {
+            let user_config = workspace.0.join("user.npmrc");
+            let global_config = workspace.0.join("global.npmrc");
+            fs::write(&user_config, []).context("failed to isolate npm user configuration")?;
+            fs::write(&global_config, []).context("failed to isolate npm global configuration")?;
+            run_registry_command_in(
+                npm_executable(),
+                &[
+                    "view",
+                    "typeul",
+                    "version",
+                    "--silent",
+                    "--registry=https://registry.npmjs.org/",
+                ],
+                &workspace.0,
+                &[
+                    ("NPM_CONFIG_REGISTRY", OsStr::new(NPM_REGISTRY)),
+                    ("NPM_CONFIG_USERCONFIG", user_config.as_os_str()),
+                    ("NPM_CONFIG_GLOBALCONFIG", global_config.as_os_str()),
+                ],
+                timeout,
+            )
+            .and_then(|output| parse_npm_version(&output))
+            .map(Some)
+        }
+        InstallMethod::Cargo => {
+            let cargo_home = workspace.0.join("cargo-home");
+            fs::create_dir(&cargo_home).context("failed to isolate Cargo configuration")?;
+            run_registry_command_in(
+                Path::new("cargo"),
+                &[
+                    "search",
+                    "typeul",
+                    "--limit",
+                    "1",
+                    "--registry",
+                    "crates-io",
+                ],
+                &workspace.0,
+                &[
+                    ("CARGO_HOME", cargo_home.as_os_str()),
+                    (
+                        "CARGO_REGISTRIES_CRATES_IO_INDEX",
+                        OsStr::new(CRATES_IO_INDEX),
+                    ),
+                ],
+                timeout,
+            )
+            .and_then(|output| parse_cargo_version(&output))
+            .map(Some)
+        }
+        InstallMethod::Standalone => unreachable!(),
     }
 }
 
@@ -395,7 +484,7 @@ mod tests {
     use super::{
         InstallMethod, StableVersion, UpdateCache, automatic_allowed, install_method_from,
         load_cache, notice, npm_executable, parse_cargo_version, parse_npm_version,
-        run_registry_command, should_check, write_cache,
+        registry_version, run_registry_command, should_check, write_cache,
     };
     #[cfg(unix)]
     use crate::{config::Settings, storage::AppPaths};
@@ -468,6 +557,31 @@ mod tests {
                 fs::write(&path, "@echo off\r\n:loop\r\ngoto loop\r\n").unwrap();
                 path
             }
+        }
+
+        #[cfg(unix)]
+        fn registry_script(&self, name: &str, capture: &Path, output: &str) -> PathBuf {
+            use std::os::unix::fs::PermissionsExt;
+
+            let path = self.0.join(name);
+            fs::write(
+                &path,
+                format!(
+                    "#!/bin/sh\n\
+                     printf 'cwd=%s\\n' \"$PWD\" > '{capture}'\n\
+                     printf 'args=' >> '{capture}'\n\
+                     for argument in \"$@\"; do printf '<%s>' \"$argument\" >> '{capture}'; done\n\
+                     printf '\\nNPM_CONFIG_REGISTRY=%s\\nNPM_CONFIG_USERCONFIG=%s\\nNPM_CONFIG_GLOBALCONFIG=%s\\nCARGO_HOME=%s\\nCARGO_REGISTRIES_CRATES_IO_INDEX=%s\\n' \\
+                       \"${{NPM_CONFIG_REGISTRY:-}}\" \"${{NPM_CONFIG_USERCONFIG:-}}\" \\
+                       \"${{NPM_CONFIG_GLOBALCONFIG:-}}\" \"${{CARGO_HOME:-}}\" \\
+                       \"${{CARGO_REGISTRIES_CRATES_IO_INDEX:-}}\" >> '{capture}'\n\
+                     printf '%s' '{output}'\n",
+                    capture = capture.display(),
+                ),
+            )
+            .unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+            path
         }
 
         #[cfg(unix)]
@@ -657,6 +771,116 @@ mod tests {
         assert!(
             run_registry_command(&root.sleeping_script(), &[], Duration::from_millis(100)).is_err()
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn registry_probe_child() {
+        let Ok(method) = std::env::var("TYPEUL_REGISTRY_PROBE_METHOD") else {
+            return;
+        };
+        let method = match method.as_str() {
+            "npm" => InstallMethod::Npm,
+            "cargo" => InstallMethod::Cargo,
+            _ => panic!("invalid registry probe method"),
+        };
+        assert_eq!(
+            registry_version(method, Duration::from_secs(5)).unwrap(),
+            Some(StableVersion(1, 4, 0))
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hostile_project_registry_configuration_cannot_redirect_queries() {
+        let root = TestDir::new();
+        let hostile = root.0.join("hostile-project");
+        let bin = root.0.join("bin");
+        fs::create_dir_all(hostile.join(".cargo")).unwrap();
+        fs::create_dir(&bin).unwrap();
+        fs::write(
+            hostile.join(".npmrc"),
+            "registry=https://npm.invalid.example/\n",
+        )
+        .unwrap();
+        fs::write(
+            hostile.join(".cargo/config.toml"),
+            "[source.crates-io]\nreplace-with = \"spoofed\"\n\
+             [source.spoofed]\nregistry = \"sparse+https://cargo.invalid.example/\"\n",
+        )
+        .unwrap();
+
+        for (method, output, expected_args) in [
+            (
+                "npm",
+                "1.4.0\n",
+                "<view><typeul><version><--silent><--registry=https://registry.npmjs.org/>",
+            ),
+            (
+                "cargo",
+                "typeul = \"1.4.0\"    # Offline typing tutor\n",
+                "<search><typeul><--limit><1><--registry><crates-io>",
+            ),
+        ] {
+            let capture = root.0.join(format!("{method}.capture"));
+            root.registry_script(method, &capture, output);
+            let executable = if method == "npm" { "npm" } else { "cargo" };
+            fs::rename(root.0.join(method), bin.join(executable)).unwrap();
+            let child = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "update::tests::registry_probe_child",
+                    "--nocapture",
+                ])
+                .current_dir(&hostile)
+                .env("PATH", &bin)
+                .env("TYPEUL_REGISTRY_PROBE_METHOD", method)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                .unwrap();
+            assert!(
+                child.status.success(),
+                "stdout={} stderr={}",
+                String::from_utf8_lossy(&child.stdout),
+                String::from_utf8_lossy(&child.stderr)
+            );
+            let captured = fs::read_to_string(&capture).unwrap();
+            let values = captured
+                .lines()
+                .filter_map(|line| line.split_once('='))
+                .collect::<std::collections::BTreeMap<_, _>>();
+            let cwd = PathBuf::from(values["cwd"]);
+            assert_ne!(cwd, fs::canonicalize(&hostile).unwrap(), "{captured}");
+            assert_eq!(values["args"], expected_args, "{captured}");
+            if method == "npm" {
+                assert_eq!(
+                    values["NPM_CONFIG_REGISTRY"], "https://registry.npmjs.org/",
+                    "{captured}"
+                );
+                assert_eq!(
+                    PathBuf::from(values["NPM_CONFIG_USERCONFIG"]),
+                    cwd.join("user.npmrc"),
+                    "{captured}"
+                );
+                assert_eq!(
+                    PathBuf::from(values["NPM_CONFIG_GLOBALCONFIG"]),
+                    cwd.join("global.npmrc"),
+                    "{captured}"
+                );
+            } else {
+                assert_eq!(
+                    PathBuf::from(values["CARGO_HOME"]),
+                    cwd.join("cargo-home"),
+                    "{captured}"
+                );
+                assert_eq!(
+                    values["CARGO_REGISTRIES_CRATES_IO_INDEX"], "sparse+https://index.crates.io/",
+                    "{captured}"
+                );
+            }
+            fs::remove_file(bin.join(executable)).unwrap();
+        }
     }
 
     #[cfg(unix)]

@@ -331,16 +331,22 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
                 text(language, TextKey::Language),
                 language_name(options.language).into(),
             )];
-            lines.extend(items.iter().enumerate().map(|(index, item)| {
-                row(
-                    index + 1,
-                    item.title.as_deref().unwrap_or(&item.id),
-                    String::new(),
-                )
-            }));
             if let Some(item) = items.get(options.long_selection) {
+                let visible = usize::from(inner.height)
+                    .saturating_sub(8)
+                    .max(1)
+                    .min(items.len());
+                let start = options
+                    .long_selection
+                    .saturating_sub(visible / 2)
+                    .min(items.len().saturating_sub(visible));
+                lines.extend(items[start..start + visible].iter().enumerate().map(
+                    |(offset, item)| {
+                        let title = terminal_safe(item.title.as_deref().unwrap_or(&item.id));
+                        row(start + offset + 1, &title, String::new())
+                    },
+                ));
                 lines.extend([
-                    Line::from(""),
                     Line::from(format!(
                         "{}: {}",
                         text(language, TextKey::Title),
@@ -437,7 +443,13 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         let live =
             Layout::vertical([Constraint::Length(4), Constraint::Length(1)]).split(regions[1]);
         frame.render_widget(
-            Paragraph::new(practice_live_lines(active, language)).style(styles.base),
+            Paragraph::new(practice_live_lines(
+                active,
+                language,
+                app.settings.show_live_speed,
+                app.settings.show_accuracy,
+            ))
+            .style(styles.base),
             live[0],
         );
         let paragraph = match language {
@@ -456,7 +468,13 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         );
     } else {
         frame.render_widget(
-            Paragraph::new(practice_live_lines(active, language)).style(styles.base),
+            Paragraph::new(practice_live_lines(
+                active,
+                language,
+                app.settings.show_live_speed,
+                app.settings.show_accuracy,
+            ))
+            .style(styles.base),
             regions[1],
         );
     }
@@ -508,7 +526,12 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
     }
 }
 
-fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<'static>> {
+fn practice_live_lines(
+    active: &ActivePractice,
+    language: Language,
+    show_speed: bool,
+    show_accuracy: bool,
+) -> Vec<Line<'static>> {
     let metrics = active.live_metrics();
     if let PracticeMode::Key { stage, .. } = active.mode {
         let title = key_stages(active.engine.language())
@@ -519,13 +542,17 @@ fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<
             Language::Ko => "단계",
             Language::En => "Stage",
         };
-        return vec![
-            Line::from(format!(
-                "{stage_label} {stage}: {title} · {}: {:.1}% · {}: {streak}",
+        let mut status = vec![format!("{stage_label} {stage}: {title}")];
+        if show_accuracy {
+            status.push(format!(
+                "{}: {:.1}%",
                 text(language, TextKey::Accuracy),
-                metrics.accuracy,
-                text(language, TextKey::Streak),
-            )),
+                metrics.accuracy
+            ));
+        }
+        status.push(format!("{}: {streak}", text(language, TextKey::Streak)));
+        return vec![
+            Line::from(status.join(" · ")),
             Line::from(format!(
                 "{}: {completed}/{} · {}: {}",
                 text(language, TextKey::Progress),
@@ -539,14 +566,23 @@ fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<
         Language::Ko => metrics.kpm,
         Language::En => metrics.wpm,
     };
-    let summary = format!(
-        "{}: {speed:.1} · {}: {:.1}% · {}: {}",
-        text(language, TextKey::Speed),
-        text(language, TextKey::Accuracy),
-        metrics.accuracy,
+    let mut summary = Vec::new();
+    if show_speed {
+        summary.push(format!("{}: {speed:.1}", text(language, TextKey::Speed)));
+    }
+    if show_accuracy {
+        summary.push(format!(
+            "{}: {:.1}%",
+            text(language, TextKey::Accuracy),
+            metrics.accuracy
+        ));
+    }
+    summary.push(format!(
+        "{}: {}",
         text(language, TextKey::Errors),
         metrics.errors
-    );
+    ));
+    let summary = summary.join(" · ");
     if let PracticeMode::Long { item_id, .. } = &active.mode {
         let (title, author, source, license, difficulty, tags) =
             active.long_metadata().map_or_else(
@@ -624,28 +660,45 @@ fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<
         } => {
             let current = active.current_item_delta().map_or(0.0, |delta| delta.speed);
             let (current_label, average_label) = current_average(language);
-            format!(
-                "{current_label}: {current:.1} · {average_label}: {speed:.1} · {}: {streak} · {}: {completed}",
-                text(language, TextKey::Streak),
-                text(language, TextKey::Progress)
-            )
+            let mut fields = Vec::new();
+            if show_speed {
+                fields.extend([
+                    format!("{current_label}: {current:.1}"),
+                    format!("{average_label}: {speed:.1}"),
+                ]);
+            }
+            fields.extend([
+                format!("{}: {streak}", text(language, TextKey::Streak)),
+                format!("{}: {completed}", text(language, TextKey::Progress)),
+            ]);
+            fields.join(" · ")
         }
         PracticeMode::Sentence {
             completed,
             last_item,
-        } => last_item.as_ref().map_or_else(
-            || format!("{}: {completed}", text(language, TextKey::Progress)),
-            |delta| {
-                format!(
-                    "{}: {completed} · {}: {:.1} · {}: {:.1}%",
-                    text(language, TextKey::Progress),
-                    text(language, TextKey::Speed),
-                    delta.speed,
-                    text(language, TextKey::Accuracy),
-                    delta.accuracy
-                )
-            },
-        ),
+        } => {
+            let mut fields = vec![format!(
+                "{}: {completed}",
+                text(language, TextKey::Progress)
+            )];
+            if let Some(delta) = last_item {
+                if show_speed {
+                    fields.push(format!(
+                        "{}: {:.1}",
+                        text(language, TextKey::Speed),
+                        delta.speed
+                    ));
+                }
+                if show_accuracy {
+                    fields.push(format!(
+                        "{}: {:.1}%",
+                        text(language, TextKey::Accuracy),
+                        delta.accuracy
+                    ));
+                }
+            }
+            fields.join(" · ")
+        }
         PracticeMode::Test { .. } => match active.stop {
             StopRule::ActiveTime(limit) => format!(
                 "{}: {}s · {}: {}%",
@@ -1931,21 +1984,23 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
     let mut lines = match language {
         Language::Ko => vec![
             Line::from("이동: Tab / Shift+Tab / ↑↓ / j / k"),
-            Line::from("선택/편집: Enter / ←→"),
+            Line::from("선택/편집: Enter / ←→ · 콘텐츠 비활성화: 상세에서 d 두 번"),
             Line::from("뒤로: Esc · 종료: q / Ctrl+C · 도움말: ?"),
-            Line::from("연습: Esc / Ctrl+P 일시 정지 · 결과: r 다시 연습"),
-            Line::from("일시 정지 중 나가기: q를 두 번 누르기"),
+            Line::from("시험 외: Esc / Ctrl+P 일시 정지 · 정지 중 q를 두 번 눌러 나가기"),
+            Line::from("시험: Esc 나가기 확인 열기/취소 · q 확인"),
+            Line::from("결과 r: 같은 대상/설정 · n: 빠른/단어/문장/카탈로그 긴 글만"),
             Line::from("업데이트 알림: l 나중에 · s 이번 버전 건너뛰기"),
-            Line::from("콘텐츠 비활성화: 상세 화면에서 d 두 번"),
         ],
         Language::En => vec![
             Line::from("Move: Tab / Shift+Tab / ↑↓ / j / k"),
-            Line::from("Select/Edit: Enter / ←→"),
+            Line::from("Select/Edit: Enter / ←→ · Content Disable: d twice in detail"),
             Line::from("Back: Esc · Quit: q / Ctrl+C · Help: ?"),
-            Line::from("Practice: Esc / Ctrl+P pause · Result: r retry"),
-            Line::from("Leave while paused: press q twice"),
+            Line::from("Non-Test: Esc / Ctrl+P pause · paused: press q twice to leave"),
+            Line::from("Test: Esc opens/cancels leave · q confirms"),
+            Line::from(
+                "Result r: exact target/options · n: Quick/Words/Sentence/catalog Long only",
+            ),
             Line::from("Update notice: l later · s skip this version"),
-            Line::from("Content Disable: press d twice in detail"),
         ],
     };
     lines.extend([
