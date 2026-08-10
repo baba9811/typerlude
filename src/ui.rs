@@ -6,7 +6,7 @@ use crate::{
     content::ContentKind,
     i18n::{TextKey, text},
     model::{Language, PracticeKind},
-    stats::{Range, history, intended_key_counts, progress, summarize, weak_keys},
+    stats::{adaptive_candidates, history, intended_key_counts, streak, summarize, weak_keys},
     theme::ThemeStyles,
 };
 use ratatui::{
@@ -19,7 +19,7 @@ use ratatui::{
         Sparkline, Wrap,
     },
 };
-use std::mem;
+use std::{mem, time::Duration};
 use unicode_width::UnicodeWidthStr;
 
 const MIN_WIDTH: u16 = 80;
@@ -909,36 +909,119 @@ const fn grade_name(grade: Grade) -> &'static str {
     }
 }
 
+fn filter_lines(app: &App, language: Language, navigation: bool) -> Vec<Line<'static>> {
+    let all = match language {
+        Language::Ko => "전체",
+        Language::En => "All",
+    };
+    let range = [
+        (crate::stats::Range::Days7, "7"),
+        (crate::stats::Range::Days30, "30"),
+        (crate::stats::Range::Days90, "90"),
+        (crate::stats::Range::All, all),
+    ]
+    .into_iter()
+    .map(|(range, label)| {
+        if app.stats_range() == range {
+            format!("[{label}]")
+        } else {
+            label.to_owned()
+        }
+    })
+    .collect::<Vec<_>>()
+    .join("  ");
+    let (range_label, language_label, mode_label) = match language {
+        Language::Ko => ("범위", "언어", "모드"),
+        Language::En => ("Range", "Language", "Mode"),
+    };
+    let mode = app
+        .stats_mode()
+        .map_or(all, |mode| practice_name(language, mode));
+    let mut lines = vec![
+        Line::from(format!("{}{range_label}: {range}", focus_marker(app, 0))),
+        Line::from(format!(
+            "{}{language_label}: {}",
+            focus_marker(app, 1),
+            language_name(app.stats_language())
+        )),
+        Line::from(format!("{}{mode_label}: {mode}", focus_marker(app, 2))),
+    ];
+    if navigation {
+        lines.push(Line::from(format!(
+            "{}{}",
+            focus_marker(app, 3),
+            text(language, TextKey::History)
+        )));
+        lines.push(Line::from(format!(
+            "{}{}",
+            focus_marker(app, 4),
+            text(language, TextKey::WeakKeys)
+        )));
+    }
+    lines
+}
+
+fn focus_marker(app: &App, index: usize) -> &'static str {
+    if app.focus() == index { "> " } else { "  " }
+}
+
+fn finite_nonnegative(value: f64) -> f64 {
+    if value.is_finite() {
+        value.max(0.0)
+    } else {
+        0.0
+    }
+}
+
+fn duration_name(language: Language, duration: Duration) -> String {
+    let minutes = duration.as_secs() / 60;
+    let hours = minutes / 60;
+    let minutes = minutes % 60;
+    match (language, hours) {
+        (Language::Ko, 0) => format!("{minutes}분"),
+        (Language::Ko, _) => format!("{hours}시간 {minutes}분"),
+        (Language::En, 0) => format!("{minutes} min"),
+        (Language::En, _) => format!("{hours}h {minutes}m"),
+    }
+}
+
+fn render_trend(
+    frame: &mut Frame<'_>,
+    label: &str,
+    values: &[u64],
+    area: Rect,
+    styles: ThemeStyles,
+) {
+    let regions = Layout::horizontal([Constraint::Length(18), Constraint::Min(1)]).split(area);
+    frame.render_widget(Paragraph::new(label).style(styles.dim), regions[0]);
+    frame.render_widget(
+        Sparkline::default().data(values).style(styles.accent),
+        regions[1],
+    );
+}
+
 fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
     let language = app.settings.ui_language;
     let block = titled(text(language, TextKey::HomeStats), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let ranges = Rect::new(inner.x, inner.y, inner.width, 1.min(inner.height));
-    let all = match language {
-        Language::Ko => "전체",
-        Language::En => "All",
-    };
     frame.render_widget(
-        Paragraph::new(format!("7  [30]  90  {all}")).style(styles.accent),
-        ranges,
+        Paragraph::new(filter_lines(app, language, true)).style(styles.accent),
+        Rect::new(inner.x, inner.y, inner.width, 5.min(inner.height)),
     );
     let data = Rect::new(
         inner.x,
-        inner.y.saturating_add(1),
+        inner.y.saturating_add(5),
         inner.width,
-        inner.height.saturating_sub(1),
+        inner.height.saturating_sub(5),
     );
-    let Some(today) = app.sessions.iter().map(|session| session.local_date).max() else {
-        frame.render_widget(no_data(language, styles), data);
-        return;
-    };
+    let today = app.stats_today();
     let selected = history(
         &app.sessions,
-        Range::Days30,
+        app.stats_range(),
         today,
-        Some(app.settings.language),
-        None,
+        Some(app.stats_language()),
+        app.stats_mode(),
     );
     if selected.is_empty() {
         frame.render_widget(no_data(language, styles), data);
@@ -952,70 +1035,109 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         0.0
     };
     let regions = Layout::vertical([
-        Constraint::Length(5),
-        Constraint::Length(3),
-        Constraint::Length(2),
-        Constraint::Min(5),
+        Constraint::Length(6),
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Min(4),
     ])
     .split(data);
-    let (sessions_label, total_label) = match language {
-        Language::Ko => ("세션", "총 시간"),
-        Language::En => ("Sessions", "Total time"),
+    let (sessions_label, total_label, goal_label) = match language {
+        Language::Ko => ("세션", "총 시간", "목표"),
+        Language::En => ("Sessions", "Total time", "Goal"),
     };
-    let (unit, average, best) = match app.settings.language {
-        Language::Ko => ("KPM", overview.korean.average, overview.korean.best),
-        Language::En => ("WPM", overview.english.average, overview.english.best),
+    let (unit, average, best, speed_goal) = match app.stats_language() {
+        Language::Ko => (
+            "KPM",
+            overview.korean.average,
+            overview.korean.best,
+            app.settings.target_kpm,
+        ),
+        Language::En => (
+            "WPM",
+            overview.english.average,
+            overview.english.best,
+            app.settings.target_wpm,
+        ),
+    };
+    let average = finite_nonnegative(average);
+    let best = finite_nonnegative(best);
+    let practice_streak = streak(app.sessions.iter().map(|session| session.local_date), today);
+    let points = app.stats_points();
+    let minutes = app
+        .sessions
+        .iter()
+        .filter(|session| session.local_date == today)
+        .fold(0_u64, |total, session| {
+            total.saturating_add(session.duration_ms)
+        })
+        / 60_000;
+    let minute_unit = match language {
+        Language::Ko => "분",
+        Language::En => "min",
     };
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(format!("{sessions_label}: {}", overview.sessions)),
-            Line::from(format!("{total_label}: {} ms", overview.total.as_millis())),
+            Line::from(format!(
+                "{total_label}: {}",
+                duration_name(language, overview.total)
+            )),
             Line::from(format!(
                 "{}: {:.1}%",
                 text(language, TextKey::Accuracy),
                 accuracy
             )),
             Line::from(format!("{unit} {average:.1}/{best:.1}")),
+            Line::from(format!(
+                "{}: {practice_streak}",
+                text(language, TextKey::Streak)
+            )),
+            Line::from(format!(
+                "{goal_label}: {unit} {average:.0}/{speed_goal} · {:.1}/{:.1}% · {minutes}/{} {minute_unit}",
+                accuracy, app.settings.target_accuracy, app.settings.daily_minutes,
+            )),
         ])
         .style(styles.base),
         regions[0],
     );
-    frame.render_widget(
-        Gauge::default()
-            .label(format!(
-                "{} {:.1}%",
-                text(language, TextKey::Accuracy),
-                accuracy
-            ))
-            .ratio(accuracy / 100.0)
-            .gauge_style(styles.accent),
-        regions[1],
-    );
-    let speed_values = progress(
-        &app.sessions,
-        Range::Days30,
-        today,
-        app.settings.language,
-        None,
-    )
-    .into_iter()
-    .map(|point| {
-        let speed = point.speed;
-        if speed.is_finite() {
-            speed.max(0.0)
-        } else {
-            0.0
-        }
-    })
-    .collect::<Vec<_>>();
-    let speeds = speed_values
+    let speed_values = points
         .iter()
-        .copied()
-        .map(|speed| speed.max(0.0).min(u64::MAX as f64) as u64)
+        .map(|point| {
+            let speed = point.speed;
+            if speed.is_finite() {
+                speed.max(0.0)
+            } else {
+                0.0
+            }
+        })
         .collect::<Vec<_>>();
-    frame.render_widget(
-        Sparkline::default().data(&speeds).style(styles.accent),
+    let accuracy_values = points
+        .iter()
+        .map(|point| finite_nonnegative(point.accuracy).min(100.0) as u64)
+        .collect::<Vec<_>>();
+    let minute_values = points
+        .iter()
+        .map(|point| finite_nonnegative(point.minutes * 60.0).min(u64::MAX as f64) as u64)
+        .collect::<Vec<_>>();
+    render_trend(
+        frame,
+        match language {
+            Language::Ko => "정확도 추이",
+            Language::En => "Accuracy trend",
+        },
+        &accuracy_values,
+        regions[1],
+        styles,
+    );
+    render_trend(
+        frame,
+        match language {
+            Language::Ko => "시간 추이",
+            Language::En => "Minutes trend",
+        },
+        &minute_values,
         regions[2],
+        styles,
     );
     let points = speed_values
         .iter()
@@ -1048,28 +1170,46 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSty
     let block = titled(text(language, TextKey::History), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    if app.sessions.is_empty() {
-        frame.render_widget(no_data(language, styles), inner);
-        return;
-    }
+    frame.render_widget(
+        Paragraph::new(filter_lines(app, language, false)).style(styles.accent),
+        Rect::new(inner.x, inner.y, inner.width, 3.min(inner.height)),
+    );
+    let data = Rect::new(
+        inner.x,
+        inner.y.saturating_add(3),
+        inner.width,
+        inner.height.saturating_sub(3),
+    );
+    let today = app.stats_today();
     let items = history(
         &app.sessions,
-        Range::All,
-        app.sessions[0].local_date,
-        None,
-        None,
+        app.stats_range(),
+        today,
+        Some(app.stats_language()),
+        app.stats_mode(),
     )
-    .into_iter()
-    .map(|session| {
+    .into_iter();
+    let mut items = items.peekable();
+    if items.peek().is_none() {
+        frame.render_widget(no_data(language, styles), data);
+        return;
+    }
+    let items = items.map(|session| {
+        let (speed, unit) = match session.language {
+            Language::Ko => (session.kpm, "KPM"),
+            Language::En => (session.wpm, "WPM"),
+        };
         ListItem::new(format!(
-            "{} {} {} {:.1}%",
+            "{} {} {} {} {:.1} {unit} {:.1}%",
             session.id,
             session.local_date,
             practice_name(language, session.mode),
+            language_name(session.language),
+            finite_nonnegative(speed),
             session.accuracy
         ))
     });
-    frame.render_widget(List::new(items).style(styles.base), inner);
+    frame.render_widget(List::new(items).style(styles.base), data);
 }
 
 fn render_weak_keys(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
@@ -1077,24 +1217,41 @@ fn render_weak_keys(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeS
     let block = titled(text(language, TextKey::WeakKeys), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let counts = intended_key_counts(&app.sessions, app.settings.language);
+    let counts = intended_key_counts(&app.sessions, app.stats_language());
     let keys = weak_keys(&counts, 10);
     if keys.is_empty() {
         frame.render_widget(no_data(language, styles), inner);
         return;
     }
-    frame.render_widget(
-        List::new(keys.into_iter().map(|key| {
+    let suggestions = adaptive_candidates(&app.content, &app.sessions, app.stats_language(), 0)
+        .into_iter()
+        .take(3)
+        .map(|item| item.id.as_str())
+        .collect::<Vec<_>>();
+    let key_limit = usize::from(inner.height).saturating_sub(usize::from(!suggestions.is_empty()));
+    let mut rows = keys
+        .into_iter()
+        .take(key_limit)
+        .map(|key| {
             ListItem::new(format!(
                 "{}: {:.1}% ({})",
                 key.key,
                 key.accuracy,
                 key.correct.saturating_add(key.errors)
             ))
-        }))
-        .style(styles.base),
-        inner,
-    );
+        })
+        .collect::<Vec<_>>();
+    if !suggestions.is_empty() {
+        rows.push(ListItem::new(format!(
+            "{}: {}",
+            match language {
+                Language::Ko => "추천 콘텐츠",
+                Language::En => "Suggested content",
+            },
+            suggestions.join(", ")
+        )));
+    }
+    frame.render_widget(List::new(rows).style(styles.base), inner);
 }
 
 fn render_goals(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
@@ -1106,12 +1263,41 @@ fn render_goals(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         Language::Ko => format!("{}분", app.settings.daily_minutes),
         Language::En => format!("{} min", app.settings.daily_minutes),
     };
+    let (kpm, wpm, accuracy, daily, edit) = match language {
+        Language::Ko => (
+            "한국어 목표",
+            "영어 목표",
+            "정확도 목표",
+            "하루 연습",
+            "←/→ 편집",
+        ),
+        Language::En => (
+            "Korean target",
+            "English target",
+            "Accuracy target",
+            "Daily practice",
+            "←/→ edit",
+        ),
+    };
     frame.render_widget(
         Paragraph::new(vec![
-            Line::from(format!("{} KPM", app.settings.target_kpm)),
-            Line::from(format!("{} WPM", app.settings.target_wpm)),
-            Line::from(format!("{:.1}%", app.settings.target_accuracy)),
-            Line::from(daily_minutes),
+            Line::from(format!(
+                "{}{kpm}: {} KPM",
+                focus_marker(app, 0),
+                app.settings.target_kpm
+            )),
+            Line::from(format!(
+                "{}{wpm}: {} WPM",
+                focus_marker(app, 1),
+                app.settings.target_wpm
+            )),
+            Line::from(format!(
+                "{}{accuracy}: {:.1}%",
+                focus_marker(app, 2),
+                app.settings.target_accuracy
+            )),
+            Line::from(format!("{}{daily}: {daily_minutes}", focus_marker(app, 3))),
+            Line::from(edit),
         ])
         .style(styles.base),
         inner,
@@ -1123,21 +1309,52 @@ fn render_content(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSty
     let block = titled(text(language, TextKey::HomeContent), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let mut items = app.content.items().peekable();
-    if items.peek().is_none() {
+    let packs = app.content_packs();
+    if packs.is_empty() {
         frame.render_widget(no_data(language, styles), inner);
         return;
     }
+    let (enabled, disabled, built_in, user) = match language {
+        Language::Ko => ("활성", "비활성", "내장", "사용자"),
+        Language::En => ("enabled", "disabled", "built-in", "user"),
+    };
+    let visible = usize::from(inner.height / 2).max(1);
+    let start = app.focus().saturating_sub(visible - 1);
     frame.render_widget(
-        List::new(items.map(|item| {
-            ListItem::new(format!(
-                "{} · {} · {} · {}",
-                item.id,
-                item.pack_id,
-                content_kind_name(language, item.kind),
-                item.source.license
-            ))
-        }))
+        List::new(
+            packs
+                .iter()
+                .enumerate()
+                .skip(start)
+                .take(visible)
+                .map(|(index, pack)| {
+                    let mut kinds = Vec::new();
+                    for &kind in &pack.kinds {
+                        let name = content_kind_name(language, kind);
+                        if !kinds.contains(&name) {
+                            kinds.push(name);
+                        }
+                    }
+                    let kinds = kinds.join(",");
+                    ListItem::new(vec![
+                        Line::from(format!(
+                            "{}{} · {} · {} · {} · {}",
+                            if app.focus() == index { "> " } else { "  " },
+                            pack.id,
+                            if pack.enabled { enabled } else { disabled },
+                            if pack.built_in { built_in } else { user },
+                            language_name(pack.language),
+                            pack.items,
+                        )),
+                        Line::from(format!(
+                            "    {} · {} · {}",
+                            pack.licenses.join(","),
+                            kinds,
+                            pack.sample_item_id,
+                        )),
+                    ])
+                }),
+        )
         .style(styles.base),
         inner,
     );
@@ -1148,10 +1365,11 @@ fn render_content_detail(frame: &mut Frame<'_>, app: &App, area: Rect, styles: T
     let block = titled(text(language, TextKey::Sources), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let Some(item) = app.content.items().next() else {
+    let Some(summary) = app.content_detail_pack() else {
         frame.render_widget(no_data(language, styles), inner);
         return;
     };
+    let pack_id_value = &summary.id;
     let (
         item_id,
         pack_id,
@@ -1192,23 +1410,87 @@ fn render_content_detail(frame: &mut Frame<'_>, app: &App, area: Rect, styles: T
             "no",
         ),
     };
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(format!("{item_id}: {}", item.id)),
-            Line::from(format!("{pack_id}: {}", item.pack_id)),
-            Line::from(format!("{author}: {}", item.source.author)),
-            Line::from(format!("{source_id}: {}", item.source.source_id)),
-            Line::from(format!("{source_url}: {}", item.source.source_url)),
-            Line::from(format!("{license}: {}", item.source.license)),
-            Line::from(format!("{license_url}: {}", item.source.license_url)),
-            Line::from(format!("{retrieved}: {}", item.source.retrieved_at)),
+    let mut lines = vec![Line::from(format!(
+        "{pack_id}: {pack_id_value} · {}: {} · {}: {} · {}",
+        match language {
+            Language::Ko => "언어",
+            Language::En => "language",
+        },
+        language_name(summary.language),
+        match language {
+            Language::Ko => "항목 수",
+            Language::En => "items",
+        },
+        summary.items,
+        match (language, summary.enabled) {
+            (Language::Ko, true) => "활성",
+            (Language::Ko, false) => "비활성",
+            (Language::En, true) => "enabled",
+            (Language::En, false) => "disabled",
+        }
+    ))];
+    if let Some(provenance) = summary.provenance.get(app.focus()) {
+        let scope = if let Some(sample_item_id) = &provenance.item_id {
+            format!("{item_id}: {sample_item_id}")
+        } else {
+            match language {
+                Language::Ko => "범위: 팩",
+                Language::En => "scope: pack",
+            }
+            .to_owned()
+        };
+        lines.push(Line::from(format!(
+            "{} {}/{} · {scope} · ↑/↓",
+            match language {
+                Language::Ko => "출처",
+                Language::En => "Provenance",
+            },
+            app.focus() + 1,
+            summary.provenance.len()
+        )));
+        let source = &provenance.source;
+        lines.extend([
+            Line::from(format!("{author}: {}", source.author)),
+            Line::from(format!("{source_id}: {}", source.source_id)),
+            Line::from(format!("{source_url}: {}", source.source_url)),
+            Line::from(format!("{license}: {}", source.license)),
+            Line::from(format!("{license_url}: {}", source.license_url)),
             Line::from(format!(
-                "{modified}: {}",
-                if item.source.modified { yes } else { no }
+                "{retrieved}: {} · {modified}: {}",
+                source.retrieved_at,
+                if source.modified { yes } else { no }
             )),
-        ])
-        .style(styles.base)
-        .wrap(Wrap { trim: false }),
+        ]);
+    }
+    lines.extend([
+        Line::from("typeul content add PACK.toml · typeul content validate PACK.toml"),
+        Line::from("typeul content disable PACK_ID · typeul licenses"),
+    ]);
+    lines.push(Line::from(if summary.built_in {
+        match language {
+            Language::Ko => "내장 팩은 비활성화할 수 없습니다",
+            Language::En => "Built-in packs cannot be disabled",
+        }
+    } else if !summary.enabled {
+        match language {
+            Language::Ko => "사용자 팩이 비활성화됨",
+            Language::En => "User pack is disabled",
+        }
+    } else if app.content_disable_confirmation() {
+        match language {
+            Language::Ko => "확인하려면 d를 다시 누르세요",
+            Language::En => "Press d again to confirm",
+        }
+    } else {
+        match language {
+            Language::Ko => "d: 비활성화",
+            Language::En => "d: Disable",
+        }
+    }));
+    frame.render_widget(
+        Paragraph::new(lines)
+            .style(styles.base)
+            .wrap(Wrap { trim: false }),
         inner,
     );
 }
@@ -1218,60 +1500,83 @@ fn render_settings(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
     let block = titled(text(language, TextKey::HomeSettings), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let (practice_language, ui_language, keyboard, finger_guide, live_speed, adaptive, updates) =
-        match language {
-            Language::Ko => (
-                "연습 언어",
-                "화면 언어",
-                "키보드",
-                "손가락 안내",
-                "실시간 속도",
-                "적응형",
-                "업데이트 확인",
-            ),
-            Language::En => (
-                "Language",
-                "UI language",
-                "keyboard",
-                "finger guide",
-                "live speed",
-                "adaptive",
-                "updates",
-            ),
-        };
+    let (
+        practice_language,
+        ui_language,
+        keyboard,
+        finger_guide,
+        live_speed,
+        accuracy,
+        adaptive,
+        updates,
+    ) = match language {
+        Language::Ko => (
+            "연습 언어",
+            "화면 언어",
+            "키보드",
+            "손가락 안내",
+            "실시간 속도",
+            "정확도 표시",
+            "적응형",
+            "업데이트 확인",
+        ),
+        Language::En => (
+            "Language",
+            "UI language",
+            "keyboard",
+            "finger guide",
+            "live speed",
+            "accuracy",
+            "adaptive",
+            "updates",
+        ),
+    };
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(format!(
-                "{practice_language}: {}",
+                "{}{practice_language}: {}",
+                focus_marker(app, 0),
                 language_name(app.settings.language)
             )),
             Line::from(format!(
-                "{ui_language}: {}",
+                "{}{ui_language}: {}",
+                focus_marker(app, 1),
                 language_name(app.settings.ui_language)
             )),
             Line::from(format!(
-                "{}: {}",
+                "{}{}: {}",
+                focus_marker(app, 2),
                 text(language, TextKey::Theme),
                 app.settings.theme
             )),
             Line::from(format!(
-                "{keyboard}: {}",
+                "{}{keyboard}: {}",
+                focus_marker(app, 3),
                 toggle_name(language, app.settings.show_keyboard)
             )),
             Line::from(format!(
-                "{finger_guide}: {}",
+                "{}{finger_guide}: {}",
+                focus_marker(app, 4),
                 toggle_name(language, app.settings.show_finger_guide)
             )),
             Line::from(format!(
-                "{live_speed}: {}",
+                "{}{live_speed}: {}",
+                focus_marker(app, 5),
                 toggle_name(language, app.settings.show_live_speed)
             )),
             Line::from(format!(
-                "{adaptive}: {}",
+                "{}{accuracy}: {}",
+                focus_marker(app, 6),
+                toggle_name(language, app.settings.show_accuracy)
+            )),
+            Line::from(format!(
+                "{}{adaptive}: {}",
+                focus_marker(app, 7),
                 toggle_name(language, app.settings.adaptive)
             )),
             Line::from(format!(
-                "{updates}: {}",
+                "{}{updates}: {}",
+                focus_marker(app, 8),
                 toggle_name(language, app.settings.check_updates)
             )),
         ])
@@ -1326,11 +1631,21 @@ fn render_themes(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
     let block = titled(text(language, TextKey::Theme), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+    let visible = usize::from(inner.height).max(1);
+    let start = app.focus().saturating_sub(visible - 1);
     frame.render_widget(
-        List::new(app.themes.ids().map(|id| {
-            let marker = if id == app.settings.theme { "> " } else { "  " };
-            ListItem::new(format!("{marker}{id}"))
-        }))
+        List::new(
+            app.themes
+                .ids()
+                .enumerate()
+                .skip(start)
+                .take(visible)
+                .map(|(index, id)| {
+                    let marker = if app.focus() == index { "> " } else { "  " };
+                    let selected = if id == app.settings.theme { "*" } else { " " };
+                    ListItem::new(format!("{marker}{selected} {id}"))
+                }),
+        )
         .style(styles.base),
         inner,
     );
@@ -1341,26 +1656,37 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
     let block = titled(text(language, TextKey::Help), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(format!(
-                "Tab / ↑↓ · Enter {} · Esc {}",
-                text(language, TextKey::Confirm),
-                text(language, TextKey::Back)
-            )),
-            Line::from(format!(
-                "q {} · ? {} · Ctrl+C",
-                text(language, TextKey::Quit),
-                text(language, TextKey::Help)
-            )),
-            Line::from("typeul quick|keys|words|sentence|long|test"),
-            Line::from("typeul stats|history|themes"),
-            Line::from("typeul content list|add|validate|disable"),
-            Line::from("typeul paths|licenses|update"),
-        ])
-        .style(styles.base),
-        inner,
-    );
+    let mut lines = match language {
+        Language::Ko => vec![
+            Line::from("이동: Tab / Shift+Tab / ↑↓ / j / k"),
+            Line::from("선택/편집: Enter / ←→"),
+            Line::from("뒤로: Esc · 종료: q / Ctrl+C · 도움말: ?"),
+            Line::from("연습: Esc / Ctrl+P 일시 정지 · 결과: r 다시 연습"),
+            Line::from("일시 정지 중 나가기: q를 두 번 누르기"),
+            Line::from("콘텐츠 비활성화: 상세 화면에서 d 두 번"),
+        ],
+        Language::En => vec![
+            Line::from("Move: Tab / Shift+Tab / ↑↓ / j / k"),
+            Line::from("Select/Edit: Enter / ←→"),
+            Line::from("Back: Esc · Quit: q / Ctrl+C · Help: ?"),
+            Line::from("Practice: Esc / Ctrl+P pause · Result: r retry"),
+            Line::from("Leave while paused: press q twice"),
+            Line::from("Content Disable: press d twice in detail"),
+        ],
+    };
+    lines.extend([
+        Line::from(""),
+        Line::from("typeul quick|keys|words|sentence|long|test"),
+        Line::from("typeul stats|history|themes"),
+        Line::from("typeul content list"),
+        Line::from("typeul content add PACK.toml"),
+        Line::from("typeul content validate [PACK.toml]"),
+        Line::from("typeul content disable PACK_ID"),
+        Line::from("typeul paths|licenses|update"),
+        Line::from("typeul --help|--version|--smoke"),
+        Line::from("typeul FILE | typeul practice FILE | cat FILE | typeul"),
+    ]);
+    frame.render_widget(Paragraph::new(lines).style(styles.base), inner);
 }
 
 fn warning_text(warnings: &[String]) -> String {

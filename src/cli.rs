@@ -477,6 +477,19 @@ fn candidate(path: &Path) -> Result<(ContentPack, Vec<u8>)> {
 }
 
 fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
+    let mut warnings = Vec::new();
+    let result = disable_user_pack(paths, id, &mut warnings);
+    print_content_warnings(&warnings);
+    let _catalog = result?;
+    println!("disabled content pack {id}");
+    Ok(())
+}
+
+pub(crate) fn disable_user_pack(
+    paths: &AppPaths,
+    id: &str,
+    warnings: &mut Vec<ContentError>,
+) -> Result<ContentCatalog> {
     validate_disable_id(id)?;
     if ContentCatalog::load_builtins()?.contains_pack(id) {
         return Err(input_error(format!(
@@ -487,9 +500,9 @@ fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
         .with_context(|| format!("failed to create {}", paths.content.display()))?;
     let _lock = ContentLock::acquire(&paths.content)?;
     let loaded = ContentCatalog::load(&paths.content)?;
-    print_content_warnings(&loaded.warnings);
-    let source = loaded
-        .catalog
+    warnings.extend(loaded.warnings.iter().cloned());
+    let mut catalog = loaded.catalog;
+    let source = catalog
         .active_user_path(id)
         .map(Path::to_path_buf)
         .ok_or_else(|| input_error(format!("enabled user content pack {id:?} was not found")))?;
@@ -521,8 +534,8 @@ fn disable_content(paths: &AppPaths, id: &str) -> Result<()> {
             });
         }
     }
-    println!("disabled content pack {id}");
-    Ok(())
+    catalog.remove_pack(id);
+    Ok(catalog)
 }
 
 fn ensure_disabled_dir(content: &Path) -> Result<PathBuf> {
@@ -605,7 +618,7 @@ fn print_content_warnings(warnings: &[ContentError]) {
     }
 }
 
-fn format_content_error(error: &ContentError) -> String {
+pub(crate) fn format_content_error(error: &ContentError) -> String {
     let item = error.item_id.as_deref().map_or(String::new(), |item| {
         format!(" item={}", item.escape_debug())
     });

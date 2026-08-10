@@ -1,20 +1,29 @@
 use crate::{
+    cli::{disable_user_pack, format_content_error},
     config::Settings,
-    content::{ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem},
+    content::{
+        ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem, SourceMeta, parse_pack,
+        read_pack_bytes, validate_pack,
+    },
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     practice::{Metrics, PracticeEngine},
-    stats::{KeyAccuracy, adaptive_candidates, intended_key_counts, weak_keys},
+    stats::{
+        KeyAccuracy, ProgressPoint, Range, adaptive_candidates, intended_key_counts, progress,
+        weak_keys,
+    },
     storage::{AppPaths, SessionRecord, save_session},
     theme::ThemeCatalog,
 };
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
+    fs,
+    path::Path,
     time::{Duration, Instant},
 };
-use time::OffsetDateTime;
+use time::{Date, OffsetDateTime, UtcOffset};
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -94,6 +103,25 @@ pub struct ResultView {
     pub grade: Option<Grade>,
     pub save_error: Option<String>,
     pub long: Option<LongOutcome>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ContentProvenance {
+    pub item_id: Option<String>,
+    pub source: SourceMeta,
+}
+
+#[derive(Clone, Debug)]
+pub struct ContentPackSummary {
+    pub id: String,
+    pub sample_item_id: String,
+    pub provenance: Vec<ContentProvenance>,
+    pub language: Language,
+    pub items: usize,
+    pub licenses: Vec<String>,
+    pub kinds: Vec<ContentKind>,
+    pub enabled: bool,
+    pub built_in: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -483,6 +511,12 @@ pub struct App {
     retry_request: Option<ModeRequest>,
     retry_stream: Option<CatalogStream>,
     retry_long_metadata: Option<LongMetadata>,
+    stats_range: Range,
+    stats_language: Language,
+    stats_mode: Option<PracticeKind>,
+    selected_content_pack: Option<String>,
+    content_disable_confirmation: bool,
+    content_pack_summaries: Vec<ContentPackSummary>,
     pub settings: Settings,
     pub paths: AppPaths,
     pub content: ContentCatalog,
@@ -502,6 +536,8 @@ impl App {
         sessions: Vec<SessionRecord>,
         warnings: Vec<String>,
     ) -> Self {
+        let stats_language = settings.language;
+        let content_pack_summaries = collect_content_packs(&content, &paths.content);
         Self {
             screen: Screen::Home,
             parent: Screen::Home,
@@ -511,6 +547,12 @@ impl App {
             retry_request: None,
             retry_stream: None,
             retry_long_metadata: None,
+            stats_range: Range::Days30,
+            stats_language,
+            stats_mode: None,
+            selected_content_pack: None,
+            content_disable_confirmation: false,
+            content_pack_summaries,
             settings,
             paths,
             content,
@@ -548,6 +590,105 @@ impl App {
 
     pub fn retry_request(&self) -> Option<&ModeRequest> {
         self.retry_request.as_ref()
+    }
+
+    pub const fn stats_range(&self) -> Range {
+        self.stats_range
+    }
+
+    pub const fn stats_language(&self) -> Language {
+        self.stats_language
+    }
+
+    pub const fn stats_mode(&self) -> Option<PracticeKind> {
+        self.stats_mode
+    }
+
+    pub fn set_stats_range(&mut self, range: Range) {
+        self.stats_range = range;
+    }
+
+    pub fn set_stats_language(&mut self, language: Language) {
+        self.stats_language = language;
+    }
+
+    pub fn set_stats_mode(&mut self, mode: Option<PracticeKind>) {
+        self.stats_mode = mode;
+    }
+
+    pub fn stats_points(&self) -> Vec<ProgressPoint> {
+        progress(
+            &self.sessions,
+            self.stats_range,
+            self.stats_today(),
+            self.stats_language,
+            self.stats_mode,
+        )
+    }
+
+    pub(crate) fn stats_today(&self) -> Date {
+        let now = OffsetDateTime::now_utc();
+        now.to_offset(UtcOffset::local_offset_at(now).unwrap_or(UtcOffset::UTC))
+            .date()
+    }
+
+    pub fn set_target_kpm(&mut self, value: u32) -> Result<()> {
+        self.change_settings(|settings| settings.target_kpm = value)
+    }
+
+    pub fn set_target_wpm(&mut self, value: u32) -> Result<()> {
+        self.change_settings(|settings| settings.target_wpm = value)
+    }
+
+    pub fn set_target_accuracy(&mut self, value: f64) -> Result<()> {
+        self.change_settings(|settings| settings.target_accuracy = value)
+    }
+
+    pub fn set_daily_minutes(&mut self, value: u32) -> Result<()> {
+        self.change_settings(|settings| settings.daily_minutes = value)
+    }
+
+    pub fn select_theme(&mut self, id: &str) -> Result<()> {
+        if self.themes.get(id).is_none() {
+            let error = anyhow!("unknown theme {id:?}");
+            self.warnings.push(format!("settings: {error}"));
+            return Err(error);
+        }
+        self.change_settings(|settings| settings.theme = id.to_owned())
+    }
+
+    pub fn content_packs(&self) -> &[ContentPackSummary] {
+        &self.content_pack_summaries
+    }
+
+    pub fn selected_content_pack(&self) -> Option<&str> {
+        self.selected_content_pack.as_deref()
+    }
+
+    pub fn content_detail_pack(&self) -> Option<&ContentPackSummary> {
+        self.selected_content_pack
+            .as_deref()
+            .and_then(|id| {
+                self.content_pack_summaries
+                    .iter()
+                    .find(|pack| pack.id == id)
+            })
+            .or_else(|| self.content_pack_summaries.first())
+    }
+
+    pub const fn content_disable_confirmation(&self) -> bool {
+        self.content_disable_confirmation
+    }
+
+    fn change_settings(&mut self, change: impl FnOnce(&mut Settings)) -> Result<()> {
+        let mut candidate = self.settings.clone();
+        change(&mut candidate);
+        if let Err(error) = candidate.save(&self.paths) {
+            self.warnings.push(format!("settings: {error:#}"));
+            return Err(error);
+        }
+        self.settings = candidate;
+        Ok(())
     }
 
     pub fn open(&mut self, screen: Screen) {
@@ -990,7 +1131,16 @@ impl App {
             {
                 self.move_focus(-1);
             }
-            KeyCode::Enter => self.enter(),
+            KeyCode::Left if key.modifiers == KeyModifiers::NONE => self.adjust(-1),
+            KeyCode::Right if key.modifiers == KeyModifiers::NONE => self.adjust(1),
+            KeyCode::Char('d')
+                if self.screen == Screen::ContentDetail
+                    && key.kind == KeyEventKind::Press
+                    && key.modifiers == KeyModifiers::NONE =>
+            {
+                self.disable_selected_content();
+            }
+            KeyCode::Enter if key.modifiers == KeyModifiers::NONE => self.enter(),
             KeyCode::Char('r')
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
@@ -1412,6 +1562,7 @@ impl App {
     }
 
     fn escape(&mut self) {
+        self.content_disable_confirmation = false;
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
@@ -1449,6 +1600,15 @@ impl App {
     fn focus_count(&self) -> usize {
         match self.screen {
             Screen::Home => 10,
+            Screen::Stats => 5,
+            Screen::History => 3,
+            Screen::Goals => 4,
+            Screen::Content => self.content_packs().len().max(1),
+            Screen::ContentDetail => self
+                .content_detail_pack()
+                .map_or(1, |pack| pack.provenance.len().max(1)),
+            Screen::Settings => 9,
+            Screen::Themes => self.themes.ids().count().max(1),
             _ => 1,
         }
     }
@@ -1462,19 +1622,335 @@ impl App {
         };
     }
 
+    fn adjust(&mut self, delta: isize) {
+        match (self.screen, self.focus) {
+            (Screen::Stats | Screen::History, 0) => {
+                self.stats_range = cycle_range(self.stats_range, delta);
+            }
+            (Screen::Stats | Screen::History, 1) => {
+                self.stats_language = other_language(self.stats_language);
+            }
+            (Screen::Stats | Screen::History, 2) => {
+                self.stats_mode = cycle_mode(self.stats_mode, delta);
+            }
+            (Screen::Goals, 0) => {
+                let value = adjusted(self.settings.target_kpm, delta, 10, 1, 5_000);
+                let _ = self.set_target_kpm(value);
+            }
+            (Screen::Goals, 1) => {
+                let value = adjusted(self.settings.target_wpm, delta, 5, 1, 5_000);
+                let _ = self.set_target_wpm(value);
+            }
+            (Screen::Goals, 2) => {
+                let value =
+                    (self.settings.target_accuracy + delta.signum() as f64 * 0.5).clamp(1.0, 100.0);
+                let _ = self.set_target_accuracy(value);
+            }
+            (Screen::Goals, 3) => {
+                let value = adjusted(self.settings.daily_minutes, delta, 5, 1, 1_440);
+                let _ = self.set_daily_minutes(value);
+            }
+            (Screen::Settings, _) => self.activate_setting(),
+            _ => {}
+        }
+    }
+
     fn enter(&mut self) {
-        if self.screen != Screen::Home {
+        match self.screen {
+            Screen::Home => {
+                let screen = match self.focus {
+                    0..=5 => Screen::ModeSelect,
+                    6 => Screen::Stats,
+                    7 => Screen::Goals,
+                    8 => Screen::Content,
+                    9 => Screen::Settings,
+                    _ => return,
+                };
+                self.open(screen);
+            }
+            Screen::Stats => match self.focus {
+                0..=2 => self.adjust(1),
+                3 => self.open(Screen::History),
+                4 => self.open(Screen::WeakKeys),
+                _ => {}
+            },
+            Screen::History => self.adjust(1),
+            Screen::Goals => self.adjust(1),
+            Screen::Content => {
+                if let Some(pack) = self.content_packs().get(self.focus) {
+                    self.selected_content_pack = Some(pack.id.clone());
+                    self.content_disable_confirmation = false;
+                    self.open(Screen::ContentDetail);
+                }
+            }
+            Screen::Settings => self.activate_setting(),
+            Screen::Themes => {
+                let id = self.themes.ids().nth(self.focus).map(str::to_owned);
+                if let Some(id) = id
+                    && self.select_theme(&id).is_ok()
+                {
+                    self.escape();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn activate_setting(&mut self) {
+        match self.focus {
+            0 => {
+                let language = other_language(self.settings.language);
+                if self
+                    .change_settings(|settings| settings.language = language)
+                    .is_ok()
+                {
+                    self.stats_language = language;
+                }
+            }
+            1 => {
+                let language = other_language(self.settings.ui_language);
+                let _ = self.change_settings(|settings| settings.ui_language = language);
+            }
+            2 => self.open(Screen::Themes),
+            3 => {
+                let value = !self.settings.show_keyboard;
+                let _ = self.change_settings(|settings| settings.show_keyboard = value);
+            }
+            4 => {
+                let value = !self.settings.show_finger_guide;
+                let _ = self.change_settings(|settings| settings.show_finger_guide = value);
+            }
+            5 => {
+                let value = !self.settings.show_live_speed;
+                let _ = self.change_settings(|settings| settings.show_live_speed = value);
+            }
+            6 => {
+                let value = !self.settings.show_accuracy;
+                let _ = self.change_settings(|settings| settings.show_accuracy = value);
+            }
+            7 => {
+                let value = !self.settings.adaptive;
+                let _ = self.change_settings(|settings| settings.adaptive = value);
+            }
+            8 => {
+                let value = !self.settings.check_updates;
+                let _ = self.change_settings(|settings| settings.check_updates = value);
+            }
+            _ => {}
+        }
+    }
+
+    fn disable_selected_content(&mut self) {
+        let Some(id) = self.selected_content_pack.clone() else {
+            return;
+        };
+        let Some(pack) = self.content_packs().iter().find(|pack| pack.id == id) else {
+            return;
+        };
+        if pack.built_in {
+            self.warnings
+                .push(format!("content: built-in pack {id:?} cannot be disabled"));
             return;
         }
-        let screen = match self.focus {
-            0..=5 => Screen::ModeSelect,
-            6 => Screen::Stats,
-            7 => Screen::Goals,
-            8 => Screen::Content,
-            9 => Screen::Settings,
-            _ => return,
+        if !pack.enabled {
+            self.warnings
+                .push(format!("content: user pack {id:?} is already disabled"));
+            return;
+        }
+        if !self.content_disable_confirmation {
+            self.content_disable_confirmation = true;
+            return;
+        }
+        let mut mutation_warnings = Vec::new();
+        let result = disable_user_pack(&self.paths, &id, &mut mutation_warnings);
+        self.warnings.extend(
+            mutation_warnings
+                .iter()
+                .map(|warning| format!("content: {}", format_content_error(warning))),
+        );
+        match result {
+            Ok(catalog) => {
+                self.content_pack_summaries = collect_content_packs(&catalog, &self.paths.content);
+                self.content = catalog;
+                self.selected_content_pack = None;
+                self.content_disable_confirmation = false;
+                self.escape();
+            }
+            Err(error) => {
+                self.warnings.push(format!("content: {error:#}"));
+                self.content_disable_confirmation = false;
+            }
+        }
+    }
+}
+
+fn collect_content_packs(catalog: &ContentCatalog, content_root: &Path) -> Vec<ContentPackSummary> {
+    let mut packs = BTreeMap::<String, ContentPackSummary>::new();
+    for item in catalog.items() {
+        add_pack_item(
+            &mut packs,
+            item,
+            true,
+            catalog.active_user_path(&item.pack_id).is_none(),
+        );
+    }
+    for pack in packs.values_mut() {
+        if let Some(source) = catalog.pack_source(&pack.id) {
+            if !pack.licenses.contains(&source.license) {
+                pack.licenses.push(source.license.clone());
+            }
+            pack.provenance.push(ContentProvenance {
+                item_id: None,
+                source: source.clone(),
+            });
+        }
+    }
+
+    let disabled = content_root.join("disabled");
+    let mut entries = match fs::symlink_metadata(&disabled) {
+        Ok(metadata) if metadata.file_type().is_dir() => fs::read_dir(disabled)
+            .map(|entries| entries.flatten().collect::<Vec<_>>())
+            .unwrap_or_default(),
+        _ => Vec::new(),
+    };
+    entries.sort_unstable_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let path = entry.path();
+        if path.extension().and_then(|value| value.to_str()) != Some("toml")
+            || !entry.file_type().is_ok_and(|kind| kind.is_file())
+        {
+            continue;
+        }
+        let Ok(bytes) = read_pack_bytes(&path) else {
+            continue;
         };
-        self.open(screen);
+        let Ok(source) = std::str::from_utf8(&bytes) else {
+            continue;
+        };
+        let Ok(pack) = parse_pack(source) else {
+            continue;
+        };
+        if !validate_pack(&pack).is_empty() || packs.contains_key(&pack.id) {
+            continue;
+        }
+        let pack_id = pack.id.clone();
+        let pack_source = pack.source.clone();
+        let Ok(items) = pack.resolve_items() else {
+            continue;
+        };
+        for item in items {
+            add_pack_item(&mut packs, &item, false, false);
+        }
+        if let Some(pack) = packs.get_mut(&pack_id) {
+            if !pack.licenses.contains(&pack_source.license) {
+                pack.licenses.push(pack_source.license.clone());
+            }
+            pack.provenance.push(ContentProvenance {
+                item_id: None,
+                source: pack_source,
+            });
+        }
+    }
+
+    for pack in packs.values_mut() {
+        pack.licenses.sort_unstable();
+        pack.kinds
+            .sort_unstable_by_key(|kind| content_kind_order(*kind));
+    }
+    packs.into_values().collect()
+}
+
+fn add_pack_item(
+    packs: &mut BTreeMap<String, ContentPackSummary>,
+    item: &ResolvedItem,
+    enabled: bool,
+    built_in: bool,
+) {
+    let pack = packs
+        .entry(item.pack_id.clone())
+        .or_insert_with(|| ContentPackSummary {
+            id: item.pack_id.clone(),
+            sample_item_id: item.id.clone(),
+            provenance: Vec::new(),
+            language: item.language,
+            items: 0,
+            licenses: Vec::new(),
+            kinds: Vec::new(),
+            enabled,
+            built_in,
+        });
+    pack.items += 1;
+    if !pack
+        .provenance
+        .iter()
+        .any(|value| value.item_id.is_some() && value.source == item.source)
+    {
+        pack.provenance.push(ContentProvenance {
+            item_id: Some(item.id.clone()),
+            source: item.source.clone(),
+        });
+    }
+    if !pack
+        .licenses
+        .iter()
+        .any(|value| value == &item.source.license)
+    {
+        pack.licenses.push(item.source.license.clone());
+    }
+    if !pack.kinds.contains(&item.kind) {
+        pack.kinds.push(item.kind);
+    }
+}
+
+const fn content_kind_order(kind: ContentKind) -> u8 {
+    match kind {
+        ContentKind::Word => 0,
+        ContentKind::Sentence => 1,
+        ContentKind::Quote => 2,
+        ContentKind::Text => 3,
+    }
+}
+
+const fn other_language(language: Language) -> Language {
+    match language {
+        Language::Ko => Language::En,
+        Language::En => Language::Ko,
+    }
+}
+
+fn cycle_range(range: Range, delta: isize) -> Range {
+    const VALUES: [Range; 4] = [Range::Days7, Range::Days30, Range::Days90, Range::All];
+    let index = VALUES.iter().position(|value| *value == range).unwrap_or(0);
+    VALUES[cycle_index(index, VALUES.len(), delta)]
+}
+
+fn cycle_mode(mode: Option<PracticeKind>, delta: isize) -> Option<PracticeKind> {
+    const VALUES: [Option<PracticeKind>; 7] = [
+        None,
+        Some(PracticeKind::Quick),
+        Some(PracticeKind::Key),
+        Some(PracticeKind::Words),
+        Some(PracticeKind::Sentence),
+        Some(PracticeKind::Long),
+        Some(PracticeKind::Test),
+    ];
+    let index = VALUES.iter().position(|value| *value == mode).unwrap_or(0);
+    VALUES[cycle_index(index, VALUES.len(), delta)]
+}
+
+fn cycle_index(index: usize, len: usize, delta: isize) -> usize {
+    if delta < 0 {
+        (index + len - 1) % len
+    } else {
+        (index + 1) % len
+    }
+}
+
+fn adjusted(value: u32, delta: isize, step: u32, minimum: u32, maximum: u32) -> u32 {
+    if delta < 0 {
+        value.saturating_sub(step).max(minimum)
+    } else {
+        value.saturating_add(step).min(maximum)
     }
 }
 

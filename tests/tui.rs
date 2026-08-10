@@ -15,8 +15,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::{Duration, Instant},
 };
-use time::OffsetDateTime;
-use time::macros::date;
+use time::{Date, OffsetDateTime, UtcOffset};
 use typeul::{
     app::{
         App, CustomTextSource, Grade, ItemDelta, ModeRequest, PracticeMode, QuickOptions,
@@ -26,7 +25,7 @@ use typeul::{
     content::{ContentCatalog, ContentKind},
     model::{Difficulty, Language, PracticeKind},
     practice::{InputOutcome, PracticeEngine},
-    stats::{KeyAccuracy, adaptive_candidates},
+    stats::{KeyAccuracy, Range, adaptive_candidates},
     storage::{AppPaths, SessionRecord},
     theme::ThemeCatalog,
     ui::{practice_cursor, render},
@@ -70,6 +69,12 @@ fn fixture_app() -> (TestDir, App) {
         vec!["review warning".into()],
     );
     (root, app)
+}
+
+fn local_today() -> Date {
+    let now = OffsetDateTime::now_utc();
+    now.to_offset(UtcOffset::local_offset_at(now).unwrap_or(UtcOffset::UTC))
+        .date()
 }
 
 fn key(code: KeyCode) -> Event {
@@ -142,7 +147,7 @@ fn result_view(id: &str) -> ResultView {
             schema_version: 1,
             id: id.into(),
             started_at_unix_ms: 1_786_029_600_000,
-            local_date: date!(2026 - 08 - 07),
+            local_date: local_today(),
             language: Language::En,
             mode: PracticeKind::Words,
             content_id: "first-item".into(),
@@ -169,6 +174,40 @@ fn result_view(id: &str) -> ResultView {
         save_error: Some("preserve this result".into()),
         long: None,
     }
+}
+
+fn user_pack(id: &str) -> String {
+    format!(
+        r#"schema_version = 1
+id = "{id}"
+title = "TUI test pack"
+language = "en"
+
+[source]
+author = "Pack author"
+source_id = "pack-source"
+source_url = "https://example.com/pack-source"
+license = "CC-BY-4.0"
+license_url = "https://creativecommons.org/licenses/by/4.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "{id}-item"
+kind = "word"
+text = "zephyr"
+difficulty = 1
+
+[items.source]
+author = "Test author"
+source_id = "test-source"
+source_url = "https://example.com/source"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+"#
+    )
 }
 
 struct Drawn {
@@ -510,6 +549,71 @@ fn content_detail_preserves_exact_provenance_values() {
 }
 
 #[test]
+fn content_detail_pages_through_pack_and_every_unique_item_provenance() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.open(Screen::Content);
+    let index = app
+        .content_packs()
+        .iter()
+        .position(|pack| pack.id == "en-sentences")
+        .unwrap();
+    for _ in 0..index {
+        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), Instant::now())
+        .unwrap();
+
+    let first = buffer_text(&draw(&app, 120, 40).buffer);
+    assert!(first.contains("Provenance 1/121"), "{first}");
+    assert!(first.contains("tatoeba:331259"), "{first}");
+    app.handle_event(key(KeyCode::Down), Instant::now())
+        .unwrap();
+    let second = buffer_text(&draw(&app, 120, 40).buffer);
+    assert!(second.contains("Provenance 2/121"), "{second}");
+    assert!(second.contains("tatoeba:337215"), "{second}");
+    app.handle_event(key(KeyCode::Up), Instant::now()).unwrap();
+    app.handle_event(key(KeyCode::Up), Instant::now()).unwrap();
+    let pack = buffer_text(&draw(&app, 120, 40).buffer);
+    assert!(pack.contains("Provenance 121/121"), "{pack}");
+    assert!(pack.contains("scope: pack"), "{pack}");
+    assert!(
+        pack.contains(
+            "tatoeba-eng_cc0-6ab169264a28008c25bf63042bf7535fc63137c9d7e09b7b8bd7812d10117d1b"
+        ),
+        "{pack}"
+    );
+}
+
+#[test]
+fn content_detail_keeps_provenance_license_and_status_visible_with_a_warning() {
+    let (_root, mut app) = fixture_app();
+    app.open(Screen::Content);
+    let index = app
+        .content_packs()
+        .iter()
+        .position(|pack| pack.id == "en-sentences")
+        .unwrap();
+    for _ in 0..index {
+        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), Instant::now())
+        .unwrap();
+    app.handle_event(key(KeyCode::Up), Instant::now()).unwrap();
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for value in [
+        "scope: pack",
+        "tatoeba-eng_cc0-",
+        "typeul licenses",
+        "Built-in packs cannot be disabled",
+        "review warning",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
+    }
+}
+
+#[test]
 fn stats_shows_default_ranges_no_data_and_stored_session_data() {
     let (_root, mut app) = fixture_app();
     app.open(Screen::Stats);
@@ -548,23 +652,47 @@ fn stats_with_multiple_sessions_renders_a_real_speed_chart() {
 }
 
 #[test]
-fn stats_uses_the_selected_language_and_30_days_from_the_latest_stored_date() {
+fn subminute_practice_remains_visible_in_the_minutes_trend() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let today = local_today();
+    let mut first = result_view("fifteen-seconds").session;
+    first.local_date = today.saturating_sub(time::Duration::days(1));
+    first.duration_ms = 15_000;
+    let mut second = result_view("thirty-seconds").session;
+    second.local_date = today;
+    second.duration_ms = 30_000;
+    app.sessions.extend([first, second]);
+    app.open(Screen::Stats);
+
+    let drawn = draw(&app, 100, 30);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("Minutes trend"), "{output}");
+    assert!(
+        (19..99).any(|x| drawn.buffer[(x, 13)].symbol() != " "),
+        "subminute trend is blank: {output}"
+    );
+}
+
+#[test]
+fn stats_uses_the_selected_language_and_30_days_from_local_today() {
     let (_root, mut app) = fixture_app();
     app.settings.language = Language::En;
     app.warnings.clear();
+    let today = local_today();
     let mut recent = result_view("recent-en").session;
-    recent.local_date = date!(2026 - 08 - 06);
+    recent.local_date = today.saturating_sub(time::Duration::days(1));
     recent.wpm = 20.0;
     recent.accuracy = 80.0;
     let mut boundary = result_view("boundary-en").session;
-    boundary.local_date = date!(2026 - 07 - 09);
+    boundary.local_date = today.saturating_sub(time::Duration::days(29));
     boundary.wpm = 40.0;
     boundary.accuracy = 100.0;
     let mut too_old = result_view("old-en").session;
-    too_old.local_date = date!(2026 - 07 - 08);
+    too_old.local_date = today.saturating_sub(time::Duration::days(30));
     too_old.wpm = 999.0;
     let mut latest_other_language = result_view("latest-ko").session;
-    latest_other_language.local_date = date!(2026 - 08 - 07);
+    latest_other_language.local_date = today;
     latest_other_language.language = Language::Ko;
     latest_other_language.kpm = 777.0;
     app.sessions
@@ -589,12 +717,13 @@ fn stats_trends_are_chronological_regardless_of_storage_order() {
         app.warnings.clear();
         app.open(Screen::Stats);
     }
+    let today = local_today();
     let mut older = result_view("older-en").session;
-    older.local_date = date!(2026 - 08 - 06);
+    older.local_date = today.saturating_sub(time::Duration::days(1));
     older.started_at_unix_ms = 1;
     older.wpm = 10.0;
     let mut newer = result_view("newer-en").session;
-    newer.local_date = date!(2026 - 08 - 07);
+    newer.local_date = today;
     newer.started_at_unix_ms = 2;
     newer.wpm = 90.0;
     first.sessions.extend([newer.clone(), older.clone()]);
@@ -610,7 +739,7 @@ fn stats_with_no_selected_language_session_in_30_days_renders_no_data() {
     app.warnings.clear();
     let mut korean = result_view("only-ko").session;
     korean.language = Language::Ko;
-    korean.local_date = date!(2026 - 08 - 07);
+    korean.local_date = local_today();
     app.sessions.push(korean);
     app.open(Screen::Stats);
 
@@ -652,6 +781,14 @@ fn korean_data_screens_do_not_fall_back_to_english_prose() {
         assert!(output.contains(required), "{screen:?}: {output}");
         assert!(!output.contains(forbidden), "{screen:?}: {output}");
     }
+    app.open(Screen::Stats);
+    let stats = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(stats.contains("/22 분"), "{stats}");
+    assert!(!stats.contains("/22 min"), "{stats}");
+    app.open(Screen::ContentDetail);
+    let detail = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(detail.contains("활성"), "{detail}");
+    assert!(!detail.contains("enabled"), "{detail}");
 
     app.open(Screen::Settings);
     let settings = buffer_text(&draw(&app, 80, 24).buffer);
@@ -812,6 +949,19 @@ fn weak_keys_renders_derived_attempts_and_accuracy() {
 }
 
 #[test]
+fn weak_key_screen_reserves_a_visible_row_for_suggested_content() {
+    let (_root, mut app) = fixture_app();
+    let mut session = result_view("many-weak-keys").session;
+    session.intended_keys = (b'a'..=b'z').map(|key| (char::from(key), [8, 2])).collect();
+    app.sessions.push(session);
+    app.open(Screen::WeakKeys);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("a: 80.0% (10)"), "{output}");
+    assert!(output.contains("Suggested content"), "{output}");
+}
+
+#[test]
 fn weak_keys_uses_only_the_saved_practice_language() {
     let (_root, mut app) = fixture_app();
     app.settings.language = Language::En;
@@ -826,6 +976,392 @@ fn weak_keys_uses_only_the_saved_practice_language() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("x: 80.0% (10)"), "{output}");
     assert!(!output.contains("한: 0.0% (10)"), "{output}");
+}
+
+#[test]
+fn stats_filters_change_derived_points_without_mutating_sessions() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let today = local_today();
+    let mut recent = result_view("recent-words").session;
+    recent.local_date = today.saturating_sub(time::Duration::days(1));
+    recent.mode = PracticeKind::Words;
+    recent.wpm = 40.0;
+    recent.accuracy = 90.0;
+    recent.duration_ms = 120_000;
+    let mut old = result_view("old-words").session;
+    old.local_date = today.saturating_sub(time::Duration::days(60));
+    old.mode = PracticeKind::Words;
+    old.wpm = 20.0;
+    let mut other_mode = result_view("recent-test").session;
+    other_mode.local_date = today;
+    other_mode.mode = PracticeKind::Test;
+    other_mode.wpm = 80.0;
+    let mut korean = result_view("recent-korean").session;
+    korean.local_date = today;
+    korean.language = Language::Ko;
+    korean.kpm = 500.0;
+    app.sessions.extend([recent, old, other_mode, korean]);
+    let stored = app.sessions.clone();
+
+    app.set_stats_language(Language::En);
+    app.set_stats_mode(Some(PracticeKind::Words));
+    app.set_stats_range(Range::Days7);
+    assert_eq!(app.stats_points().len(), 1);
+    assert_eq!(app.stats_points()[0].speed, 40.0);
+    app.set_stats_range(Range::All);
+    assert_eq!(app.stats_points().len(), 2);
+    assert_eq!(app.sessions, stored);
+
+    app.set_stats_range(Range::Days7);
+    app.open(Screen::Stats);
+    let output = buffer_text(&draw(&app, 100, 30).buffer);
+    for value in [
+        "Range: [7]  30  90  All",
+        "Language: en",
+        "Mode: Word practice",
+        "Sessions: 1",
+        "Total time: 2 min",
+        "Accuracy: 90.0%",
+        "WPM 40.0/40.0",
+        "Streak: 2",
+        "Goal",
+        "Speed trend",
+        "Accuracy trend",
+        "Minutes trend",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
+    }
+}
+
+#[test]
+fn finite_stats_ranges_use_local_today_and_exclude_future_records() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.set_stats_language(Language::En);
+    app.set_stats_mode(Some(PracticeKind::Words));
+    app.set_stats_range(Range::Days30);
+    let today = local_today();
+    let mut recent = result_view("recent-current-date").session;
+    recent.local_date = today.saturating_sub(time::Duration::days(1));
+    recent.wpm = 33.0;
+    let mut future = result_view("future-corrupt-date").session;
+    future.local_date = today.saturating_add(time::Duration::days(60));
+    future.wpm = 999.0;
+    app.sessions.extend([recent, future]);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 100, 30).buffer);
+    assert!(output.contains("Sessions: 1"), "{output}");
+    assert!(output.contains("WPM 33.0/33.0"), "{output}");
+    assert!(!output.contains("999.0"), "{output}");
+}
+
+#[test]
+fn streak_and_daily_goal_use_all_today_sessions_not_the_visible_filter() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.daily_minutes = 15;
+    app.set_stats_language(Language::En);
+    app.set_stats_mode(Some(PracticeKind::Words));
+    app.set_stats_range(Range::Days7);
+
+    let today = local_today();
+    let mut visible = result_view("visible-en-words").session;
+    visible.local_date = today;
+    visible.duration_ms = 60_000;
+    let mut other_today = result_view("other-ko-test").session;
+    other_today.local_date = today;
+    other_today.language = Language::Ko;
+    other_today.mode = PracticeKind::Test;
+    other_today.duration_ms = 14 * 60_000;
+    let mut yesterday = result_view("yesterday-ko-test").session;
+    yesterday.local_date = today.saturating_sub(time::Duration::days(1));
+    yesterday.language = Language::Ko;
+    yesterday.mode = PracticeKind::Test;
+    app.sessions.extend([visible, other_today, yesterday]);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 100, 30).buffer);
+    assert!(output.contains("Sessions: 1"), "{output}");
+    assert!(output.contains("Total time: 1 min"), "{output}");
+    assert!(output.contains("Streak: 2"), "{output}");
+    assert!(output.contains("15/15 min"), "{output}");
+}
+
+#[test]
+fn goals_and_settings_save_atomically_and_failed_saves_preserve_memory() {
+    let (root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.set_target_kpm(510).unwrap();
+    app.set_target_wpm(95).unwrap();
+    app.set_target_accuracy(97.5).unwrap();
+    app.set_daily_minutes(20).unwrap();
+    app.select_theme("nord").unwrap();
+    let loaded = Settings::load(&app.paths).unwrap().value;
+    assert_eq!(loaded.target_kpm, 510);
+    assert_eq!(loaded.target_wpm, 95);
+    assert_eq!(loaded.target_accuracy, 97.5);
+    assert_eq!(loaded.daily_minutes, 20);
+    assert_eq!(loaded.theme, "nord");
+
+    let before = app.settings.clone();
+    let blocked = root.path().join("blocked");
+    fs::write(&blocked, b"not a directory").unwrap();
+    app.paths.config = blocked.join("config.toml");
+    assert!(app.set_daily_minutes(21).is_err());
+    assert_eq!(app.settings, before);
+    assert!(
+        app.warnings
+            .last()
+            .is_some_and(|warning| warning.contains("failed to save")),
+        "{:?}",
+        app.warnings
+    );
+
+    assert!(app.select_theme("not-installed").is_err());
+    assert_eq!(app.settings, before);
+}
+
+#[test]
+fn settings_actions_edit_every_requested_field_and_survive_reload() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+
+    for focus in [0, 1, 3, 4, 5, 6, 7, 8] {
+        app.open(Screen::Settings);
+        for _ in 0..focus {
+            app.handle_event(key(KeyCode::Tab), now).unwrap();
+        }
+        app.handle_event(key(KeyCode::Enter), now).unwrap();
+    }
+    app.open(Screen::Themes);
+    for _ in 0..4 {
+        app.handle_event(key(KeyCode::Tab), now).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+
+    let loaded = Settings::load(&app.paths).unwrap().value;
+    assert_eq!(loaded.language, Language::Ko);
+    assert_eq!(loaded.ui_language, Language::Ko);
+    assert_eq!(loaded.theme, "nord");
+    assert!(!loaded.show_keyboard);
+    assert!(!loaded.show_finger_guide);
+    assert!(!loaded.show_live_speed);
+    assert!(!loaded.show_accuracy);
+    assert!(!loaded.adaptive);
+    assert!(!loaded.check_updates);
+}
+
+#[test]
+fn modified_enter_cannot_change_or_persist_navigation_screen_state() {
+    let (_root, mut app) = fixture_app();
+    let before = app.settings.clone();
+    app.open(Screen::Settings);
+
+    for modifiers in [KeyModifiers::ALT, KeyModifiers::CONTROL] {
+        app.handle_event(
+            key_with(KeyCode::Enter, modifiers, KeyEventKind::Press),
+            Instant::now(),
+        )
+        .unwrap();
+    }
+
+    assert_eq!(app.settings, before);
+    assert!(!app.paths.config.exists());
+}
+
+#[test]
+fn content_packs_group_provenance_and_disable_only_users_after_confirmation() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    fs::create_dir_all(&paths.content).unwrap();
+    let source = paths.content.join("user-pack.toml");
+    fs::write(&source, user_pack("user-pack")).unwrap();
+    let loaded = ContentCatalog::load(&paths.content).unwrap();
+    assert!(loaded.warnings.is_empty());
+    let mut app = App::new(
+        Settings::default(),
+        paths.clone(),
+        loaded.catalog,
+        ThemeCatalog::load_builtins().unwrap(),
+        Vec::new(),
+        Vec::new(),
+    );
+    let summaries = app.content_packs();
+    let user = summaries
+        .iter()
+        .find(|summary| summary.id == "user-pack")
+        .unwrap();
+    assert_eq!(user.language, Language::En);
+    assert_eq!(user.items, 1);
+    assert_eq!(user.licenses, vec!["CC-BY-4.0", "CC0-1.0"]);
+    assert!(user.enabled);
+    assert!(!user.built_in);
+    assert!(summaries.iter().any(|summary| summary.built_in));
+    fs::write(paths.content.join("broken.toml"), b"schema_version = [").unwrap();
+
+    app.open(Screen::Content);
+    let user_index = app
+        .content_packs()
+        .iter()
+        .position(|summary| summary.id == "user-pack")
+        .unwrap();
+    for _ in 0..user_index {
+        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), Instant::now())
+        .unwrap();
+    assert_eq!(app.screen(), Screen::ContentDetail);
+    assert_eq!(app.selected_content_pack(), Some("user-pack"));
+    let detail = buffer_text(&draw(&app, 120, 40).buffer);
+    for value in [
+        "Test author",
+        "test-source",
+        "https://example.com/source",
+        "CC0-1.0",
+        "https://creativecommons.org/publicdomain/zero/1.0/",
+        "2026-08-07",
+        "typeul content add PACK.toml",
+        "typeul content validate PACK.toml",
+        "d: Disable",
+    ] {
+        assert!(detail.contains(value), "missing {value:?}: {detail}");
+    }
+
+    app.handle_event(key(KeyCode::Char('d')), Instant::now())
+        .unwrap();
+    assert!(source.exists());
+    assert!(buffer_text(&draw(&app, 120, 40).buffer).contains("Press d again"));
+    app.handle_event(key(KeyCode::Char('d')), Instant::now())
+        .unwrap();
+    assert!(!source.exists());
+    assert!(paths.content.join("disabled/user-pack.toml").exists());
+    assert!(!app.content.contains_pack("user-pack"));
+    assert!(
+        app.warnings
+            .iter()
+            .any(|warning| warning.contains("pack=broken")),
+        "{:?}",
+        app.warnings
+    );
+    let disabled = app
+        .content_packs()
+        .iter()
+        .find(|summary| summary.id == "user-pack")
+        .unwrap();
+    assert!(!disabled.enabled);
+    assert!(!disabled.built_in);
+
+    app.open(Screen::Content);
+    let disabled_index = app
+        .content_packs()
+        .iter()
+        .position(|summary| summary.id == "user-pack")
+        .unwrap();
+    for _ in 0..disabled_index {
+        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), Instant::now())
+        .unwrap();
+    let disabled_detail = buffer_text(&draw(&app, 120, 40).buffer);
+    for value in [
+        "Test author",
+        "test-source",
+        "CC0-1.0",
+        "User pack is disabled",
+    ] {
+        assert!(
+            disabled_detail.contains(value),
+            "missing {value:?}: {disabled_detail}"
+        );
+    }
+
+    app.open(Screen::Content);
+    let built_in_index = app
+        .content_packs()
+        .iter()
+        .position(|summary| summary.built_in)
+        .unwrap();
+    for _ in 0..built_in_index {
+        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+    }
+    app.handle_event(key(KeyCode::Enter), Instant::now())
+        .unwrap();
+    app.handle_event(key(KeyCode::Char('d')), Instant::now())
+        .unwrap();
+    assert!(
+        app.warnings
+            .last()
+            .is_some_and(|warning| warning.contains("built-in")),
+        "{:?}",
+        app.warnings
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn content_pack_listing_does_not_follow_a_disabled_directory_symlink() {
+    use std::os::unix::fs::symlink;
+
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    let outside = root.path().join("outside");
+    fs::create_dir_all(&outside).unwrap();
+    fs::create_dir_all(&paths.content).unwrap();
+    fs::write(outside.join("escaped-pack.toml"), user_pack("escaped-pack")).unwrap();
+    symlink(&outside, paths.content.join("disabled")).unwrap();
+    let app = App::new(
+        Settings::default(),
+        paths,
+        ContentCatalog::load_builtins().unwrap(),
+        ThemeCatalog::load_builtins().unwrap(),
+        Vec::new(),
+        Vec::new(),
+    );
+
+    assert!(
+        app.content_packs()
+            .iter()
+            .all(|pack| pack.id != "escaped-pack")
+    );
+}
+
+#[test]
+fn help_explains_all_keyboard_and_cli_actions_in_both_languages() {
+    for (language, words) in [
+        (Language::En, ["Move", "Select", "Back", "Quit", "Disable"]),
+        (Language::Ko, ["이동", "선택", "뒤로", "종료", "비활성화"]),
+    ] {
+        let (_root, mut app) = fixture_app();
+        app.settings.ui_language = language;
+        app.warnings.clear();
+        app.open(Screen::Help);
+        let output = buffer_text(&draw(&app, 120, 40).buffer);
+        for word in words {
+            assert!(output.contains(word), "missing {word:?}: {output}");
+        }
+        assert!(output.contains("Shift+Tab"), "{output}");
+        assert!(
+            output.contains(match language {
+                Language::Ko => "q를 두 번",
+                Language::En => "press q twice",
+            }),
+            "{output}"
+        );
+        for command in [
+            "typeul quick|keys|words|sentence|long|test",
+            "typeul stats|history|themes",
+            "typeul content list",
+            "typeul content add PACK.toml",
+            "typeul content validate [PACK.toml]",
+            "typeul content disable PACK_ID",
+            "typeul paths|licenses|update",
+            "typeul --help|--version|--smoke",
+        ] {
+            assert!(output.contains(command), "missing {command:?}: {output}");
+        }
+    }
 }
 
 #[test]

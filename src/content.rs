@@ -12,6 +12,7 @@ use std::{
     path::{Path, PathBuf},
 };
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -22,7 +23,7 @@ pub enum ContentKind {
     Text,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SourceMeta {
     pub author: String,
     pub source_id: String,
@@ -82,6 +83,7 @@ pub struct ContentCatalog {
     pack_ids: HashSet<String>,
     item_ids: HashSet<String>,
     normalized_texts: HashSet<(Language, ContentKind, String)>,
+    pack_sources: HashMap<String, SourceMeta>,
     user_pack_paths: HashMap<String, PathBuf>,
 }
 
@@ -99,6 +101,8 @@ const ALLOWED_LICENSES: &[&str] = &[
     "LicenseRef-Public-Domain",
 ];
 pub(crate) const MAX_CONTENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_METADATA_COLUMNS: usize = 320;
+const MAX_METADATA_BYTES: usize = 1024;
 
 static BUILTIN: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets/content");
 
@@ -348,6 +352,27 @@ impl ContentCatalog {
         self.user_pack_paths.get(id).map(PathBuf::as_path)
     }
 
+    pub(crate) fn pack_source(&self, id: &str) -> Option<&SourceMeta> {
+        self.pack_sources.get(id)
+    }
+
+    pub(crate) fn remove_pack(&mut self, id: &str) {
+        let mut retained = Vec::with_capacity(self.items.len());
+        for item in self.items.drain(..) {
+            if item.pack_id == id {
+                self.item_ids.remove(&item.id);
+                self.normalized_texts
+                    .remove(&(item.language, item.kind, item.text.clone()));
+            } else {
+                retained.push(item);
+            }
+        }
+        self.items = retained;
+        self.pack_ids.remove(id);
+        self.pack_sources.remove(id);
+        self.user_pack_paths.remove(id);
+    }
+
     pub fn count(&self, language: Language, kind: ContentKind) -> usize {
         self.items
             .iter()
@@ -416,6 +441,7 @@ impl ContentCatalog {
 
     fn insert(&mut self, pack: ContentPack) -> Result<()> {
         let items = pack.resolve_items()?;
+        self.pack_sources.insert(pack.id.clone(), pack.source);
         self.pack_ids.insert(pack.id);
         for item in &items {
             self.item_ids.insert(item.id.clone());
@@ -506,6 +532,27 @@ fn validate_source(
         }
         validate_visible(pack, item_id, field, value, errors);
     }
+    let values = [
+        source.author.as_str(),
+        source.source_id.as_str(),
+        source.source_url.as_str(),
+        source.license.as_str(),
+        source.license_url.as_str(),
+        source.retrieved_at.as_str(),
+    ];
+    let width = values
+        .iter()
+        .map(|value| UnicodeWidthStr::width(*value))
+        .sum::<usize>();
+    let bytes = values.iter().map(|value| value.len()).sum::<usize>();
+    if width > MAX_METADATA_COLUMNS || bytes > MAX_METADATA_BYTES {
+        errors.push(error(
+            pack,
+            item_id,
+            "source",
+            "must be at most 320 terminal columns and 1024 bytes",
+        ));
+    }
 }
 
 fn validate_visible(
@@ -521,6 +568,14 @@ fn validate_visible(
             item_id,
             field,
             "contains a disallowed control character",
+        ));
+    }
+    if UnicodeWidthStr::width(value) > MAX_METADATA_COLUMNS || value.len() > MAX_METADATA_BYTES {
+        errors.push(error(
+            pack,
+            item_id,
+            field,
+            "must be at most 320 terminal columns and 1024 bytes",
         ));
     }
 }
@@ -738,6 +793,43 @@ retrieved_at = "2026-08-07"
         let mut newline = fixture_pack();
         newline.items[0].text = "line one\nline two".into();
         assert!(validate_pack(&newline).is_empty());
+    }
+
+    #[test]
+    fn source_metadata_has_a_bounded_terminal_width() {
+        let mut pack = fixture_pack();
+        pack.source.author = "x".repeat(400);
+
+        assert!(
+            validate_pack(&pack)
+                .iter()
+                .any(|error| error.field == "source" && error.message.contains("320"))
+        );
+    }
+
+    #[test]
+    fn zero_width_source_metadata_has_a_bounded_byte_length() {
+        let mut pack = fixture_pack();
+        pack.source.author = "\u{301}".repeat(600);
+
+        assert!(validate_pack(&pack).iter().any(|error| {
+            error.field == "source.author" && error.message.contains("1024 bytes")
+        }));
+    }
+
+    #[test]
+    fn removing_a_pack_reconciles_every_catalog_index() {
+        let pack = fixture_pack();
+        let mut catalog = ContentCatalog::default();
+        catalog.insert(pack.clone()).unwrap();
+        assert!(catalog.contains_pack("fixture"));
+
+        catalog.remove_pack("fixture");
+
+        assert!(!catalog.contains_pack("fixture"));
+        assert!(catalog.items().all(|item| item.pack_id != "fixture"));
+        assert!(catalog.pack_source("fixture").is_none());
+        assert!(catalog.validate_candidate(&pack).is_empty());
     }
 
     #[test]
