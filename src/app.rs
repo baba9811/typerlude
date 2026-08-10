@@ -4,7 +4,7 @@ use crate::{
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     practice::{Metrics, PracticeEngine},
-    stats::{KeyAccuracy, adaptive_candidates, weak_keys},
+    stats::{KeyAccuracy, adaptive_candidates, intended_key_counts, weak_keys},
     storage::{AppPaths, SessionRecord, save_session},
     theme::ThemeCatalog,
 };
@@ -175,6 +175,188 @@ impl QuickOptions {
             stop,
         })
     }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyStage {
+    pub title: &'static str,
+    pub keys: &'static [char],
+}
+
+const EN_STAGE_1: &[char] = &['f', 'j'];
+const EN_STAGE_2: &[char] = &['f', 'j', 'd', 'k'];
+const EN_STAGE_3: &[char] = &['f', 'j', 'd', 'k', 's', 'l'];
+const EN_STAGE_4: &[char] = &['f', 'j', 'd', 'k', 's', 'l', 'a', ';'];
+const EN_STAGE_5: &[char] = &['f', 'j', 'd', 'k', 's', 'l', 'a', ';', 'g', 'h'];
+const EN_STAGE_6: &[char] = &['f', 'j', 'd', 'k', 's', 'l', 'a', ';', 'g', 'h', 'e', 'i'];
+const EN_STAGE_7: &[char] = &[
+    'f', 'j', 'd', 'k', 's', 'l', 'a', ';', 'g', 'h', 'e', 'i', 'r', 'u', 't', 'y', 'w', 'o', 'q',
+    'p',
+];
+const EN_STAGE_8: &[char] = &[
+    'f', 'j', 'd', 'k', 's', 'l', 'a', ';', 'g', 'h', 'e', 'i', 'r', 'u', 't', 'y', 'w', 'o', 'q',
+    'p', 'c', 'v', 'b', 'n', 'm', 'x', 'z',
+];
+const EN_STAGE_9: &[char] = &[
+    'f', 'j', 'd', 'k', 's', 'l', 'a', ';', 'g', 'h', 'e', 'i', 'r', 'u', 't', 'y', 'w', 'o', 'q',
+    'p', 'c', 'v', 'b', 'n', 'm', 'x', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
+    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ':',
+];
+const EN_STAGE_10: &[char] = &[
+    'f', 'j', 'd', 'k', 's', 'l', 'a', ';', 'g', 'h', 'e', 'i', 'r', 'u', 't', 'y', 'w', 'o', 'q',
+    'p', 'c', 'v', 'b', 'n', 'm', 'x', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K',
+    'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', ':', '1', '2', '3',
+    '4', '5', '6', '7', '8', '9', '0', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '-', '_',
+    '=', '+', '[', '{', ']', '}', '\\', '|', '\'', '"', ',', '<', '.', '>', '/', '?', '`', '~',
+    ' ',
+];
+static EN_KEY_STAGES: [KeyStage; 10] = [
+    KeyStage {
+        title: "F/J",
+        keys: EN_STAGE_1,
+    },
+    KeyStage {
+        title: "D/K",
+        keys: EN_STAGE_2,
+    },
+    KeyStage {
+        title: "S/L",
+        keys: EN_STAGE_3,
+    },
+    KeyStage {
+        title: "A/;",
+        keys: EN_STAGE_4,
+    },
+    KeyStage {
+        title: "Home row",
+        keys: EN_STAGE_5,
+    },
+    KeyStage {
+        title: "E/I",
+        keys: EN_STAGE_6,
+    },
+    KeyStage {
+        title: "Top row",
+        keys: EN_STAGE_7,
+    },
+    KeyStage {
+        title: "Letters",
+        keys: EN_STAGE_8,
+    },
+    KeyStage {
+        title: "Shift",
+        keys: EN_STAGE_9,
+    },
+    KeyStage {
+        title: "Full keyboard",
+        keys: EN_STAGE_10,
+    },
+];
+
+const KO_STAGE_1: &[char] = &['ㅁ', 'ㄴ', 'ㅇ', 'ㄹ'];
+const KO_STAGE_2: &[char] = &['ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ'];
+const KO_STAGE_3: &[char] = &[
+    'ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ', 'ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ',
+];
+const KO_STAGE_4: &[char] = &[
+    'ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ', 'ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ',
+    'ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ',
+];
+const KO_STAGE_5: &[char] = &[
+    'ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ', 'ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ',
+    'ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ', 'ㅛ', 'ㅕ', 'ㅑ', 'ㅐ', 'ㅔ',
+];
+const KO_STAGE_6: &[char] = &[
+    'ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ', 'ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ',
+    'ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ', 'ㅛ', 'ㅕ', 'ㅑ', 'ㅐ', 'ㅔ', 'ㅃ', 'ㅉ', 'ㄸ', 'ㄲ', 'ㅆ', 'ㅒ',
+    'ㅖ',
+];
+const KO_STAGE_7: &[char] = &[
+    'ㅁ', 'ㄴ', 'ㅇ', 'ㄹ', 'ㅎ', 'ㅗ', 'ㅓ', 'ㅏ', 'ㅣ', 'ㅋ', 'ㅌ', 'ㅊ', 'ㅍ', 'ㅠ', 'ㅜ', 'ㅡ',
+    'ㅂ', 'ㅈ', 'ㄷ', 'ㄱ', 'ㅅ', 'ㅛ', 'ㅕ', 'ㅑ', 'ㅐ', 'ㅔ', 'ㅃ', 'ㅉ', 'ㄸ', 'ㄲ', 'ㅆ', 'ㅒ',
+    'ㅖ', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '!', '@', '#', '$', '%', '^', '&', '*',
+    '(', ')', '-', '_', '=', '+', '[', '{', ']', '}', '\\', '|', '\'', '"', ',', '<', '.', '>',
+    '/', '?', '`', '~', ' ',
+];
+static KO_KEY_STAGES: [KeyStage; 7] = [
+    KeyStage {
+        title: "기본자리 1",
+        keys: KO_STAGE_1,
+    },
+    KeyStage {
+        title: "기본자리 2",
+        keys: KO_STAGE_2,
+    },
+    KeyStage {
+        title: "아랫줄",
+        keys: KO_STAGE_3,
+    },
+    KeyStage {
+        title: "윗줄 자음",
+        keys: KO_STAGE_4,
+    },
+    KeyStage {
+        title: "윗줄 모음",
+        keys: KO_STAGE_5,
+    },
+    KeyStage {
+        title: "Shift 조합",
+        keys: KO_STAGE_6,
+    },
+    KeyStage {
+        title: "전체 자판",
+        keys: KO_STAGE_7,
+    },
+];
+
+pub const fn key_stages(language: Language) -> &'static [KeyStage] {
+    match language {
+        Language::Ko => &KO_KEY_STAGES,
+        Language::En => &EN_KEY_STAGES,
+    }
+}
+
+pub fn key_sequence(
+    language: Language,
+    stage: u8,
+    random: bool,
+    weak: &[char],
+    seed: u64,
+) -> Result<String> {
+    let stage = key_stage(language, stage)?;
+    let mut cycle = stage.keys.to_vec();
+    let mut seen = HashSet::new();
+    for &key in weak {
+        if stage.keys.contains(&key) && seen.insert(key) {
+            cycle.extend([key, key]);
+        }
+    }
+    let mut rng = fastrand::Rng::with_seed(seed);
+    let mut sequence = String::new();
+    let mut count = 0;
+    while count < KEY_SEQUENCE_UNITS {
+        if random {
+            rng.shuffle(&mut cycle);
+        }
+        for &key in &cycle {
+            sequence.push(key);
+            count += 1;
+            if count == KEY_SEQUENCE_UNITS {
+                break;
+            }
+        }
+    }
+    Ok(sequence)
+}
+
+fn key_stage(language: Language, stage: u8) -> Result<&'static KeyStage> {
+    let Some(stage) = usize::from(stage)
+        .checked_sub(1)
+        .and_then(|index| key_stages(language).get(index))
+    else {
+        bail!("invalid key-practice stage");
+    };
+    Ok(stage)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -460,6 +642,45 @@ impl App {
             seed,
         )?;
         self.start_mode(request, now)
+    }
+
+    pub fn start_key(
+        &mut self,
+        language: Language,
+        stage: u8,
+        random: bool,
+        weak_repeat: bool,
+        seed: u64,
+        now: Instant,
+    ) -> Result<()> {
+        let stage_keys = key_stage(language, stage)?.keys;
+        let weak = if weak_repeat {
+            weak_keys(&intended_key_counts(&self.sessions, language), 10)
+                .into_iter()
+                .filter(|key| stage_keys.contains(&key.key))
+                .take(3)
+                .map(|key| key.key)
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let target = key_sequence(language, stage, random, &weak, seed)?;
+        self.start_mode(
+            ModeRequest {
+                kind: PracticeKind::Key,
+                language,
+                target,
+                mode: PracticeMode::Key {
+                    stage,
+                    random,
+                    weak_repeat,
+                },
+                stop: StopRule::TargetEnd,
+                item_ends: vec![KEY_SEQUENCE_UNITS],
+                content_ids: Vec::new(),
+            },
+            now,
+        )
     }
 
     fn catalog_request(
@@ -1021,6 +1242,7 @@ const SENTENCE_KINDS: &[ContentKind] = &[ContentKind::Sentence, ContentKind::Quo
 const STREAM_BATCH_ITEMS: usize = 20;
 const WORD_BATCH_ITEMS: usize = 25;
 const SENTENCE_BATCH_ITEMS: usize = 10;
+const KEY_SEQUENCE_UNITS: usize = 120;
 
 fn select_catalog_items<'a>(
     catalog: &'a ContentCatalog,

@@ -1,5 +1,5 @@
 use crate::{
-    app::{ActivePractice, App, Grade, PracticeMode, Screen, StopRule},
+    app::{ActivePractice, App, Grade, PracticeMode, Screen, StopRule, key_stages},
     cli::terminal_safe,
     content::ContentKind,
     i18n::{TextKey, text},
@@ -214,9 +214,14 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         frame.render_widget(no_data(language, styles), inner);
         return;
     };
+    let key_mode = active.kind() == PracticeKind::Key;
+    let keyboard_height = u16::from(key_mode && app.settings.show_keyboard) * 4;
+    let finger_height = u16::from(key_mode && app.settings.show_finger_guide);
     let regions = Layout::vertical([
         Constraint::Min(1),
         Constraint::Length(2),
+        Constraint::Length(keyboard_height),
+        Constraint::Length(finger_height),
         Constraint::Length(2),
     ])
     .split(inner);
@@ -231,6 +236,18 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         Paragraph::new(practice_live_lines(active, language)).style(styles.base),
         regions[1],
     );
+    if keyboard_height != 0 {
+        frame.render_widget(
+            Paragraph::new(keyboard_lines(active, styles)).style(styles.base),
+            regions[2],
+        );
+    }
+    if finger_height != 0 {
+        frame.render_widget(
+            Paragraph::new(finger_line(active, language, styles)).style(styles.accent),
+            regions[3],
+        );
+    }
     let mut footer = Vec::new();
     if active.kind() != PracticeKind::Test {
         let action = if active.engine.is_paused() {
@@ -253,7 +270,7 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
             Language::En => "q: Finish practice",
         }));
     }
-    frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[2]);
+    frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[4]);
     if !active.engine.is_paused()
         && let Some(cursor) = practice_cursor(regions[0], active)
     {
@@ -263,6 +280,31 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
 
 fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<'static>> {
     let metrics = active.live_metrics();
+    if let PracticeMode::Key { stage, .. } = active.mode {
+        let title = key_stages(active.engine.language())
+            .get(usize::from(stage).saturating_sub(1))
+            .map_or("", |stage| stage.title);
+        let (completed, streak) = key_progress(active);
+        let stage_label = match language {
+            Language::Ko => "단계",
+            Language::En => "Stage",
+        };
+        return vec![
+            Line::from(format!(
+                "{stage_label} {stage}: {title} · {}: {:.1}% · {}: {streak}",
+                text(language, TextKey::Accuracy),
+                metrics.accuracy,
+                text(language, TextKey::Streak),
+            )),
+            Line::from(format!(
+                "{}: {completed}/{} · {}: {}",
+                text(language, TextKey::Progress),
+                active.engine.target_len(),
+                text(language, TextKey::Errors),
+                metrics.errors,
+            )),
+        ];
+    }
     let speed = match active.engine.language() {
         Language::Ko => metrics.kpm,
         Language::En => metrics.wpm,
@@ -322,6 +364,242 @@ fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<
         }
     };
     vec![Line::from(summary), Line::from(detail)]
+}
+
+fn key_progress(active: &ActivePractice) -> (usize, usize) {
+    let mut streak = 0_usize;
+    for (_, entered) in active.engine.target_cells().take(active.engine.cursor()) {
+        if entered == Some(true) {
+            streak = streak.saturating_add(1);
+        } else {
+            streak = 0;
+        }
+    }
+    (active.engine.cursor(), streak)
+}
+
+const KEYBOARD_ROWS: [&[char]; 4] = [
+    &[
+        '`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=',
+    ],
+    &[
+        'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\\',
+    ],
+    &['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\''],
+    &['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/'],
+];
+
+fn keyboard_lines(active: &ActivePractice, styles: ThemeStyles) -> Vec<Line<'static>> {
+    let language = active.engine.language();
+    let current = current_physical_key(active);
+    KEYBOARD_ROWS
+        .iter()
+        .enumerate()
+        .map(|(row, keys)| {
+            let mut spans = Vec::new();
+            if row == 3 {
+                spans.push(Span::styled(
+                    "[Shift] ",
+                    if current.is_some_and(|(_, shift)| shift) {
+                        styles.cursor
+                    } else {
+                        styles.dim
+                    },
+                ));
+            }
+            for &key in *keys {
+                let label = keyboard_label(language, key);
+                spans.push(Span::styled(
+                    format!("[{label}]"),
+                    if current.is_some_and(|(base, _)| base == key) {
+                        styles.cursor
+                    } else {
+                        styles.base
+                    },
+                ));
+                spans.push(Span::raw(" "));
+            }
+            if row == 3 {
+                spans.push(Span::styled(
+                    "[Space]",
+                    if current.is_some_and(|(base, _)| base == ' ') {
+                        styles.cursor
+                    } else {
+                        styles.base
+                    },
+                ));
+            }
+            Line::from(spans)
+        })
+        .collect()
+}
+
+fn finger_line(active: &ActivePractice, language: Language, styles: ThemeStyles) -> Line<'static> {
+    let Some((key, _)) = current_physical_key(active) else {
+        return Line::default();
+    };
+    let label = match language {
+        Language::Ko => "손가락",
+        Language::En => "Finger",
+    };
+    Line::from(Span::styled(
+        format!("{label}: {}", finger_name(language, key)),
+        styles.accent,
+    ))
+}
+
+fn current_physical_key(active: &ActivePractice) -> Option<(char, bool)> {
+    let target = active
+        .engine
+        .target_cells()
+        .nth(active.engine.cursor())?
+        .0
+        .chars()
+        .next()?;
+    physical_key(active.engine.language(), target)
+}
+
+fn physical_key(language: Language, key: char) -> Option<(char, bool)> {
+    if language == Language::Ko {
+        let korean = match key {
+            'ㅂ' => ('q', false),
+            'ㅃ' => ('q', true),
+            'ㅈ' => ('w', false),
+            'ㅉ' => ('w', true),
+            'ㄷ' => ('e', false),
+            'ㄸ' => ('e', true),
+            'ㄱ' => ('r', false),
+            'ㄲ' => ('r', true),
+            'ㅅ' => ('t', false),
+            'ㅆ' => ('t', true),
+            'ㅛ' => ('y', false),
+            'ㅕ' => ('u', false),
+            'ㅑ' => ('i', false),
+            'ㅐ' => ('o', false),
+            'ㅒ' => ('o', true),
+            'ㅔ' => ('p', false),
+            'ㅖ' => ('p', true),
+            'ㅁ' => ('a', false),
+            'ㄴ' => ('s', false),
+            'ㅇ' => ('d', false),
+            'ㄹ' => ('f', false),
+            'ㅎ' => ('g', false),
+            'ㅗ' => ('h', false),
+            'ㅓ' => ('j', false),
+            'ㅏ' => ('k', false),
+            'ㅣ' => ('l', false),
+            'ㅋ' => ('z', false),
+            'ㅌ' => ('x', false),
+            'ㅊ' => ('c', false),
+            'ㅍ' => ('v', false),
+            'ㅠ' => ('b', false),
+            'ㅜ' => ('n', false),
+            'ㅡ' => ('m', false),
+            _ => return english_physical_key(key),
+        };
+        return Some(korean);
+    }
+    english_physical_key(key)
+}
+
+fn english_physical_key(key: char) -> Option<(char, bool)> {
+    Some(match key {
+        'A'..='Z' => (key.to_ascii_lowercase(), true),
+        '!' => ('1', true),
+        '@' => ('2', true),
+        '#' => ('3', true),
+        '$' => ('4', true),
+        '%' => ('5', true),
+        '^' => ('6', true),
+        '&' => ('7', true),
+        '*' => ('8', true),
+        '(' => ('9', true),
+        ')' => ('0', true),
+        '_' => ('-', true),
+        '+' => ('=', true),
+        '{' => ('[', true),
+        '}' => (']', true),
+        '|' => ('\\', true),
+        '"' => ('\'', true),
+        ':' => (';', true),
+        '<' => (',', true),
+        '>' => ('.', true),
+        '?' => ('/', true),
+        '~' => ('`', true),
+        'a'..='z'
+        | '0'..='9'
+        | ';'
+        | '-'
+        | '='
+        | '['
+        | ']'
+        | '\\'
+        | '\''
+        | ','
+        | '.'
+        | '/'
+        | '`'
+        | ' ' => (key, false),
+        _ => return None,
+    })
+}
+
+fn keyboard_label(language: Language, key: char) -> char {
+    if language == Language::En {
+        return key.to_ascii_uppercase();
+    }
+    match key {
+        'q' => 'ㅂ',
+        'w' => 'ㅈ',
+        'e' => 'ㄷ',
+        'r' => 'ㄱ',
+        't' => 'ㅅ',
+        'y' => 'ㅛ',
+        'u' => 'ㅕ',
+        'i' => 'ㅑ',
+        'o' => 'ㅐ',
+        'p' => 'ㅔ',
+        'a' => 'ㅁ',
+        's' => 'ㄴ',
+        'd' => 'ㅇ',
+        'f' => 'ㄹ',
+        'g' => 'ㅎ',
+        'h' => 'ㅗ',
+        'j' => 'ㅓ',
+        'k' => 'ㅏ',
+        'l' => 'ㅣ',
+        'z' => 'ㅋ',
+        'x' => 'ㅌ',
+        'c' => 'ㅊ',
+        'v' => 'ㅍ',
+        'b' => 'ㅠ',
+        'n' => 'ㅜ',
+        'm' => 'ㅡ',
+        _ => key,
+    }
+}
+
+const fn finger_name(language: Language, key: char) -> &'static str {
+    match (language, key) {
+        (Language::Ko, 'q' | 'a' | 'z' | '1' | '`') => "왼쪽 새끼",
+        (Language::Ko, 'w' | 's' | 'x' | '2') => "왼쪽 약지",
+        (Language::Ko, 'e' | 'd' | 'c' | '3') => "왼쪽 중지",
+        (Language::Ko, 'r' | 'f' | 'v' | 't' | 'g' | 'b' | '4' | '5') => "왼쪽 검지",
+        (Language::Ko, 'y' | 'h' | 'n' | 'u' | 'j' | 'm' | '6' | '7') => "오른쪽 검지",
+        (Language::Ko, 'i' | 'k' | ',' | '8') => "오른쪽 중지",
+        (Language::Ko, 'o' | 'l' | '.' | '9') => "오른쪽 약지",
+        (Language::Ko, ' ') => "엄지",
+        (Language::Ko, _) => "오른쪽 새끼",
+        (Language::En, 'q' | 'a' | 'z' | '1' | '`') => "left pinky",
+        (Language::En, 'w' | 's' | 'x' | '2') => "left ring",
+        (Language::En, 'e' | 'd' | 'c' | '3') => "left middle",
+        (Language::En, 'r' | 'f' | 'v' | 't' | 'g' | 'b' | '4' | '5') => "left index",
+        (Language::En, 'y' | 'h' | 'n' | 'u' | 'j' | 'm' | '6' | '7') => "right index",
+        (Language::En, 'i' | 'k' | ',' | '8') => "right middle",
+        (Language::En, 'o' | 'l' | '.' | '9') => "right ring",
+        (Language::En, ' ') => "thumb",
+        (Language::En, _) => "right pinky",
+    }
 }
 
 const fn current_average(language: Language) -> (&'static str, &'static str) {
