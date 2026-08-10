@@ -661,14 +661,109 @@ fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() 
     }
 }
 
-#[test]
-fn every_declared_content_license_has_an_offline_notice_or_text() {
-    let catalog = ContentCatalog::load_builtins().unwrap();
-    let notices = std::fs::read_to_string("THIRD_PARTY_NOTICES.md").unwrap();
-    for license in catalog.items().map(|item| item.source.license.as_str()) {
-        assert!(notices.contains(license), "missing notice for {license}");
+fn validate_dependency_license_html(
+    html: &str,
+    expected_crates: &BTreeSet<(String, String)>,
+) -> Result<(), String> {
+    let reported_crates = html
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("<dt>")?.strip_suffix("</dt>"))
+        .map(|row| {
+            row.split_once(' ')
+                .map(|(name, version)| (name.to_owned(), version.to_owned()))
+                .ok_or_else(|| format!("malformed crate row <dt>{row}</dt>"))
+        })
+        .collect::<Result<BTreeSet<_>, _>>()?;
+    if reported_crates != *expected_crates {
+        let missing = expected_crates
+            .difference(&reported_crates)
+            .collect::<Vec<_>>();
+        let extra = reported_crates
+            .difference(expected_crates)
+            .collect::<Vec<_>>();
+        return Err(format!(
+            "crate rows differ; missing: {missing:?}; extra: {extra:?}"
+        ));
     }
-    assert!(std::path::Path::new("THIRD_PARTY_LICENSES.html").is_file());
+
+    let mut sections = 0;
+    for (index, after_start) in html.split("<section>").skip(1).enumerate() {
+        sections += 1;
+        after_start
+            .split_once("</section>")
+            .and_then(|(section, _)| section.split_once("<pre>"))
+            .and_then(|(_, after_pre)| after_pre.split_once("</pre>"))
+            .map(|(text, _)| text.trim())
+            .filter(|text| !text.is_empty())
+            .ok_or_else(|| format!("license section {} has no complete text body", index + 1))?;
+    }
+    if sections == 0 {
+        return Err("no license sections found".to_owned());
+    }
+
+    Ok(())
+}
+
+#[test]
+fn third_party_rust_license_report_covers_locked_supported_target_graph() {
+    let sample_crates = BTreeSet::from([("anyhow".to_owned(), "1.0.104".to_owned())]);
+    for invalid_html in [
+        "",
+        "<dt>anyhow 1.0.104</dt>\n<dt>stale 1.0.0</dt>\n<section><pre>MIT</pre></section>",
+        "<dt>anyhow 1.0.104</dt><section><pre> </pre></section>",
+    ] {
+        assert!(
+            validate_dependency_license_html(invalid_html, &sample_crates).is_err(),
+            "validator accepted invalid HTML: {invalid_html:?}"
+        );
+    }
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut expected_crates = BTreeSet::new();
+    for target in [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-pc-windows-msvc",
+        "x86_64-pc-windows-msvc",
+    ] {
+        let output = Command::new(env!("CARGO"))
+            .current_dir(root)
+            .args([
+                "tree",
+                "--locked",
+                "--offline",
+                "--all-features",
+                &format!("--target={target}"),
+                "--edges=normal,build",
+                "--prefix=none",
+                "--format={p}",
+            ])
+            .output()
+            .expect("cargo tree must be executable");
+        assert!(
+            output.status.success(),
+            "cargo tree failed for {target}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        let tree = String::from_utf8(output.stdout).expect("cargo tree output must be UTF-8");
+        for line in tree.lines().filter(|line| !line.trim().is_empty()) {
+            let (name, rest) = line
+                .split_once(" v")
+                .unwrap_or_else(|| panic!("malformed cargo tree row for {target}: {line}"));
+            let version = rest.split_whitespace().next().unwrap();
+            if name != env!("CARGO_PKG_NAME") || version != env!("CARGO_PKG_VERSION") {
+                expected_crates.insert((name.to_owned(), version.to_owned()));
+            }
+        }
+    }
+
+    let html = fs::read_to_string(root.join("THIRD_PARTY_LICENSES.html"))
+        .expect("THIRD_PARTY_LICENSES.html must be readable UTF-8");
+    validate_dependency_license_html(&html, &expected_crates)
+        .unwrap_or_else(|error| panic!("invalid THIRD_PARTY_LICENSES.html: {error}"));
 }
 
 #[test]
