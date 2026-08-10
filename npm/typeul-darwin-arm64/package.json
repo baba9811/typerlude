@@ -1,7 +1,7 @@
 {
   "name": "typeul-darwin-arm64",
   "version": "1.0.0",
-  "description": "Typeul native binary for Linux x64",
+  "description": "Typeul native binary for the Typeul typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": { "type": "git", "url": "git+https://github.com/baba9811/typeul.git" },
   "os": ["darwin"],
