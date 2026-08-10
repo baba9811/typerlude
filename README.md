@@ -296,7 +296,11 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --all-targets --all-features
 node --test scripts/import-tatoeba.test.mjs
 cargo package --locked
+make pty-smoke
 ```
+
+`make pty-smoke` builds the release binary and completes a real 80×24 Unix PTY
+session, checking Result persistence, privacy-safe aggregates, and terminal cleanup.
 
 The repository does not claim npm or crates.io publication until those registry
 steps have actually completed.
