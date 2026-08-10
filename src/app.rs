@@ -907,8 +907,8 @@ impl App {
                 bail!("practice did not start");
             };
             active.stream = Some(stream.clone());
-            self.retry_stream = Some(stream);
         }
+        self.retry_stream = Some(stream);
         Ok(())
     }
 
@@ -938,7 +938,9 @@ impl App {
             WORD_BATCH_ITEMS,
             seed,
         )?;
-        self.start_mode(request, now)
+        self.start_mode(request, now)?;
+        self.retry_stream = Some(stream);
+        Ok(())
     }
 
     pub fn start_sentence(&mut self, language: Language, seed: u64, now: Instant) -> Result<()> {
@@ -960,7 +962,9 @@ impl App {
             SENTENCE_BATCH_ITEMS,
             seed,
         )?;
-        self.start_mode(request, now)
+        self.start_mode(request, now)?;
+        self.retry_stream = Some(stream);
+        Ok(())
     }
 
     pub fn long_items(&self, language: Language, category: Option<&str>) -> Vec<&ResolvedItem> {
@@ -1179,6 +1183,84 @@ impl App {
         })
     }
 
+    pub fn can_start_next(&self) -> bool {
+        let Some(request) = self.retry_request.as_ref() else {
+            return false;
+        };
+        match &request.mode {
+            PracticeMode::Quick { .. }
+            | PracticeMode::Words { .. }
+            | PracticeMode::Sentence { .. } => self.retry_stream.as_ref().is_some_and(|stream| {
+                stream.language == request.language
+                    && self.content.items().any(|item| catalog_match(item, stream))
+            }),
+            PracticeMode::Long { item_id, .. } => self
+                .long_items(request.language, None)
+                .iter()
+                .any(|item| item.id == *item_id),
+            PracticeMode::Key { .. } | PracticeMode::Test { .. } => false,
+        }
+    }
+
+    fn start_next(&mut self, now: Instant) -> Result<()> {
+        if !self.can_start_next() {
+            return Ok(());
+        }
+        let Some(request) = self.retry_request.clone() else {
+            return Ok(());
+        };
+        if let PracticeMode::Long { item_id, .. } = &request.mode {
+            let items = self.long_items(request.language, None);
+            let Some(index) = items.iter().position(|item| item.id == *item_id) else {
+                return Ok(());
+            };
+            let next_id = items[(index + 1) % items.len()].id.clone();
+            return self.start_long(&next_id, now);
+        }
+
+        let Some(mut stream) = self.retry_stream.clone() else {
+            return Ok(());
+        };
+        let (mode, count) = match request.mode {
+            PracticeMode::Quick { .. } => {
+                let count = match request.stop {
+                    StopRule::Items(items) => items,
+                    StopRule::ActiveTime(_) => STREAM_BATCH_ITEMS,
+                    StopRule::TargetEnd => return Ok(()),
+                };
+                (PracticeMode::Quick { completed: 0 }, count)
+            }
+            PracticeMode::Words { difficulty, .. } => (
+                PracticeMode::Words {
+                    difficulty,
+                    completed: 0,
+                    streak: 0,
+                },
+                WORD_BATCH_ITEMS,
+            ),
+            PracticeMode::Sentence { .. } => (
+                PracticeMode::Sentence {
+                    completed: 0,
+                    last_item: None,
+                },
+                SENTENCE_BATCH_ITEMS,
+            ),
+            PracticeMode::Key { .. } | PracticeMode::Long { .. } | PracticeMode::Test { .. } => {
+                return Ok(());
+            }
+        };
+        let seed = stream.next_seed;
+        stream.next_seed = seed.wrapping_add(1);
+        let timed = matches!(request.stop, StopRule::ActiveTime(_));
+        let request = self.catalog_request(mode, request.stop, &stream, count, seed)?;
+        self.start_mode(request, now)?;
+        if timed && let Some(active) = self.practice.as_mut() {
+            active.stream = Some(stream.clone());
+        }
+        self.retry_stream = Some(stream);
+        Ok(())
+    }
+
     pub fn handle_event(&mut self, event: Event, now: Instant) -> Result<()> {
         let update_notice_was_visible = self.update_notice.is_some();
         let quit = matches!(
@@ -1313,7 +1395,11 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char('n') if self.screen == Screen::Result => {}
+            KeyCode::Char('n')
+                if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
+            {
+                self.start_next(now)?;
+            }
             _ => {}
         }
         Ok(())

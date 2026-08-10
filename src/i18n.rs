@@ -291,6 +291,15 @@ pub fn initial_ui_language(lc_all: Option<&str>, lang: Option<&str>) -> Language
     initial_ui_language_os(lc_all.map(OsStr::new), lang.map(OsStr::new))
 }
 
+pub(crate) const fn result_actions(language: Language, can_start_next: bool) -> &'static str {
+    match (language, can_start_next) {
+        (Language::Ko, true) => "r: 다시 연습 · n: 다음 · Esc: 메뉴",
+        (Language::Ko, false) => "r: 다시 연습 · Esc: 메뉴",
+        (Language::En, true) => "r: Retry · n: Next · Esc: Menu",
+        (Language::En, false) => "r: Retry · Esc: Menu",
+    }
+}
+
 pub(crate) fn initial_ui_language_os(lc_all: Option<&OsStr>, lang: Option<&OsStr>) -> Language {
     let locale = lc_all.or(lang).and_then(OsStr::to_str).unwrap_or_default();
     let prefix = locale.split(['_', '-', '.']).next().unwrap_or_default();

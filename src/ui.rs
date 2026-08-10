@@ -5,7 +5,7 @@ use crate::{
     },
     cli::terminal_safe,
     content::ContentKind,
-    i18n::{TextKey, text},
+    i18n::{TextKey, result_actions, text},
     model::{Difficulty, Language, PracticeKind},
     stats::{adaptive_candidates, history, intended_key_counts, streak, summarize, weak_keys},
     theme::ThemeStyles,
@@ -996,7 +996,14 @@ fn target_lines<'a>(
 
 fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
     let language = app.settings.ui_language;
-    let block = titled(text(language, TextKey::Result), styles);
+    let block = if app.result.is_some() {
+        titled(text(language, TextKey::Result), styles).title_bottom(Span::styled(
+            result_actions(language, app.can_start_next()),
+            styles.accent,
+        ))
+    } else {
+        titled(text(language, TextKey::Result), styles)
+    };
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let regions = Layout::vertical([

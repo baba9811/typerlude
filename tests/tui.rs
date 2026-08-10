@@ -136,6 +136,62 @@ fn type_text(app: &mut App, value: &str, now: Instant) {
     }
 }
 
+fn finish_started_practice(app: &mut App, now: Instant) {
+    let first = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .next()
+        .unwrap()
+        .0
+        .to_owned();
+    assert!(matches!(
+        app.active_practice_mut().unwrap().engine.input(&first, now),
+        InputOutcome::Accepted | InputOutcome::Finished
+    ));
+    app.finish_practice(now + Duration::from_secs(1)).unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+}
+
+fn start_result_next_catalog_case(app: &mut App, kind: PracticeKind, seed: u64, now: Instant) {
+    match kind {
+        PracticeKind::Quick => app
+            .start_quick(
+                QuickOptions::new(Language::Ko, QuickSource::Quote, StopRule::Items(10)).unwrap(),
+                seed,
+                now,
+            )
+            .unwrap(),
+        PracticeKind::Words => app
+            .start_words(Language::En, Difficulty::Hard, seed, now)
+            .unwrap(),
+        PracticeKind::Sentence => app.start_sentence(Language::Ko, seed, now).unwrap(),
+        _ => unreachable!(),
+    }
+}
+
+fn assert_result_next_unavailable_and_retry_exact(app: &mut App, now: Instant) {
+    let request = app.retry_request().unwrap().clone();
+    finish_started_practice(app, now);
+    let result = app.result.clone();
+    let output = buffer_text(&draw(app, 80, 24).buffer);
+    assert!(output.contains("r: Retry"), "{output}");
+    assert!(output.contains("Esc: Menu"), "{output}");
+    assert!(!output.contains("n: Next"), "{output}");
+
+    app.handle_event(key(KeyCode::Char('n')), now + Duration::from_secs(2))
+        .unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+    assert_eq!(app.result, result);
+    assert_eq!(app.retry_request(), Some(&request));
+
+    app.handle_event(key(KeyCode::Char('r')), now + Duration::from_secs(3))
+        .unwrap();
+    assert_eq!(app.screen(), Screen::Practice);
+    assert_eq!(app.retry_request(), Some(&request));
+}
+
 fn mode_for(kind: PracticeKind) -> PracticeMode {
     match kind {
         PracticeKind::Quick => PracticeMode::Quick { completed: 2 },
@@ -2145,11 +2201,117 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
     assert_eq!(retried.content_ids, requested.content_ids);
     assert_eq!(retried.engine.metrics(start).attempted_units, 0);
     assert_eq!(retried.engine.input("ab", start), InputOutcome::Finished);
+}
 
-    app.open(Screen::Result);
-    app.handle_event(key(KeyCode::Char('n')), start).unwrap();
-    assert_eq!(app.screen(), Screen::Result, "Task 2 leaves next inert");
-    assert_eq!(app.retry_request(), Some(&requested));
+#[test]
+fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
+    let start = Instant::now();
+
+    for (kind, seed) in [
+        (PracticeKind::Quick, 41),
+        (PracticeKind::Words, 11),
+        (PracticeKind::Sentence, 19),
+    ] {
+        let (_root, mut app) = fixture_app();
+        app.settings.ui_language = Language::Ko;
+        if kind == PracticeKind::Words {
+            let mut weak_history = result_view("next-weak-history").session;
+            weak_history.intended_keys.insert('x', [0, 20]);
+            app.sessions.push(weak_history);
+        }
+        start_result_next_catalog_case(&mut app, kind, seed, start);
+        finish_started_practice(&mut app, start);
+        if kind == PracticeKind::Quick {
+            let output = buffer_text(&draw(&app, 80, 24).buffer);
+            for action in ["r: 다시 연습", "n: 다음", "Esc: 메뉴"] {
+                assert!(output.contains(action), "missing {action:?}: {output}");
+            }
+        }
+
+        let (_expected_root, mut expected) = fixture_app();
+        expected.sessions = app.sessions.clone();
+        if kind == PracticeKind::Words {
+            app.settings.adaptive = false;
+        }
+        start_result_next_catalog_case(
+            &mut expected,
+            kind,
+            seed + 1,
+            start + Duration::from_secs(2),
+        );
+        let expected_request = expected.retry_request().unwrap().clone();
+
+        app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(2))
+            .unwrap();
+
+        assert_eq!(app.screen(), Screen::Practice);
+        assert_eq!(app.retry_request(), Some(&expected_request), "{kind:?}");
+
+        if kind == PracticeKind::Quick {
+            finish_started_practice(&mut app, start + Duration::from_secs(3));
+            let (_second_root, mut second) = fixture_app();
+            second.sessions = app.sessions.clone();
+            start_result_next_catalog_case(
+                &mut second,
+                kind,
+                seed + 2,
+                start + Duration::from_secs(5),
+            );
+            let second_request = second.retry_request().unwrap().clone();
+            app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(5))
+                .unwrap();
+            assert_eq!(app.retry_request(), Some(&second_request));
+        }
+    }
+}
+
+#[test]
+fn result_next_moves_to_the_next_long_item_and_wraps() {
+    let start = Instant::now();
+    let (_catalog_root, catalog) = fixture_app();
+    let ids = catalog
+        .long_items(Language::En, None)
+        .into_iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+    assert!(ids.len() > 1);
+
+    for (current, next) in [(&ids[0], &ids[1]), (&ids[ids.len() - 1], &ids[0])] {
+        let (_root, mut app) = fixture_app();
+        app.start_long(current, start).unwrap();
+        finish_started_practice(&mut app, start);
+
+        let (_expected_root, mut expected) = fixture_app();
+        expected
+            .start_long(next, start + Duration::from_secs(2))
+            .unwrap();
+        let expected_request = expected.retry_request().unwrap().clone();
+        let expected_metadata = expected.long_metadata().unwrap().clone();
+
+        app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(2))
+            .unwrap();
+
+        assert_eq!(app.retry_request(), Some(&expected_request));
+        assert_eq!(app.long_metadata(), Some(&expected_metadata));
+        assert!(matches!(
+            &app.retry_request().unwrap().mode,
+            PracticeMode::Long { item_id, paragraph: 0 } if item_id == next
+        ));
+    }
+}
+
+#[test]
+fn result_next_is_unavailable_for_key_and_test_but_retry_is_exact() {
+    let start = Instant::now();
+
+    let (_key_root, mut keys) = fixture_app();
+    keys.start_key(Language::En, 4, true, false, 7, start)
+        .unwrap();
+    assert_result_next_unavailable_and_retry_exact(&mut keys, start);
+
+    let (_test_root, mut test) = fixture_app();
+    test.start_test(Language::Ko, Some(60), 13, start).unwrap();
+    assert_result_next_unavailable_and_retry_exact(&mut test, start);
 }
 
 #[test]
