@@ -394,14 +394,24 @@ retrieved_at = "2026-08-10"
 "#
     .to_owned();
     for index in 0..count {
+        let title = if index + 1 == count {
+            "界".repeat(160)
+        } else {
+            format!("Viewport item {index:02}")
+        };
+        let tags = if index + 1 == count {
+            format!("[\"{}\", \"{}\"]", "界".repeat(160), "界".repeat(160))
+        } else {
+            format!("[\"viewport-tag-{index:02}\"]")
+        };
         pack.push_str(&format!(
             r#"
 [[items]]
 id = "viewport-text-{index:02}"
 kind = "text"
-title = "Viewport item {index:02}"
+title = "{title}"
 difficulty = 3
-tags = ["viewport-tag-{index:02}"]
+tags = {tags}
 text = "Unique viewport text {index:02}."
 
 [items.source]
@@ -798,7 +808,17 @@ fn long_options_render_metadata_and_launch_every_filtered_item() {
                 "{output}"
             );
             assert!(output.contains(&item.source.author), "{output}");
-            assert!(output.contains(&item.source.source_url), "{output}");
+            let source = format!("Source: {}", item.source.source_url);
+            if UnicodeWidthStr::width(source.as_str()) <= 78 {
+                assert!(output.contains(&source), "{output}");
+            } else {
+                assert!(
+                    output
+                        .lines()
+                        .any(|line| line.contains("Source: ") && line.contains('…')),
+                    "{output}"
+                );
+            }
             assert!(output.contains(&item.source.license), "{output}");
             assert!(
                 output.contains(&item.difficulty.unwrap_or_default().to_string()),
@@ -875,19 +895,27 @@ fn long_options_keep_the_focused_tail_and_metadata_visible_with_warnings() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
 
     for visible in [
-        "> Viewport item 23",
+        "> 界",
         "Language: en",
-        "Title: Viewport item 23",
+        "Title: 界",
         "Author: Viewport author",
         "Source: https://example.com/viewport/23",
         "License: CC0-1.0",
         "Difficulty: 3",
-        "Tags: viewport-tag-23",
+        "Tags: 界",
         "Enter Confirm",
         "Esc Back",
         "review warning",
     ] {
         assert!(output.contains(visible), "missing {visible:?}: {output}");
+    }
+    for visible in ["> ", "Title: ", "Tags: "] {
+        assert!(
+            output
+                .lines()
+                .any(|line| line.contains(visible) && line.contains('…')),
+            "missing truncated {visible:?}: {output}"
+        );
     }
     assert!(!output.contains("Viewport item 00"), "{output}");
 

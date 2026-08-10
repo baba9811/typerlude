@@ -21,6 +21,7 @@ use ratatui::{
     },
 };
 use std::{mem, time::Duration};
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 const MIN_WIDTH: u16 = 80;
@@ -129,6 +130,28 @@ fn selected_styles(app: &App) -> Option<ThemeStyles> {
                 .get("default")
                 .and_then(|theme| theme.styles().ok())
         })
+}
+
+fn terminal_line(value: &str, width: u16) -> String {
+    let value = terminal_safe(value);
+    let width = usize::from(width);
+    if UnicodeWidthStr::width(value.as_str()) <= width {
+        return value;
+    }
+    if width == 0 {
+        return String::new();
+    }
+
+    let mut line = String::new();
+    let available = width - UnicodeWidthStr::width("…");
+    for grapheme in value.graphemes(true) {
+        if UnicodeWidthStr::width(line.as_str()) + UnicodeWidthStr::width(grapheme) > available {
+            break;
+        }
+        line.push_str(grapheme);
+    }
+    line.push('…');
+    line
 }
 
 fn render_too_small(frame: &mut Frame<'_>, language: Language, area: Rect) {
@@ -248,6 +271,20 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
             Span::styled(text(language, TextKey::Start), styles.base),
         ])
     };
+    let long_row = |index: usize, label: &str, value: &str| {
+        let marker = focus_marker(app, index);
+        let width = inner
+            .width
+            .saturating_sub(UnicodeWidthStr::width(marker) as u16);
+        Line::from(vec![
+            Span::styled(marker, styles.accent),
+            Span::styled(
+                terminal_line(&format!("{label}: {value}"), width),
+                styles.base,
+            ),
+        ])
+    };
+    let long_line = |value: String| Line::from(terminal_line(&value, inner.width));
     let mut lines = match options.kind {
         PracticeKind::Quick => {
             let source = match options.quick_source {
@@ -326,10 +363,10 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
         ],
         PracticeKind::Long => {
             let items = app.long_items(options.language, None);
-            let mut lines = vec![row(
+            let mut lines = vec![long_row(
                 0,
                 text(language, TextKey::Language),
-                language_name(options.language).into(),
+                language_name(options.language),
             )];
             if let Some(item) = items.get(options.long_selection) {
                 let visible = usize::from(inner.height)
@@ -342,45 +379,48 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
                     .min(items.len().saturating_sub(visible));
                 lines.extend(items[start..start + visible].iter().enumerate().map(
                     |(offset, item)| {
-                        let title = terminal_safe(item.title.as_deref().unwrap_or(&item.id));
-                        row(start + offset + 1, &title, String::new())
+                        long_row(
+                            start + offset + 1,
+                            item.title.as_deref().unwrap_or(&item.id),
+                            "",
+                        )
                     },
                 ));
                 lines.extend([
-                    Line::from(format!(
+                    long_line(format!(
                         "{}: {}",
                         text(language, TextKey::Title),
-                        terminal_safe(item.title.as_deref().unwrap_or(&item.id))
+                        item.title.as_deref().unwrap_or(&item.id)
                     )),
-                    Line::from(format!(
+                    long_line(format!(
                         "{}: {}",
                         text(language, TextKey::Author),
-                        terminal_safe(&item.source.author)
+                        item.source.author
                     )),
-                    Line::from(format!(
+                    long_line(format!(
                         "{}: {}",
                         text(language, TextKey::Source),
-                        terminal_safe(&item.source.source_url)
+                        item.source.source_url
                     )),
-                    Line::from(format!(
+                    long_line(format!(
                         "{}: {}",
                         text(language, TextKey::License),
-                        terminal_safe(&item.source.license)
+                        item.source.license
                     )),
-                    Line::from(format!(
+                    long_line(format!(
                         "{}: {}",
                         text(language, TextKey::Difficulty),
                         item.difficulty
                             .map_or_else(|| "-".into(), |value| value.to_string())
                     )),
-                    Line::from(format!(
+                    long_line(format!(
                         "{}: {}",
                         text(language, TextKey::Tags),
-                        terminal_safe(&item.tags.join(", "))
+                        item.tags.join(", ")
                     )),
                 ]);
             } else {
-                lines.push(Line::from(text(language, TextKey::NoData)));
+                lines.push(long_line(text(language, TextKey::NoData).into()));
             }
             lines
         }
@@ -398,17 +438,22 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
             start(2),
         ],
     };
-    lines.push(Line::from(format!(
+    let instruction = format!(
         "←→ / Enter {} · Esc {}",
         text(language, TextKey::Confirm),
         text(language, TextKey::Back)
-    )));
-    frame.render_widget(
-        Paragraph::new(lines)
-            .style(styles.base)
-            .wrap(Wrap { trim: false }),
-        inner,
     );
+    lines.push(Line::from(if options.kind == PracticeKind::Long {
+        terminal_line(&instruction, inner.width)
+    } else {
+        instruction
+    }));
+    let paragraph = Paragraph::new(lines).style(styles.base);
+    if options.kind == PracticeKind::Long {
+        frame.render_widget(paragraph, inner);
+    } else {
+        frame.render_widget(paragraph.wrap(Wrap { trim: false }), inner);
+    }
 }
 
 fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
@@ -2050,4 +2095,17 @@ fn render_warning(
 
 fn no_data(language: Language, styles: ThemeStyles) -> Paragraph<'static> {
     Paragraph::new(text(language, TextKey::NoData)).style(styles.dim)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn terminal_line_truncates_wide_graphemes_at_zero_and_tiny_widths() {
+        assert_eq!(terminal_line("界", 0), "");
+        assert_eq!(terminal_line("界", 1), "…");
+        assert_eq!(terminal_line("界界", 2), "…");
+        assert_eq!(terminal_line("界界", 3), "界…");
+    }
 }
