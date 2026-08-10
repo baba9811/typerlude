@@ -1,8 +1,8 @@
 # Typeul release handoff / 배포 인수인계
 
-이 문서는 공개 저장소 `baba9811/typeul`의 최초 `v1.0.0` 배포와 이후 OIDC 전용
-배포를 위한 maintainer checklist입니다. 명령의 토큰 자리에는 실제 값을 넣거나 로그로
-출력하지 마세요. 구현 중에는 tag, package, release를 만들지 않습니다.
+이 문서는 공개 저장소 `baba9811/typeul`의 소스 공개와 일반 CI가 완료된 뒤, 최초
+`v1.0.0` 레지스트리 배포와 이후 OIDC 전용 배포에 실제로 남는 maintainer
+checklist입니다. 명령의 토큰 자리에는 실제 값을 넣거나 로그로 출력하지 마세요.
 
 The workflow is deliberately not cross-registry atomic. A registry outage can leave Cargo or
 some npm packages published while the GitHub release remains a draft. Inspect registry state
@@ -28,16 +28,7 @@ malformed response, authentication or network error, or any non-`E404` query fai
 job before later packages. Bootstrap reruns retain explicit provenance; OIDC reruns retain token
 isolation and trusted-publication provenance. Never put an auth token in these commands or logs.
 
-## 1. Public repository and protections / 공개 저장소와 보호 설정
-
-- Create `baba9811/typeul` as a **public** repository only if it does not exist.
-- Set the canonical remote and push `main` without a release tag:
-
-  ```bash
-  git remote set-url origin https://github.com/baba9811/typeul.git
-  git remote -v
-  git push -u origin main
-  ```
+## 1. GitHub release protections / GitHub 배포 보호 설정
 
 - In GitHub `Settings → Rules → Rulesets`, protect `main`: require the reviewed CI checks,
   block force-pushes and deletion, and restrict direct updates.
@@ -80,39 +71,7 @@ done
 For an available name these read-only commands are expected to return a not-found response.
 Any existing result is a stop condition until ownership is resolved.
 
-## 3. Complete local verification / 로컬 완료 검증
-
-Run from the exact commit intended for `v1.0.0`:
-
-```bash
-test "$(git branch --show-current)" = main
-test -z "$(git status --short)"
-node scripts/check-versions.mjs v1.0.0
-make test
-cargo publish --dry-run --locked
-npm pack --dry-run --ignore-scripts
-node scripts/verify-package.mjs
-make pty-smoke
-go run github.com/rhysd/actionlint/cmd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca \
-  .github/workflows/ci.yml .github/workflows/release.yml
-git diff --check
-```
-
-Inspect the Cargo and npm closures, not only command exit codes:
-
-```bash
-cargo package --list
-npm pack --json --dry-run --ignore-scripts
-```
-
-The Cargo package must include source/assets, `LICENSE`, `README.md`,
-`THIRD_PARTY_NOTICES.md`, `THIRD_PARTY_LICENSES.html`, and the offline license texts. The root
-npm tarball must contain only its manifest, launcher, README, and license material. Each native
-npm tarball must contain only its manifest, one binary, and license material. Each native archive
-must have one `typeul-<target>/` root containing one binary, `LICENSE`,
-`THIRD_PARTY_NOTICES.md`, `THIRD_PARTY_LICENSES.html`, and `licenses/`.
-
-## 4. One-time bootstrap credentials / 최초 1회 자격 증명
+## 3. One-time bootstrap credentials / 최초 1회 자격 증명
 
 Create **new Typeul-only, short-lived** credentials immediately before tagging:
 
@@ -127,6 +86,23 @@ Create **new Typeul-only, short-lived** credentials immediately before tagging:
 3. In the protected Typeul `release` environment, add only these environment secrets:
    `CRATES_TOKEN` and `NPM_TOKEN`. Add environment variable `TYPEUL_BOOTSTRAP=1`.
 
+The ignored, mode-`600` `.env` in the main worktree is only a local input convenience; GitHub
+Actions cannot read it. After filling its two values, upload them without printing them:
+
+```bash
+(
+  set +x
+  set -euo pipefail
+  source .env
+  : "${CRATES_TOKEN:?fill CRATES_TOKEN in .env}"
+  : "${NPM_TOKEN:?fill NPM_TOKEN in .env}"
+  printf '%s' "$CRATES_TOKEN" | gh secret set CRATES_TOKEN --env release --repo baba9811/typeul
+  printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN --env release --repo baba9811/typeul
+  gh variable set TYPEUL_BOOTSTRAP --body 1 --env release --repo baba9811/typeul
+  rm -- .env
+)
+```
+
 Before Cargo publishes in bootstrap mode, the workflow requires both secrets to be nonempty.
 Cargo uses only `CRATES_TOKEN`; npm uses only `NPM_TOKEN`. Values are never printed.
 
@@ -134,7 +110,7 @@ Practicode happens to use secret names `CRATES_TOKEN` and `NPM_TOKEN`. GitHub do
 copy, or transfer their values between repositories. Typeul uses the same names only for its own
 new temporary credentials, then deletes them in favor of OIDC. Never reuse a Practicode value.
 
-## 5. Signed first tag / 서명된 최초 태그
+## 4. Signed first tag / 서명된 최초 태그
 
 Only after the repository, protections, environment, both new secrets, and bootstrap variable
 exist:
@@ -155,7 +131,7 @@ native archives, creates a verified draft, publishes Cargo, publishes six native
 fixed order and the root package last, then makes the same GitHub release public. Do not publish
 the draft manually.
 
-## 6. Configure trusted publishers / OIDC 설정
+## 5. Configure trusted publishers / OIDC 설정
 
 crates.io cannot configure trusted publishing until the crate exists. After `typeul 1.0.0` is
 visible, open `typeul → Settings → Trusted Publishing → Add` and enter exactly:
@@ -191,7 +167,7 @@ GitHub-hosted runner, Node 22.14.0+, npm 11.5.1+, and `id-token: write`. Normal 
 creates provenance automatically. The one-time token-authenticated bootstrap explicitly passes
 `--provenance` so `v1.0.0` receives the same public GitHub Actions attestations.
 
-## 7. Verify, remove bootstrap, and prove OIDC / 검증·삭제·OIDC 확인
+## 6. Verify, remove bootstrap, and prove OIDC / 검증·삭제·OIDC 확인
 
 Verify all published material before removing temporary access:
 
