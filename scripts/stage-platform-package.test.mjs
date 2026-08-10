@@ -409,7 +409,7 @@ test("CLI duplicate flags reject an empty first value", () => {
   assert.match(result.stderr, /usage:/);
 });
 
-test("license cleanliness rejects tracked changes and untracked license files", () => {
+test("license cleanliness rejects tracked changes and all untracked license files", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-license-git-"));
   const git = (...args) => {
     const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
@@ -429,7 +429,27 @@ test("license cleanliness rejects tracked changes and untracked license files", 
     fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "generated\n");
     fs.writeFileSync(path.join(root, "assets", "licenses", "untracked.txt"), "new\n");
     assert.throws(() => assertLicenseTreeClean(root), /untracked license files.*untracked\.txt/s);
+    fs.rmSync(path.join(root, "assets", "licenses", "untracked.txt"));
+
+    fs.appendFileSync(path.join(root, ".git", "info", "exclude"), "assets/licenses/ignored-private.txt\n");
+    fs.writeFileSync(path.join(root, "assets", "licenses", "ignored-private.txt"), "private\n");
+    assert.throws(() => assertLicenseTreeClean(root), /untracked license files.*ignored-private\.txt/s);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("license cleanliness skips an archive without its own Git entry", () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-license-parent-git-"));
+  try {
+    const result = spawnSync("git", ["init", "--quiet"], { cwd: parent, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    const archive = path.join(parent, "source-archive");
+    fs.mkdirSync(path.join(archive, "assets", "licenses"), { recursive: true });
+    fs.writeFileSync(path.join(archive, "THIRD_PARTY_LICENSES.html"), "generated\n");
+    fs.writeFileSync(path.join(archive, "assets", "licenses", "archive.txt"), "license\n");
+    assert.doesNotThrow(() => assertLicenseTreeClean(archive));
+  } finally {
+    fs.rmSync(parent, { recursive: true, force: true });
   }
 });

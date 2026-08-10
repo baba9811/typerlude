@@ -288,7 +288,6 @@ export function validateNativeManifests(rootValue, version) {
     .map((entry) => entry.name)
     .sort();
   exactArray(actualNames, expectedNames, "source native manifest directories");
-  const manifests = new Map();
   for (const [os, cpu] of supportedPairs) {
     const [name, executable] = packageFor(os, cpu);
     const manifest = readJson(path.join(npm, name, "package.json"), `${name} manifest`);
@@ -301,9 +300,7 @@ export function validateNativeManifests(rootValue, version) {
     } catch (error) {
       throw new Error(`${name}: ${error.message}`);
     }
-    manifests.set(name, manifest);
   }
-  return manifests;
 }
 
 export function validateInstalledPackageTree(packageDirValue, expectedFiles, sourceFiles = new Map()) {
@@ -351,13 +348,19 @@ function sourceCopies(prefix, includeReadmeAndLauncher = false) {
 
 export function assertLicenseTreeClean(rootValue) {
   const root = realDirectory(rootValue, "repository root");
+  try {
+    fs.lstatSync(path.join(root, ".git"));
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
   const git = (args) => spawnSync("git", args, { cwd: root, encoding: "utf8", windowsHide: false });
   const changed = git(["diff", "--quiet", "HEAD", "--", "THIRD_PARTY_LICENSES.html", "assets/licenses"]);
   if (changed.error) throw new Error(`failed to inspect generated licenses: ${changed.error.message}`);
   if (changed.status !== 0) {
     throw new Error("generated license files differ from HEAD; regenerate and commit THIRD_PARTY_LICENSES.html and assets/licenses");
   }
-  const untracked = git(["ls-files", "--others", "--exclude-standard", "--", "assets/licenses"]);
+  const untracked = git(["ls-files", "--others", "--", "assets/licenses"]);
   if (untracked.error || untracked.status !== 0) {
     throw new Error(`failed to inspect untracked license files: ${untracked.error?.message ?? untracked.stderr}`);
   }
@@ -434,29 +437,15 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
 function main() {
   const root = fs.realpathSync(process.cwd());
   const expectedVersion = validateVersions(readVersions(root));
-  const nativeManifests = validateNativeManifests(root, expectedVersion);
+  validateNativeManifests(root, expectedVersion);
   const [platformName, executable] = packageFor(process.platform, process.arch);
   const platformDir = path.join(root, "npm", platformName);
-  const platformManifest = nativeManifests.get(platformName);
   const rootManifest = readJson(path.join(root, "package.json"), "root manifest");
   validatePackedManifest(rootManifest, {
     name: "typeul", version: expectedVersion, files: rootManifestFiles,
     bin: { typeul: "bin/typeul.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
-  validatePackedManifest(platformManifest, {
-    name: platformName,
-    version: expectedVersion,
-    files: [executable, ...legalRoots, "licenses"],
-    os: process.platform,
-    cpu: process.arch,
-    bin: null,
-    dependencies: {},
-    optionalDependencies: {},
-    peerDependencies: {},
-    peerDependenciesMeta: {},
-  });
-
   const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "typeul-package-")));
   try {
     run("cargo", ["build", "--release", "--locked"], { cwd: root });
