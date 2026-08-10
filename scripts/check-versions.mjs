@@ -24,13 +24,12 @@ function cargoPackageVersion(cargoToml) {
 }
 
 function cargoLockVersion(cargoLock) {
-  for (const packageRecord of cargoLock.split(/^\[\[package\]\]\s*$/m)) {
-    if (/^name\s*=\s*"typeul"\s*$/m.test(packageRecord)) {
-      const version = packageRecord.match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
-      if (version) return version;
-    }
-  }
-  throw new Error("Cargo.lock is missing the typeul package");
+  const records = cargoLock.split(/^\[\[package\]\]\s*$/m)
+    .filter((packageRecord) => /^name\s*=\s*"typeul"\s*$/m.test(packageRecord));
+  if (records.length !== 1) throw new Error("Cargo.lock must contain exactly one typeul package");
+  const version = records[0].match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
+  if (!version) throw new Error("Cargo.lock typeul package is missing version");
+  return version;
 }
 
 export function readVersions(root) {
@@ -38,7 +37,7 @@ export function readVersions(root) {
   const cargoLock = fs.readFileSync(path.join(root, "Cargo.lock"), "utf8");
   const rootPackage = readJson(path.join(root, "package.json"));
   const manifestNames = fs.readdirSync(path.join(root, "npm"), { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith("typeul-"))
+    .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
   const expectedNames = [...packageNames].sort();
@@ -80,5 +79,5 @@ export function validateVersions(records, optionalTag) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  console.log(validateVersions(readVersions(process.cwd()), process.env.GITHUB_REF_NAME));
+  console.log(validateVersions(readVersions(process.cwd()), process.argv[2] ?? process.env.GITHUB_REF_NAME));
 }
