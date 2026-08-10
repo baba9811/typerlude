@@ -8,6 +8,7 @@ use crate::{
     },
     model::{Language, PracticeKind},
     storage::{AppPaths, atomic_write_new, load_sessions, rename_no_replace},
+    update::foreground_check,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use std::{
@@ -301,8 +302,19 @@ pub fn run(command: Command) -> Result<Exit> {
             Ok(Exit::Done)
         }
         Command::Update => {
-            println!("typeul {VERSION}");
-            println!("Releases: https://github.com/baba9811/typeul/releases");
+            let paths = AppPaths::discover()?;
+            let (method, current, latest) = foreground_check(&paths)?;
+            println!("current: {current}");
+            if let Some(latest) = latest {
+                println!("latest: {latest}");
+                if latest > current {
+                    println!("update: {}", method.instructions());
+                } else {
+                    println!("Typeul is up to date.");
+                }
+            } else {
+                println!("latest: see {}", method.instructions());
+            }
             println!("Typeul never installs updates automatically.");
             Ok(Exit::Done)
         }

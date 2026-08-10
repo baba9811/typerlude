@@ -14,6 +14,7 @@ use crate::{
     },
     storage::{AppPaths, SessionRecord, save_session},
     theme::ThemeCatalog,
+    update::UpdateNotice,
 };
 use anyhow::{Result, anyhow, bail};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -21,6 +22,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fs,
     path::Path,
+    sync::mpsc::{Receiver, TryRecvError},
     time::{Duration, Instant},
 };
 use time::{Date, OffsetDateTime, UtcOffset};
@@ -524,7 +526,9 @@ pub struct App {
     pub sessions: Vec<SessionRecord>,
     pub practice: Option<ActivePractice>,
     pub result: Option<ResultView>,
+    pub update_notice: Option<UpdateNotice>,
     pub warnings: Vec<String>,
+    update_rx: Option<Receiver<Option<UpdateNotice>>>,
 }
 
 impl App {
@@ -560,7 +564,9 @@ impl App {
             sessions,
             practice: None,
             result: None,
+            update_notice: None,
             warnings,
+            update_rx: None,
         }
     }
 
@@ -678,6 +684,23 @@ impl App {
 
     pub const fn content_disable_confirmation(&self) -> bool {
         self.content_disable_confirmation
+    }
+
+    pub fn set_update_receiver(&mut self, receiver: Receiver<Option<UpdateNotice>>) {
+        self.update_rx = Some(receiver);
+    }
+
+    pub fn poll_update(&mut self) {
+        match self.update_rx.as_ref().map(Receiver::try_recv) {
+            Some(Ok(notice)) => {
+                if let Some(notice) = notice {
+                    self.update_notice = Some(notice);
+                }
+                self.update_rx = None;
+            }
+            Some(Err(TryRecvError::Disconnected)) => self.update_rx = None,
+            Some(Err(TryRecvError::Empty)) | None => {}
+        }
     }
 
     fn change_settings(&mut self, change: impl FnOnce(&mut Settings)) -> Result<()> {
@@ -1065,6 +1088,7 @@ impl App {
     }
 
     pub fn handle_event(&mut self, event: Event, now: Instant) -> Result<()> {
+        let update_notice_was_visible = self.update_notice.is_some();
         let quit = matches!(
             &event,
             Event::Key(key)
@@ -1092,14 +1116,19 @@ impl App {
                 }
             }
             Event::Key(key) if key.kind != KeyEventKind::Release => {
-                self.handle_key(key, now)?;
+                self.handle_key(key, now, update_notice_was_visible)?;
             }
             _ => {}
         }
         self.tick(now)
     }
 
-    fn handle_key(&mut self, key: KeyEvent, now: Instant) -> Result<()> {
+    fn handle_key(
+        &mut self,
+        key: KeyEvent,
+        now: Instant,
+        update_notice_was_visible: bool,
+    ) -> Result<()> {
         if self.screen == Screen::Practice {
             return self.handle_practice_key(key, now);
         }
@@ -1113,6 +1142,34 @@ impl App {
         {
             self.open(Screen::Help);
             return Ok(());
+        }
+        if matches!(self.screen, Screen::Home | Screen::Result)
+            && key.kind == KeyEventKind::Press
+            && key.modifiers == KeyModifiers::NONE
+            && update_notice_was_visible
+            && self.update_notice.is_some()
+        {
+            match key.code {
+                KeyCode::Char('l') => {
+                    self.update_notice = None;
+                    return Ok(());
+                }
+                KeyCode::Char('s') => {
+                    let latest = self
+                        .update_notice
+                        .as_ref()
+                        .map(|notice| notice.latest.to_string())
+                        .unwrap_or_default();
+                    if self
+                        .change_settings(|settings| settings.skipped_update_version = latest)
+                        .is_ok()
+                    {
+                        self.update_notice = None;
+                    }
+                    return Ok(());
+                }
+                _ => {}
+            }
         }
 
         match key.code {
@@ -1390,6 +1447,7 @@ impl App {
     }
 
     pub fn tick(&mut self, now: Instant) -> Result<()> {
+        self.poll_update();
         if let Some(active) = self.practice.as_mut() {
             active.live_metrics = active.engine.metrics(now);
             let item_start = active

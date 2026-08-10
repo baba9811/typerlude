@@ -18,6 +18,7 @@ include = [
 [dependencies]
 anyhow = "1.0.104"
 atomic-write-file = "0.3.0"
+command-group = "5.0.1"
 crossterm = "0.29.0"
 directories = "6.0.0"
 fastrand = "2.5.0"

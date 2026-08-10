@@ -10,5 +10,6 @@ pub mod storage;
 pub mod theme;
 pub mod typing;
 pub mod ui;
+pub mod update;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

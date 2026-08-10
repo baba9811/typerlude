@@ -156,6 +156,11 @@ fn render_home(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
     let block = titled(text(language, TextKey::AppTitle), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+    let regions = Layout::vertical([
+        Constraint::Min(1),
+        Constraint::Length(if app.update_notice.is_some() { 3 } else { 0 }),
+    ])
+    .split(inner);
     let actions = [
         TextKey::HomeQuick,
         TextKey::HomeKeys,
@@ -175,7 +180,8 @@ fn render_home(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
             Span::styled(text(language, key), styles.base),
         ]))
     });
-    frame.render_widget(List::new(items).style(styles.base), inner);
+    frame.render_widget(List::new(items).style(styles.base), regions[0]);
+    render_update_notice(frame, app, regions[1], styles);
 }
 
 fn render_mode_select(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
@@ -785,8 +791,15 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
     let block = titled(text(language, TextKey::Result), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+    let regions = Layout::vertical([
+        Constraint::Min(1),
+        Constraint::Length(if app.update_notice.is_some() { 3 } else { 0 }),
+    ])
+    .split(inner);
+    let body = regions[0];
+    render_update_notice(frame, app, regions[1], styles);
     let Some(result) = app.result.as_ref() else {
-        frame.render_widget(no_data(language, styles), inner);
+        frame.render_widget(no_data(language, styles), body);
         return;
     };
     let session = &result.session;
@@ -884,7 +897,7 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             styles.error,
         )));
     }
-    if !result.weak_keys.is_empty() && lines.len() < usize::from(inner.height) {
+    if !result.weak_keys.is_empty() && lines.len() < usize::from(body.height) {
         lines.push(Line::from(Span::styled(
             text(language, TextKey::WeakKeys),
             styles.accent,
@@ -893,11 +906,43 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             result
                 .weak_keys
                 .iter()
-                .take(usize::from(inner.height).saturating_sub(lines.len()))
+                .take(usize::from(body.height).saturating_sub(lines.len()))
                 .map(|key| Line::from(format!("{}: {:.1}%", key.key, key.accuracy))),
         );
     }
-    frame.render_widget(Paragraph::new(lines).style(styles.base), inner);
+    frame.render_widget(Paragraph::new(lines).style(styles.base), body);
+}
+
+fn render_update_notice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
+    let Some(notice) = &app.update_notice else {
+        return;
+    };
+    let language = app.settings.ui_language;
+    frame.render_widget(
+        Paragraph::new(vec![
+            Line::from(Span::styled(
+                format!(
+                    "{}: {} → {}",
+                    text(language, TextKey::UpdateAvailable),
+                    notice.current,
+                    notice.latest
+                ),
+                styles.accent,
+            )),
+            Line::from(format!(
+                "{}: {}",
+                text(language, TextKey::UpdateCommand),
+                notice.instructions()
+            )),
+            Line::from(format!(
+                "l: {} · s: {}",
+                text(language, TextKey::UpdateLater),
+                text(language, TextKey::UpdateSkip)
+            )),
+        ])
+        .style(styles.base),
+        area,
+    );
 }
 
 const fn grade_name(grade: Grade) -> &'static str {
@@ -1663,6 +1708,7 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
             Line::from("뒤로: Esc · 종료: q / Ctrl+C · 도움말: ?"),
             Line::from("연습: Esc / Ctrl+P 일시 정지 · 결과: r 다시 연습"),
             Line::from("일시 정지 중 나가기: q를 두 번 누르기"),
+            Line::from("업데이트 알림: l 나중에 · s 이번 버전 건너뛰기"),
             Line::from("콘텐츠 비활성화: 상세 화면에서 d 두 번"),
         ],
         Language::En => vec![
@@ -1671,6 +1717,7 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
             Line::from("Back: Esc · Quit: q / Ctrl+C · Help: ?"),
             Line::from("Practice: Esc / Ctrl+P pause · Result: r retry"),
             Line::from("Leave while paused: press q twice"),
+            Line::from("Update notice: l later · s skip this version"),
             Line::from("Content Disable: press d twice in detail"),
         ],
     };
