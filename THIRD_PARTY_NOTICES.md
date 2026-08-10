@@ -5,6 +5,14 @@ under the MIT License in `LICENSE`. Practice data written by Typeul contributors
 is released under CC0 1.0 Universal. Third-party material keeps the license or
 public-domain status stated below; MIT does not replace those terms.
 
+Compiled Rust dependencies keep their upstream terms. Their crate names,
+versions, repositories, SPDX expressions, and complete license texts are
+bundled in `THIRD_PARTY_LICENSES.html`. In particular, `option-ext` 0.2.0 is
+MPL-2.0 licensed; its corresponding source is available from the upstream
+repository at commit `272f22fc9ea1ac6b08f01704af52c4ac338df4e2`:
+https://github.com/soc/option-ext/tree/272f22fc9ea1ac6b08f01704af52c4ac338df4e2.
+The Typeul MIT license does not replace or restrict the MPL-2.0 terms.
+
 The complete offline legal texts are bundled at
 `assets/licenses/CC0-1.0.txt`, `assets/licenses/CC-BY-2.0-FR.txt`, and
 `assets/licenses/NORD-MIT.txt`.

@@ -1,11 +1,12 @@
 Typeul is a composite project.
 
-* The Typeul Rust and JavaScript source code is licensed under the MIT License
-  below.
+* The original Typeul Rust and JavaScript source code is licensed under the MIT
+  License below.
 * Project-authored practice data is dedicated to the public domain under CC0
-  1.0 Universal.
-* Third-party assets remain under the licenses identified in
-  THIRD_PARTY_NOTICES.md; they are not licensed under MIT by this file.
+  1.0 Universal, whose complete terms are in `assets/licenses/CC0-1.0.txt`.
+* External dependencies, content, and assets remain under their own terms in
+  `THIRD_PARTY_LICENSES.html` and `THIRD_PARTY_NOTICES.md`; this file does not
+  relicense them under MIT or CC0.
 
 MIT License
 

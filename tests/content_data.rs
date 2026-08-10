@@ -662,6 +662,16 @@ fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() 
 }
 
 #[test]
+fn every_declared_content_license_has_an_offline_notice_or_text() {
+    let catalog = ContentCatalog::load_builtins().unwrap();
+    let notices = std::fs::read_to_string("THIRD_PARTY_NOTICES.md").unwrap();
+    for license in catalog.items().map(|item| item.source.license.as_str()) {
+        assert!(notices.contains(license), "missing notice for {license}");
+    }
+    assert!(std::path::Path::new("THIRD_PARTY_LICENSES.html").is_file());
+}
+
+#[test]
 fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let notice = fs::read_to_string(root.join("THIRD_PARTY_NOTICES.md")).unwrap();

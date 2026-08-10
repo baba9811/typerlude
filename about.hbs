@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Typeul 1.0.0 third-party Rust licenses</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 72rem; margin: auto; padding: 2rem; }
+    dt { font-weight: 700; margin-top: 1rem; }
+    pre { border: 1px solid #bbb; padding: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Typeul 1.0.0 third-party Rust licenses</h1>
+    <p>This standalone document lists the Rust crates used to build Typeul and their complete license texts.</p>
+    <h2>Crates and SPDX expressions</h2>
+    <dl>
+      {{#each crates}}
+      {{#if package.source}}
+      <dt>{{package.name}} {{package.version}}</dt>
+      <dd>Repository: {{#if package.repository}}<a href="{{package.repository}}">{{package.repository}}</a>{{else}}not provided{{/if}}<br>SPDX expression: <code>{{license}}</code></dd>
+      {{/if}}
+      {{/each}}
+    </dl>
+    <h2>Complete license texts</h2>
+    {{#each licenses}}
+    {{#if used_by.[0].crate.source}}
+    <section>
+      <h3>{{name}} (<code>{{id}}</code>)</h3>
+      <p>Used by:
+        {{#each used_by}}{{#if crate.source}}{{#if crate.repository}}<a href="{{crate.repository}}">{{crate.name}} {{crate.version}}</a>{{else}}{{crate.name}} {{crate.version}}{{/if}}{{#unless @last}}, {{/unless}}{{/if}}{{/each}}
+      </p>
+      <pre>{{text}}</pre>
+    </section>
+    {{/if}}
+    {{/each}}
+  </main>
+</body>
+</html>

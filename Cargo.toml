@@ -12,7 +12,8 @@ keywords = ["typing", "korean", "terminal", "tui", "ratatui"]
 categories = ["command-line-utilities"]
 include = [
   "/src/**", "/assets/**", "/Cargo.lock", "/LICENSE", "/README.md",
-  "/THIRD_PARTY_NOTICES.md"
+  "/THIRD_PARTY_NOTICES.md", "/THIRD_PARTY_LICENSES.html", "/about.toml",
+  "/about.hbs"
 ]
 
 [dependencies]
