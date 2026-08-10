@@ -1,17 +1,21 @@
 use crate::{
     config::Settings,
-    content::ContentCatalog,
+    content::{ContentCatalog, ContentKind, ResolvedItem},
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
-    practice::PracticeEngine,
-    stats::{KeyAccuracy, weak_keys},
+    practice::{Metrics, PracticeEngine},
+    stats::{KeyAccuracy, adaptive_candidates, weak_keys},
     storage::{AppPaths, SessionRecord, save_session},
     theme::ThemeCatalog,
 };
 use anyhow::{Result, bail};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::time::{Duration, Instant};
+use std::{
+    collections::HashSet,
+    time::{Duration, Instant},
+};
 use time::OffsetDateTime;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Screen {
@@ -139,6 +143,40 @@ pub enum StopRule {
     ActiveTime(Duration),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum QuickSource {
+    Words,
+    Quote,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QuickOptions {
+    language: Language,
+    source: QuickSource,
+    stop: StopRule,
+}
+
+impl QuickOptions {
+    pub fn new(language: Language, source: QuickSource, stop: StopRule) -> Result<Self> {
+        let valid = match stop {
+            StopRule::ActiveTime(duration) => [15, 30, 60, 120]
+                .into_iter()
+                .map(Duration::from_secs)
+                .any(|allowed| duration == allowed),
+            StopRule::Items(items) => [10, 25, 50, 100].contains(&items),
+            StopRule::TargetEnd => false,
+        };
+        if !valid {
+            bail!("invalid Quick stop rule");
+        }
+        Ok(Self {
+            language,
+            source,
+            stop,
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModeRequest {
     pub kind: PracticeKind,
@@ -158,12 +196,41 @@ pub struct ActivePractice {
     pub content_ids: Vec<String>,
     pub status: Option<(String, Instant)>,
     started_at_utc: Option<OffsetDateTime>,
+    live_metrics: Metrics,
+    item_metrics: Metrics,
+    next_item: usize,
+    current_item_delta: Option<ItemDelta>,
+    sentence_delta_expires_at: Option<Instant>,
+    stream: Option<CatalogStream>,
+    leave_confirmation: bool,
 }
 
 impl ActivePractice {
     pub const fn kind(&self) -> PracticeKind {
         self.mode.kind()
     }
+
+    pub const fn live_metrics(&self) -> &Metrics {
+        &self.live_metrics
+    }
+
+    pub const fn current_item_delta(&self) -> Option<&ItemDelta> {
+        self.current_item_delta.as_ref()
+    }
+
+    pub const fn leave_confirmation(&self) -> bool {
+        self.leave_confirmation
+    }
+}
+
+#[derive(Clone)]
+struct CatalogStream {
+    language: Language,
+    kinds: &'static [ContentKind],
+    difficulty: Difficulty,
+    separator: &'static str,
+    next_seed: u64,
+    adaptive: bool,
 }
 
 pub struct App {
@@ -173,6 +240,7 @@ pub struct App {
     focus: usize,
     quit: bool,
     retry_request: Option<ModeRequest>,
+    retry_stream: Option<CatalogStream>,
     pub settings: Settings,
     pub paths: AppPaths,
     pub content: ContentCatalog,
@@ -199,6 +267,7 @@ impl App {
             focus: 0,
             quit: false,
             retry_request: None,
+            retry_stream: None,
             settings,
             paths,
             content,
@@ -261,7 +330,7 @@ impl App {
         self.screen = screen;
     }
 
-    pub fn start_mode(&mut self, request: ModeRequest, _now: Instant) -> Result<()> {
+    pub fn start_mode(&mut self, request: ModeRequest, now: Instant) -> Result<()> {
         if request.mode.kind() != request.kind {
             bail!("practice mode does not match requested kind");
         }
@@ -275,6 +344,7 @@ impl App {
             request.target.as_str(),
             limit,
         )?;
+        let metrics = engine.metrics(now);
         let retry_request = request.clone();
         let active = ActivePractice {
             mode: request.mode,
@@ -284,6 +354,13 @@ impl App {
             content_ids: request.content_ids,
             status: None,
             started_at_utc: None,
+            live_metrics: metrics.clone(),
+            item_metrics: metrics,
+            next_item: 0,
+            current_item_delta: None,
+            sentence_delta_expires_at: None,
+            stream: None,
+            leave_confirmation: false,
         };
 
         self.screen = Screen::Practice;
@@ -291,9 +368,120 @@ impl App {
         self.parent_before_help = None;
         self.focus = 0;
         self.retry_request = Some(retry_request);
+        self.retry_stream = None;
         self.practice = Some(active);
         self.result = None;
         Ok(())
+    }
+
+    pub fn start_quick(&mut self, options: QuickOptions, seed: u64, now: Instant) -> Result<()> {
+        let (kinds, separator) = match options.source {
+            QuickSource::Words => (WORD_KINDS, " "),
+            QuickSource::Quote => (QUOTE_KINDS, "\n"),
+        };
+        let timed = matches!(options.stop, StopRule::ActiveTime(_));
+        let count = match options.stop {
+            StopRule::Items(items) => items,
+            StopRule::ActiveTime(_) => STREAM_BATCH_ITEMS,
+            StopRule::TargetEnd => bail!("invalid Quick stop rule"),
+        };
+        let stream = CatalogStream {
+            language: options.language,
+            kinds,
+            difficulty: Difficulty::Mixed,
+            separator,
+            next_seed: seed.wrapping_add(1),
+            adaptive: false,
+        };
+        let request = self.catalog_request(
+            PracticeMode::Quick { completed: 0 },
+            options.stop,
+            &stream,
+            count,
+            seed,
+        )?;
+        self.start_mode(request, now)?;
+        if timed {
+            let Some(active) = self.practice.as_mut() else {
+                bail!("practice did not start");
+            };
+            active.stream = Some(stream.clone());
+            self.retry_stream = Some(stream);
+        }
+        Ok(())
+    }
+
+    pub fn start_words(
+        &mut self,
+        language: Language,
+        difficulty: Difficulty,
+        seed: u64,
+        now: Instant,
+    ) -> Result<()> {
+        let stream = CatalogStream {
+            language,
+            kinds: WORD_KINDS,
+            difficulty,
+            separator: " ",
+            next_seed: seed.wrapping_add(1),
+            adaptive: self.settings.adaptive,
+        };
+        let request = self.catalog_request(
+            PracticeMode::Words {
+                difficulty,
+                completed: 0,
+                streak: 0,
+            },
+            StopRule::TargetEnd,
+            &stream,
+            WORD_BATCH_ITEMS,
+            seed,
+        )?;
+        self.start_mode(request, now)
+    }
+
+    pub fn start_sentence(&mut self, language: Language, seed: u64, now: Instant) -> Result<()> {
+        let stream = CatalogStream {
+            language,
+            kinds: SENTENCE_KINDS,
+            difficulty: Difficulty::Mixed,
+            separator: "\n",
+            next_seed: seed.wrapping_add(1),
+            adaptive: false,
+        };
+        let request = self.catalog_request(
+            PracticeMode::Sentence {
+                completed: 0,
+                last_item: None,
+            },
+            StopRule::TargetEnd,
+            &stream,
+            SENTENCE_BATCH_ITEMS,
+            seed,
+        )?;
+        self.start_mode(request, now)
+    }
+
+    fn catalog_request(
+        &self,
+        mode: PracticeMode,
+        stop: StopRule,
+        stream: &CatalogStream,
+        count: usize,
+        seed: u64,
+    ) -> Result<ModeRequest> {
+        let items = select_catalog_items(&self.content, &self.sessions, stream, count, seed)?;
+        let (target, item_ends, content_ids) = catalog_target(&items, stream.separator);
+        let kind = mode.kind();
+        Ok(ModeRequest {
+            kind,
+            language: stream.language,
+            target,
+            mode,
+            stop,
+            item_ends,
+            content_ids,
+        })
     }
 
     pub fn handle_event(&mut self, event: Event, now: Instant) -> Result<()> {
@@ -368,7 +556,14 @@ impl App {
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
                 if let Some(request) = self.retry_request.clone() {
+                    let stream = self.retry_stream.clone();
                     self.start_mode(request, now)?;
+                    if let Some(stream) = stream {
+                        if let Some(active) = self.practice.as_mut() {
+                            active.stream = Some(stream.clone());
+                        }
+                        self.retry_stream = Some(stream);
+                    }
                 }
             }
             KeyCode::Char('n') if self.screen == Screen::Result => {}
@@ -383,40 +578,211 @@ impl App {
                 || (matches!(key.code, KeyCode::Char('p' | 'P'))
                     && key.modifiers == KeyModifiers::CONTROL));
         if pause {
-            if let Some(active) = self.practice.as_mut() {
-                active.engine.toggle_pause(now);
+            if let Some(active) = self.practice.as_mut()
+                && active.engine.toggle_pause(now)
+            {
+                active.leave_confirmation = false;
             }
             return Ok(());
         }
 
-        let Some(active) = self.practice.as_mut() else {
+        let Some(active) = self.practice.as_ref() else {
             return Ok(());
         };
         if active.engine.is_paused() {
+            if key.kind == KeyEventKind::Press
+                && key.code == KeyCode::Char('q')
+                && key.modifiers == KeyModifiers::NONE
+            {
+                let confirmed = active.leave_confirmation;
+                let attempted = active.engine.attempted_units() != 0;
+                if !confirmed {
+                    if let Some(active) = self.practice.as_mut() {
+                        active.leave_confirmation = true;
+                    }
+                } else if attempted {
+                    self.finish_practice(now)?;
+                } else {
+                    self.practice = None;
+                    self.result = None;
+                    self.return_home();
+                }
+            }
             return Ok(());
         }
         match key.code {
             KeyCode::Backspace
                 if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
             {
-                active.engine.backspace();
+                if let Some(active) = self.practice.as_mut() {
+                    let floor = active
+                        .next_item
+                        .checked_sub(1)
+                        .and_then(|index| active.item_ends.get(index))
+                        .copied()
+                        .unwrap_or(0);
+                    if active.engine.cursor() > floor && active.engine.backspace() {
+                        active.live_metrics = active.engine.metrics(now);
+                        active.current_item_delta = Some(item_delta(
+                            &active.item_metrics,
+                            &active.live_metrics,
+                            active.engine.language(),
+                        ));
+                    }
+                }
             }
             KeyCode::Char(character)
                 if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
-                let wall_now = OffsetDateTime::now_utc();
-                let attempted_before = active.engine.attempted_units();
-                active.engine.input(character.encode_utf8(&mut [0; 4]), now);
-                if active.started_at_utc.is_none()
-                    && active.engine.attempted_units() > attempted_before
-                {
-                    active.started_at_utc = Some(wall_now);
-                }
+                self.input_practice(character.encode_utf8(&mut [0; 4]), now)?;
+            }
+            KeyCode::Enter
+                if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
+                    && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
+            {
+                self.input_practice("\n", now)?;
             }
             _ => {}
         }
         Ok(())
+    }
+
+    fn input_practice(&mut self, text: &str, now: Instant) -> Result<()> {
+        let Some(active) = self.practice.as_mut() else {
+            return Ok(());
+        };
+        let wall_now = OffsetDateTime::now_utc();
+        let attempted_before = active.engine.attempted_units();
+        let errors_before = active.live_metrics.errors;
+        active.engine.input(text, now);
+        if active.started_at_utc.is_none() && active.engine.attempted_units() > attempted_before {
+            active.started_at_utc = Some(wall_now);
+        }
+        active.live_metrics = active.engine.metrics(now);
+        if active.engine.attempted_units() > attempted_before {
+            active.current_item_delta = Some(item_delta(
+                &active.item_metrics,
+                &active.live_metrics,
+                active.engine.language(),
+            ));
+        }
+        if active.live_metrics.errors > errors_before
+            && let PracticeMode::Words { streak, .. } = &mut active.mode
+        {
+            *streak = 0;
+        }
+        self.advance_item_boundaries(now)
+    }
+
+    fn advance_item_boundaries(&mut self, now: Instant) -> Result<()> {
+        let mut advanced = false;
+        if let Some(active) = self.practice.as_mut() {
+            while let Some(end) = active.item_ends.get(active.next_item).copied() {
+                if active.engine.cursor() < end
+                    || !active
+                        .engine
+                        .target_cells()
+                        .take(end)
+                        .all(|(_, entered)| entered == Some(true))
+                {
+                    break;
+                }
+
+                let delta = item_delta(
+                    &active.item_metrics,
+                    &active.live_metrics,
+                    active.engine.language(),
+                );
+                active.item_metrics = active.live_metrics.clone();
+                active.next_item += 1;
+                active.current_item_delta = Some(delta.clone());
+                match &mut active.mode {
+                    PracticeMode::Quick { completed } => {
+                        *completed = completed.saturating_add(1);
+                    }
+                    PracticeMode::Words {
+                        completed, streak, ..
+                    } => {
+                        *completed = completed.saturating_add(1);
+                        if delta.errors == 0 {
+                            *streak = streak.saturating_add(1);
+                        } else {
+                            *streak = 0;
+                        }
+                    }
+                    PracticeMode::Sentence {
+                        completed,
+                        last_item,
+                    } => {
+                        *completed = completed.saturating_add(1);
+                        *last_item = Some(delta);
+                        active.sentence_delta_expires_at =
+                            Some(now.checked_add(Duration::from_secs(3)).unwrap_or(now));
+                    }
+                    PracticeMode::Key { .. }
+                    | PracticeMode::Long { .. }
+                    | PracticeMode::Test { .. } => {}
+                }
+                advanced = true;
+            }
+        }
+        if advanced {
+            self.extend_catalog_stream()?;
+        }
+        Ok(())
+    }
+
+    fn extend_catalog_stream(&mut self) -> Result<()> {
+        let Some(stream) = self.practice.as_ref().and_then(|active| {
+            let remaining = active.item_ends.len().saturating_sub(active.next_item);
+            (matches!(active.stop, StopRule::ActiveTime(_)) && remaining < 10)
+                .then(|| active.stream.clone())
+                .flatten()
+        }) else {
+            return Ok(());
+        };
+        let items = select_catalog_items(
+            &self.content,
+            &self.sessions,
+            &stream,
+            STREAM_BATCH_ITEMS,
+            stream.next_seed,
+        )?;
+        let (target, relative_ends, content_ids) = catalog_target(&items, stream.separator);
+        let Some(active) = self.practice.as_mut() else {
+            return Ok(());
+        };
+        let separator_len = UnicodeSegmentation::graphemes(stream.separator, true).count();
+        let offset = active.engine.target_len() + separator_len;
+        if let Some(end) = active.item_ends.last_mut() {
+            *end += separator_len;
+        }
+        active.engine.extend_target(stream.separator, &target)?;
+        active
+            .item_ends
+            .extend(relative_ends.into_iter().map(|end| offset + end));
+        active.content_ids.extend(content_ids);
+        if let Some(active_stream) = active.stream.as_mut() {
+            active_stream.next_seed = stream.next_seed.wrapping_add(1);
+        }
+        Ok(())
+    }
+
+    pub fn word_progress(&self) -> (usize, usize) {
+        match self.practice.as_ref().map(|active| &active.mode) {
+            Some(PracticeMode::Words {
+                completed, streak, ..
+            }) => (*completed, *streak),
+            _ => (0, 0),
+        }
+    }
+
+    pub fn sentence_delta(&self) -> Option<&ItemDelta> {
+        match self.practice.as_ref().map(|active| &active.mode) {
+            Some(PracticeMode::Sentence { last_item, .. }) => last_item.as_ref(),
+            _ => None,
+        }
     }
 
     pub fn practice_status(&self) -> Option<&str> {
@@ -427,13 +793,37 @@ impl App {
     }
 
     pub fn tick(&mut self, now: Instant) -> Result<()> {
-        if let Some(active) = self.practice.as_mut()
-            && active
+        if let Some(active) = self.practice.as_mut() {
+            active.live_metrics = active.engine.metrics(now);
+            let item_start = active
+                .next_item
+                .checked_sub(1)
+                .and_then(|index| active.item_ends.get(index))
+                .copied()
+                .unwrap_or(0);
+            if active.engine.cursor() > item_start {
+                active.current_item_delta = Some(item_delta(
+                    &active.item_metrics,
+                    &active.live_metrics,
+                    active.engine.language(),
+                ));
+            }
+            if active
                 .status
                 .as_ref()
                 .is_some_and(|(_, expires_at)| now >= *expires_at)
-        {
-            active.status = None;
+            {
+                active.status = None;
+            }
+            if active
+                .sentence_delta_expires_at
+                .is_some_and(|expires_at| now >= expires_at)
+            {
+                if let PracticeMode::Sentence { last_item, .. } = &mut active.mode {
+                    *last_item = None;
+                }
+                active.sentence_delta_expires_at = None;
+            }
         }
         let finished = self.screen == Screen::Practice
             && self
@@ -623,6 +1013,118 @@ impl App {
         };
         self.open(screen);
     }
+}
+
+const WORD_KINDS: &[ContentKind] = &[ContentKind::Word];
+const QUOTE_KINDS: &[ContentKind] = &[ContentKind::Quote];
+const SENTENCE_KINDS: &[ContentKind] = &[ContentKind::Sentence, ContentKind::Quote];
+const STREAM_BATCH_ITEMS: usize = 20;
+const WORD_BATCH_ITEMS: usize = 25;
+const SENTENCE_BATCH_ITEMS: usize = 10;
+
+fn select_catalog_items<'a>(
+    catalog: &'a ContentCatalog,
+    sessions: &[SessionRecord],
+    stream: &CatalogStream,
+    count: usize,
+    seed: u64,
+) -> Result<Vec<&'a ResolvedItem>> {
+    let mut selected = Vec::with_capacity(count);
+    let mut cycle_seed = seed;
+    while selected.len() < count {
+        let mut ordinary = catalog
+            .items()
+            .filter(|item| catalog_match(item, stream))
+            .collect::<Vec<_>>();
+        ordinary.sort_unstable_by(|left, right| left.id.cmp(&right.id));
+        fastrand::Rng::with_seed(cycle_seed).shuffle(&mut ordinary);
+
+        let mut cycle = if stream.adaptive {
+            adaptive_candidates(catalog, sessions, stream.language, cycle_seed)
+                .into_iter()
+                .filter(|item| catalog_match(item, stream))
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        };
+        let mut seen = cycle
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<HashSet<_>>();
+        cycle.extend(
+            ordinary
+                .into_iter()
+                .filter(|item| seen.insert(item.id.as_str())),
+        );
+        if cycle.is_empty() {
+            bail!("no matching practice content");
+        }
+        let remaining = count - selected.len();
+        selected.extend(cycle.into_iter().take(remaining));
+        cycle_seed = cycle_seed.wrapping_add(1);
+    }
+    Ok(selected)
+}
+
+fn catalog_match(item: &ResolvedItem, stream: &CatalogStream) -> bool {
+    item.language == stream.language
+        && stream.kinds.contains(&item.kind)
+        && match stream.difficulty {
+            Difficulty::Easy => item.difficulty == Some(1),
+            Difficulty::Medium => item.difficulty == Some(2),
+            Difficulty::Hard => item.difficulty == Some(3),
+            Difficulty::Mixed => true,
+        }
+}
+
+fn catalog_target(items: &[&ResolvedItem], separator: &str) -> (String, Vec<usize>, Vec<String>) {
+    let mut target = String::new();
+    let mut item_ends = Vec::with_capacity(items.len());
+    let mut content_ids = Vec::with_capacity(items.len());
+    let mut graphemes = 0;
+    for (index, item) in items.iter().enumerate() {
+        target.push_str(&item.text);
+        graphemes += UnicodeSegmentation::graphemes(item.text.as_str(), true).count();
+        if index + 1 != items.len() {
+            target.push_str(separator);
+            graphemes += UnicodeSegmentation::graphemes(separator, true).count();
+        }
+        item_ends.push(graphemes);
+        content_ids.push(item.id.clone());
+    }
+    (target, item_ends, content_ids)
+}
+
+fn item_delta(before: &Metrics, after: &Metrics, language: Language) -> ItemDelta {
+    let correct_units = after.correct_units.saturating_sub(before.correct_units);
+    let attempted_units = after.attempted_units.saturating_sub(before.attempted_units);
+    let correct_attempts = correct_attempts(after).saturating_sub(correct_attempts(before));
+    let minutes = after.active.saturating_sub(before.active).as_secs_f64() / 60.0;
+    let units_per_minute = if minutes > 0.0 {
+        correct_units as f64 / minutes
+    } else {
+        0.0
+    };
+    ItemDelta {
+        correct_units,
+        attempted_units,
+        errors: after.errors.saturating_sub(before.errors),
+        speed: match language {
+            Language::Ko => units_per_minute,
+            Language::En => units_per_minute / 5.0,
+        },
+        accuracy: if attempted_units == 0 {
+            100.0
+        } else {
+            correct_attempts as f64 / attempted_units as f64 * 100.0
+        },
+    }
+}
+
+fn correct_attempts(metrics: &Metrics) -> u64 {
+    (metrics.accuracy / 100.0 * metrics.attempted_units as f64)
+        .round()
+        .clamp(0.0, metrics.attempted_units as f64) as u64
 }
 
 fn session_speed(session: &SessionRecord) -> f64 {

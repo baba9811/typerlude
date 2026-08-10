@@ -18,12 +18,15 @@ use std::{
 use time::OffsetDateTime;
 use time::macros::date;
 use typeul::{
-    app::{App, Grade, ItemDelta, ModeRequest, PracticeMode, ResultView, Screen, StopRule, grade},
+    app::{
+        App, Grade, ItemDelta, ModeRequest, PracticeMode, QuickOptions, QuickSource, ResultView,
+        Screen, StopRule, grade,
+    },
     config::Settings,
-    content::ContentCatalog,
+    content::{ContentCatalog, ContentKind},
     model::{Difficulty, Language, PracticeKind},
     practice::{InputOutcome, PracticeEngine},
-    stats::KeyAccuracy,
+    stats::{KeyAccuracy, adaptive_candidates},
     storage::{AppPaths, SessionRecord},
     theme::ThemeCatalog,
     ui::{practice_cursor, render},
@@ -75,6 +78,17 @@ fn key(code: KeyCode) -> Event {
 
 fn key_with(code: KeyCode, modifiers: KeyModifiers, kind: KeyEventKind) -> Event {
     Event::Key(KeyEvent::new_with_kind(code, modifiers, kind))
+}
+
+fn type_text(app: &mut App, value: &str, now: Instant) {
+    for character in value.chars() {
+        let code = if character == '\n' {
+            KeyCode::Enter
+        } else {
+            KeyCode::Char(character)
+        };
+        app.handle_event(key(code), now).unwrap();
+    }
 }
 
 fn mode_for(kind: PracticeKind) -> PracticeMode {
@@ -419,6 +433,40 @@ fn practice_cursor_matches_the_rendered_row_for_an_oversized_grapheme() {
     active.engine.input("🙂", start);
 
     assert_eq!(practice_cursor(Rect::new(5, 7, 1, 3), active), Some((5, 8)));
+}
+
+#[test]
+fn practice_scrolls_the_target_and_cursor_to_the_current_line() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    let target = (0..30)
+        .map(|index| format!("item{index:02}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Sentence,
+            language: Language::En,
+            target: target.clone(),
+            mode: PracticeMode::Sentence {
+                completed: 0,
+                last_item: None,
+            },
+            stop: StopRule::ActiveTime(Duration::from_secs(60)),
+            item_ends: vec![target.chars().count()],
+            content_ids: vec!["long-sentence".into()],
+        },
+        start,
+    )
+    .unwrap();
+    type_text(&mut app, &target[..target.find("item20").unwrap()], start);
+
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("item20"), "{output}");
+    assert!(!output.contains("item00"), "{output}");
+    let cursor = drawn.cursor.unwrap();
+    assert_eq!(drawn.buffer[cursor].symbol(), "i");
 }
 
 #[test]
@@ -1436,6 +1484,35 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
 }
 
 #[test]
+fn practice_rejects_modified_enter() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Sentence,
+            Language::En,
+            "a\nb",
+            StopRule::TargetEnd,
+        ),
+        now,
+    )
+    .unwrap();
+    app.handle_event(key(KeyCode::Char('a')), now).unwrap();
+
+    for modifiers in [KeyModifiers::ALT, KeyModifiers::CONTROL] {
+        app.handle_event(
+            key_with(KeyCode::Enter, modifiers, KeyEventKind::Press),
+            now,
+        )
+        .unwrap();
+    }
+
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.engine.cursor(), 1);
+    assert_eq!(active.engine.attempted_units(), 1);
+}
+
+#[test]
 fn typing_tests_refuse_both_pause_keys() {
     let (_root, mut app) = fixture_app();
     let start = Instant::now();
@@ -1712,4 +1789,456 @@ fn result_uses_same_language_mode_history_goals_and_relative_grade_boundaries() 
     assert_eq!(grade(48.0, 80.0, 90.0, 98.0), Grade::C);
     assert_eq!(grade(47.9, 80.0, 100.0, 98.0), Grade::D);
     assert_eq!(grade(80.0, 80.0, 96.0, 97.0), Grade::B);
+}
+
+#[test]
+fn quick_presets_and_catalog_selection_are_exact_and_seeded() {
+    for seconds in [15, 30, 60, 120] {
+        assert!(
+            QuickOptions::new(
+                Language::En,
+                QuickSource::Words,
+                StopRule::ActiveTime(Duration::from_secs(seconds)),
+            )
+            .is_ok()
+        );
+    }
+    for count in [10, 25, 50, 100] {
+        assert!(
+            QuickOptions::new(Language::Ko, QuickSource::Quote, StopRule::Items(count),).is_ok()
+        );
+    }
+    for stop in [
+        StopRule::TargetEnd,
+        StopRule::ActiveTime(Duration::from_secs(42)),
+        StopRule::Items(0),
+        StopRule::Items(11),
+    ] {
+        assert!(QuickOptions::new(Language::En, QuickSource::Words, stop).is_err());
+    }
+
+    let start = Instant::now();
+    let (_left_root, mut left) = fixture_app();
+    let (_right_root, mut right) = fixture_app();
+    let options = QuickOptions::new(Language::En, QuickSource::Words, StopRule::Items(10)).unwrap();
+    left.start_quick(options.clone(), 7, start).unwrap();
+    right.start_quick(options, 7, start).unwrap();
+    let left_active = left.active_practice().unwrap();
+    let right_active = right.active_practice().unwrap();
+    assert_eq!(left_active.content_ids, right_active.content_ids);
+    assert_eq!(left_active.content_ids.len(), 10);
+    assert_eq!(left_active.item_ends.len(), 10);
+    assert_eq!(
+        left_active.item_ends.last().copied(),
+        Some(left_active.engine.target_len())
+    );
+    assert!(
+        left_active
+            .item_ends
+            .windows(2)
+            .all(|ends| ends[0] < ends[1])
+    );
+    let first_end = left_active.item_ends[0];
+    assert_eq!(
+        left_active
+            .engine
+            .target_cells()
+            .nth(first_end - 1)
+            .unwrap()
+            .0,
+        " "
+    );
+    assert!(left_active.content_ids.iter().all(|id| {
+        left.content
+            .items()
+            .any(|item| item.id == *id && item.kind == ContentKind::Word)
+    }));
+
+    let (_quote_root, mut quotes) = fixture_app();
+    quotes
+        .start_quick(
+            QuickOptions::new(Language::Ko, QuickSource::Quote, StopRule::Items(100)).unwrap(),
+            9,
+            start,
+        )
+        .unwrap();
+    let quote_active = quotes.active_practice().unwrap();
+    assert_eq!(quote_active.content_ids.len(), 100);
+    assert!(quote_active.content_ids.iter().all(|id| {
+        quotes
+            .content
+            .items()
+            .any(|item| item.id == *id && item.kind == ContentKind::Quote)
+    }));
+    assert_eq!(
+        quote_active
+            .engine
+            .target_cells()
+            .nth(quote_active.item_ends[0] - 1)
+            .unwrap()
+            .0,
+        "\n"
+    );
+
+    let (_word_root, mut words) = fixture_app();
+    let mut weak_history = result_view("weak-history").session;
+    weak_history.intended_keys.insert('x', [0, 10]);
+    words.sessions.push(weak_history);
+    let expected_first = adaptive_candidates(&words.content, &words.sessions, Language::En, 11)
+        .into_iter()
+        .find(|item| item.kind == ContentKind::Word && item.difficulty == Some(1))
+        .unwrap()
+        .id
+        .clone();
+    words
+        .start_words(Language::En, Difficulty::Easy, 11, start)
+        .unwrap();
+    let word_active = words.active_practice().unwrap();
+    assert_eq!(word_active.content_ids.first(), Some(&expected_first));
+    assert!(word_active.content_ids.iter().all(|id| {
+        words
+            .content
+            .items()
+            .any(|item| item.id == *id && item.difficulty == Some(1))
+    }));
+
+    let (_sentence_root, mut sentences) = fixture_app();
+    sentences.start_sentence(Language::Ko, 19, start).unwrap();
+    let sentence_active = sentences.active_practice().unwrap();
+    let first_end = sentence_active.item_ends[0];
+    assert_eq!(
+        sentence_active
+            .engine
+            .target_cells()
+            .nth(first_end - 1)
+            .unwrap()
+            .0,
+        "\n"
+    );
+    assert!(
+        sentences
+            .active_practice()
+            .unwrap()
+            .content_ids
+            .iter()
+            .all(|id| {
+                sentences.content.items().any(|item| {
+                    item.id == *id
+                        && item.language == Language::Ko
+                        && matches!(item.kind, ContentKind::Sentence | ContentKind::Quote)
+                })
+            })
+    );
+}
+
+#[test]
+fn public_progress_counters_saturate() {
+    let now = Instant::now();
+    for (kind, mode) in [
+        (
+            PracticeKind::Quick,
+            PracticeMode::Quick {
+                completed: usize::MAX,
+            },
+        ),
+        (
+            PracticeKind::Words,
+            PracticeMode::Words {
+                difficulty: Difficulty::Easy,
+                completed: usize::MAX,
+                streak: usize::MAX,
+            },
+        ),
+        (
+            PracticeKind::Sentence,
+            PracticeMode::Sentence {
+                completed: usize::MAX,
+                last_item: None,
+            },
+        ),
+    ] {
+        let (_root, mut app) = fixture_app();
+        app.start_mode(
+            ModeRequest {
+                kind,
+                language: Language::En,
+                target: "a".into(),
+                mode,
+                stop: StopRule::ActiveTime(Duration::from_secs(60)),
+                item_ends: vec![1],
+                content_ids: vec!["item".into()],
+            },
+            now,
+        )
+        .unwrap();
+        app.handle_event(key(KeyCode::Char('a')), now).unwrap();
+
+        match &app.active_practice().unwrap().mode {
+            PracticeMode::Quick { completed } | PracticeMode::Sentence { completed, .. } => {
+                assert_eq!(*completed, usize::MAX);
+            }
+            PracticeMode::Words {
+                completed, streak, ..
+            } => {
+                assert_eq!((*completed, *streak), (usize::MAX, usize::MAX));
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn words_and_sentences_advance_from_engine_boundaries_without_resetting_it() {
+    let start = Instant::now();
+    let (_word_root, mut words) = fixture_app();
+    words
+        .start_mode(
+            ModeRequest {
+                kind: PracticeKind::Words,
+                language: Language::En,
+                target: "one two".into(),
+                mode: PracticeMode::Words {
+                    difficulty: Difficulty::Easy,
+                    completed: 0,
+                    streak: 0,
+                },
+                stop: StopRule::TargetEnd,
+                item_ends: vec![4, 7],
+                content_ids: vec!["one".into(), "two".into()],
+            },
+            start,
+        )
+        .unwrap();
+    type_text(&mut words, "one", start);
+    assert_eq!(words.word_progress(), (0, 0));
+    type_text(&mut words, " ", start);
+    assert_eq!(words.word_progress(), (1, 1));
+    type_text(&mut words, "tx", start + Duration::from_secs(1));
+    assert_eq!(words.word_progress(), (1, 0));
+    words
+        .handle_event(key(KeyCode::Backspace), start + Duration::from_secs(2))
+        .unwrap();
+    type_text(&mut words, "wo", start + Duration::from_secs(2));
+    assert_eq!(words.screen(), Screen::Result);
+    assert_eq!(words.result.as_ref().unwrap().session.errors, 1);
+    assert_eq!(words.result.as_ref().unwrap().session.backspaces, 1);
+
+    let (_sentence_root, mut sentences) = fixture_app();
+    sentences
+        .start_mode(
+            ModeRequest {
+                kind: PracticeKind::Sentence,
+                language: Language::En,
+                target: "First.\nSecond.".into(),
+                mode: PracticeMode::Sentence {
+                    completed: 0,
+                    last_item: None,
+                },
+                stop: StopRule::TargetEnd,
+                item_ends: vec![7, 14],
+                content_ids: vec!["first".into(), "second".into()],
+            },
+            start,
+        )
+        .unwrap();
+    type_text(&mut sentences, "First.", start);
+    assert!(sentences.sentence_delta().is_none());
+    type_text(&mut sentences, "\n", start);
+    assert_eq!(sentences.screen(), Screen::Practice);
+    let delta = sentences.sentence_delta().unwrap();
+    assert_eq!(delta.correct_units, 7);
+    assert_eq!(delta.errors, 0);
+    assert_eq!(delta.accuracy, 100.0);
+    sentences
+        .tick(start + Duration::from_millis(2_999))
+        .unwrap();
+    assert!(sentences.sentence_delta().is_some());
+    sentences.tick(start + Duration::from_secs(3)).unwrap();
+    assert!(sentences.sentence_delta().is_none());
+}
+
+#[test]
+fn timed_quick_extends_before_exhaustion_and_item_quick_stops_exactly() {
+    let start = Instant::now();
+    let (_timed_root, mut timed) = fixture_app();
+    timed
+        .start_quick(
+            QuickOptions::new(
+                Language::En,
+                QuickSource::Words,
+                StopRule::ActiveTime(Duration::from_secs(120)),
+            )
+            .unwrap(),
+            23,
+            start,
+        )
+        .unwrap();
+    let initial_items = timed.active_practice().unwrap().item_ends.len();
+    let initial_ids = timed.active_practice().unwrap().content_ids.clone();
+    assert!(initial_items >= 10);
+    let trigger_end = timed.active_practice().unwrap().item_ends[initial_items - 10];
+    let prefix = timed
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(trigger_end)
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(&mut timed, &prefix, start);
+    assert_eq!(timed.screen(), Screen::Practice);
+    assert!(timed.active_practice().unwrap().item_ends.len() > initial_items);
+    assert!(timed.active_practice().unwrap().engine.target_len() > trigger_end);
+    timed.tick(start + Duration::from_secs(119)).unwrap();
+    assert_eq!(timed.screen(), Screen::Practice);
+    timed.tick(start + Duration::from_secs(120)).unwrap();
+    assert_eq!(timed.screen(), Screen::Result);
+    timed
+        .handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(121))
+        .unwrap();
+    assert_eq!(timed.active_practice().unwrap().content_ids, initial_ids);
+    let retry_prefix = timed
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(trigger_end)
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(&mut timed, &retry_prefix, start + Duration::from_secs(121));
+    assert!(timed.active_practice().unwrap().item_ends.len() > initial_items);
+
+    let (_count_root, mut counted) = fixture_app();
+    counted
+        .start_quick(
+            QuickOptions::new(Language::En, QuickSource::Words, StopRule::Items(10)).unwrap(),
+            29,
+            start,
+        )
+        .unwrap();
+    let target = counted
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(&mut counted, &target, start + Duration::from_secs(60));
+    assert_eq!(counted.screen(), Screen::Result);
+    assert_eq!(
+        counted.result.as_ref().unwrap().session.mode,
+        PracticeKind::Quick
+    );
+}
+
+#[test]
+fn practice_renderer_uses_stored_live_and_item_fields() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Words,
+            language: Language::En,
+            target: "one two".into(),
+            mode: PracticeMode::Words {
+                difficulty: Difficulty::Easy,
+                completed: 0,
+                streak: 0,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![4, 7],
+            content_ids: vec!["one".into(), "two".into()],
+        },
+        start,
+    )
+    .unwrap();
+    type_text(&mut app, "one", start + Duration::from_secs(1));
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for field in ["Speed", "Accuracy", "Errors", "Streak", "Progress"] {
+        assert!(output.contains(field), "missing {field}: {output}");
+    }
+    let metrics = app.active_practice().unwrap().live_metrics();
+    assert_eq!(metrics.correct_units, 3);
+    assert_eq!(metrics.attempted_units, 3);
+    assert_eq!(
+        app.active_practice()
+            .unwrap()
+            .current_item_delta()
+            .unwrap()
+            .correct_units,
+        3
+    );
+    app.handle_event(key(KeyCode::Backspace), start + Duration::from_secs(1))
+        .unwrap();
+    assert_eq!(
+        app.active_practice()
+            .unwrap()
+            .current_item_delta()
+            .unwrap()
+            .correct_units,
+        2
+    );
+    app.tick(start + Duration::from_secs(61)).unwrap();
+    assert!(
+        (app.active_practice()
+            .unwrap()
+            .current_item_delta()
+            .unwrap()
+            .speed
+            - 0.4)
+            .abs()
+            < f64::EPSILON * 4.0
+    );
+}
+
+#[test]
+fn paused_q_confirms_early_leave_and_saves_only_after_an_attempt() {
+    let start = Instant::now();
+    let (_attempted_root, mut attempted) = fixture_app();
+    attempted
+        .start_mode(
+            ModeRequest {
+                kind: PracticeKind::Words,
+                language: Language::En,
+                target: "ab".into(),
+                mode: PracticeMode::Words {
+                    difficulty: Difficulty::Easy,
+                    completed: 0,
+                    streak: 0,
+                },
+                stop: StopRule::TargetEnd,
+                item_ends: vec![2],
+                content_ids: vec!["ab".into()],
+            },
+            start,
+        )
+        .unwrap();
+    type_text(&mut attempted, "a", start);
+    attempted.handle_event(key(KeyCode::Esc), start).unwrap();
+    attempted
+        .handle_event(key(KeyCode::Char('q')), start)
+        .unwrap();
+    assert_eq!(attempted.screen(), Screen::Practice);
+    assert!(buffer_text(&draw(&attempted, 80, 24).buffer).contains("again"));
+    assert!(attempted.sessions.is_empty());
+    attempted
+        .handle_event(key(KeyCode::Char('q')), start)
+        .unwrap();
+    assert_eq!(attempted.screen(), Screen::Result);
+    assert_eq!(attempted.sessions.len(), 1);
+
+    let (_empty_root, mut empty) = fixture_app();
+    empty
+        .start_mode(
+            request(PracticeKind::Words, Language::En, "ab", StopRule::TargetEnd),
+            start,
+        )
+        .unwrap();
+    empty.handle_event(key(KeyCode::Esc), start).unwrap();
+    empty.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    empty.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    assert_eq!(empty.screen(), Screen::Home);
+    assert!(empty.result.is_none());
+    assert!(empty.sessions.is_empty());
+    assert!(!empty.paths.sessions.exists());
 }

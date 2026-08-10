@@ -1,5 +1,5 @@
 use crate::{
-    app::{ActivePractice, App, Grade, Screen},
+    app::{ActivePractice, App, Grade, PracticeMode, Screen, StopRule},
     cli::terminal_safe,
     content::ContentKind,
     i18n::{TextKey, text},
@@ -71,7 +71,14 @@ pub fn practice_cursor(area: Rect, active: &ActivePractice) -> Option<(u16, u16)
         return None;
     }
 
-    let width = usize::from(area.width);
+    let (column, row) = practice_cursor_offset(usize::from(area.width), active);
+    let scroll = usize::from(practice_scroll(area, active));
+    let column = column.min(usize::from(area.width - 1)) as u16;
+    let row = row.saturating_sub(scroll).min(usize::from(area.height - 1)) as u16;
+    Some((area.x.saturating_add(column), area.y.saturating_add(row)))
+}
+
+fn practice_cursor_offset(width: usize, active: &ActivePractice) -> (usize, usize) {
     let mut column = 0_usize;
     let mut row = 0_usize;
     for (grapheme, _) in active.engine.target_cells().take(active.engine.cursor()) {
@@ -92,9 +99,13 @@ pub fn practice_cursor(area: Rect, active: &ActivePractice) -> Option<(u16, u16)
         }
     }
 
-    let column = column.min(usize::from(area.width - 1)) as u16;
-    let row = row.min(usize::from(area.height - 1)) as u16;
-    Some((area.x.saturating_add(column), area.y.saturating_add(row)))
+    (column, row)
+}
+
+fn practice_scroll(area: Rect, active: &ActivePractice) -> u16 {
+    let (_, row) = practice_cursor_offset(usize::from(area.width), active);
+    row.saturating_sub(usize::from(area.height.saturating_sub(1)))
+        .min(usize::from(u16::MAX)) as u16
 }
 
 fn selected_styles(app: &App) -> Option<ThemeStyles> {
@@ -203,11 +214,22 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         frame.render_widget(no_data(language, styles), inner);
         return;
     };
-    let regions = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(inner);
+    let regions = Layout::vertical([
+        Constraint::Min(1),
+        Constraint::Length(2),
+        Constraint::Length(2),
+    ])
+    .split(inner);
+    let scroll = practice_scroll(regions[0], active);
     frame.render_widget(
         Paragraph::new(Text::from(target_lines(active, regions[0].width, styles)))
-            .style(styles.base),
+            .style(styles.base)
+            .scroll((scroll, 0)),
         regions[0],
+    );
+    frame.render_widget(
+        Paragraph::new(practice_live_lines(active, language)).style(styles.base),
+        regions[1],
     );
     let mut footer = Vec::new();
     if active.kind() != PracticeKind::Test {
@@ -221,14 +243,98 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
             text(language, action)
         )));
     }
-    if let Some(status) = app.practice_status() {
+    if active.leave_confirmation() {
+        footer.push(Line::from(leave_confirmation(language)));
+    } else if let Some(status) = app.practice_status() {
         footer.push(Line::from(terminal_safe(status)));
+    } else if active.engine.is_paused() {
+        footer.push(Line::from(match language {
+            Language::Ko => "q: 연습 끝내기",
+            Language::En => "q: Finish practice",
+        }));
     }
-    frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[1]);
+    frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[2]);
     if !active.engine.is_paused()
         && let Some(cursor) = practice_cursor(regions[0], active)
     {
         frame.set_cursor_position(cursor);
+    }
+}
+
+fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<'static>> {
+    let metrics = active.live_metrics();
+    let speed = match active.engine.language() {
+        Language::Ko => metrics.kpm,
+        Language::En => metrics.wpm,
+    };
+    let summary = format!(
+        "{}: {speed:.1} · {}: {:.1}% · {}: {}",
+        text(language, TextKey::Speed),
+        text(language, TextKey::Accuracy),
+        metrics.accuracy,
+        text(language, TextKey::Errors),
+        metrics.errors
+    );
+    let detail = match &active.mode {
+        PracticeMode::Quick { completed } => {
+            let remaining = match active.stop {
+                StopRule::ActiveTime(limit) => {
+                    format!("{}s", limit.saturating_sub(metrics.active).as_secs())
+                }
+                StopRule::Items(total) => total.saturating_sub(*completed).to_string(),
+                StopRule::TargetEnd => "0".into(),
+            };
+            format!(
+                "{}: {completed} · {}: {remaining}",
+                text(language, TextKey::Progress),
+                text(language, TextKey::Remaining)
+            )
+        }
+        PracticeMode::Words {
+            completed, streak, ..
+        } => {
+            let current = active.current_item_delta().map_or(0.0, |delta| delta.speed);
+            let (current_label, average_label) = current_average(language);
+            format!(
+                "{current_label}: {current:.1} · {average_label}: {speed:.1} · {}: {streak} · {}: {completed}",
+                text(language, TextKey::Streak),
+                text(language, TextKey::Progress)
+            )
+        }
+        PracticeMode::Sentence {
+            completed,
+            last_item,
+        } => last_item.as_ref().map_or_else(
+            || format!("{}: {completed}", text(language, TextKey::Progress)),
+            |delta| {
+                format!(
+                    "{}: {completed} · {}: {:.1} · {}: {:.1}%",
+                    text(language, TextKey::Progress),
+                    text(language, TextKey::Speed),
+                    delta.speed,
+                    text(language, TextKey::Accuracy),
+                    delta.accuracy
+                )
+            },
+        ),
+        PracticeMode::Key { .. } | PracticeMode::Long { .. } | PracticeMode::Test { .. } => {
+            String::new()
+        }
+    };
+    vec![Line::from(summary), Line::from(detail)]
+}
+
+const fn current_average(language: Language) -> (&'static str, &'static str) {
+    match language {
+        Language::Ko => ("현재", "평균"),
+        Language::En => ("Current", "Average"),
+    }
+}
+
+const fn leave_confirmation(language: Language) -> &'static str {
+    match language {
+        Language::Ko => "끝내려면 q를 다시 누르세요",
+        Language::En => "Press q again to finish",
     }
 }
 
