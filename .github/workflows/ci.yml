@@ -1,0 +1,277 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verification:
+    name: Verification
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install Rust 1.88.0
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy
+          rustup default 1.88.0
+      - name: Install policy tools
+        run: |
+          cargo +1.88.0 install cargo-deny --version 0.20.2 --locked
+          cargo +1.88.0 install cargo-about --version 0.9.1 --locked --features cli
+          cargo +1.88.0 install cargo-audit --version 0.22.2 --locked
+      - name: Test
+        run: make test
+      - name: Verify generated licenses
+        run: |
+          make licenses
+          git diff --exit-code -- THIRD_PARTY_LICENSES.html
+      - name: Audit dependencies
+        run: cargo audit --deny warnings
+      - name: Verify Cargo package
+        run: cargo publish --dry-run --locked
+      - name: Verify root npm package
+        run: npm pack --dry-run --ignore-scripts
+      - name: Lint workflows
+        shell: bash
+        run: |
+          workflows=(.github/workflows/ci.yml)
+          if [[ -f .github/workflows/release.yml ]]; then
+            workflows+=(.github/workflows/release.yml)
+          fi
+          go run github.com/rhysd/actionlint/cmd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca "${workflows[@]}"
+
+  launcher:
+    name: Launcher (Node 18, ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, windows-2025]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 18
+          package-manager-cache: false
+      - run: npm run test:launcher
+
+  native:
+    name: Native ${{ matrix.package }} (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            package: typeul-darwin-x64
+            executable: typeul
+            archive_extension: tar.gz
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            package: typeul-darwin-arm64
+            executable: typeul
+            archive_extension: tar.gz
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-musl
+            package: typeul-linux-x64
+            executable: typeul
+            archive_extension: tar.gz
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            package: typeul-linux-arm64
+            executable: typeul
+            archive_extension: tar.gz
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            package: typeul-win32-x64-msvc
+            executable: typeul.exe
+            archive_extension: zip
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            package: typeul-win32-arm64-msvc
+            executable: typeul.exe
+            archive_extension: zip
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install Rust 1.88.0 and target
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          rustup target add --toolchain 1.88.0 ${{ matrix.target }}
+      - name: Install musl linker
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+      - name: Build native binary
+        run: cargo +1.88.0 build --release --locked --target ${{ matrix.target }}
+      - name: Smoke, pack, install, archive
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          PACKAGE: ${{ matrix.package }}
+          EXECUTABLE: ${{ matrix.executable }}
+        run: |
+          set -euo pipefail
+          temporary="$(mktemp -d)"
+          trap 'rm -rf "$temporary"' EXIT
+          binary="$GITHUB_WORKSPACE/target/$TARGET/release/$EXECUTABLE"
+          export TYPEUL_HOME="$temporary/direct-home"
+          export TYPEUL_NO_UPDATE_CHECK=1
+          "$binary" --version
+          "$binary" paths > "$temporary/direct-paths.txt"
+          "$binary" licenses > "$temporary/direct-licenses.txt"
+          "$binary" --smoke
+
+          staged="$temporary/staged/$PACKAGE"
+          node scripts/stage-platform-package.mjs \
+            --package-dir "npm/$PACKAGE" --binary "$binary" --out "$staged"
+          packs="$temporary/packs"
+          mkdir "$packs"
+          version="$(node -p "require('./package.json').version")"
+          npm pack --ignore-scripts --pack-destination "$packs" "$staged"
+          platform_tgz="$packs/$PACKAGE-$version.tgz"
+          test -f "$platform_tgz"
+          npm pack --ignore-scripts --pack-destination "$packs" .
+          root_tgz="$packs/typeul-$version.tgz"
+          test -f "$root_tgz"
+
+          install="$temporary/install"
+          mkdir "$install"
+          printf '%s\n' '{"name":"typeul-ci","private":true}' > "$install/package.json"
+          npm install --prefix "$install" --ignore-scripts --no-audit --no-fund \
+            "$root_tgz" "$platform_tgz"
+          export TYPEUL_HOME="$temporary/installed-home"
+          (
+            cd "$install"
+            npx --no-install typeul --version
+            npx --no-install typeul paths > "$temporary/installed-paths.txt"
+            npx --no-install typeul licenses > "$temporary/installed-licenses.txt"
+            npx --no-install typeul --smoke
+          )
+
+          archive_parent="$temporary/archive"
+          archive_root="$archive_parent/typeul-$TARGET"
+          mkdir -p "$archive_root"
+          cp "$staged/$EXECUTABLE" "$archive_root/$EXECUTABLE"
+          cp "$staged/LICENSE" "$staged/THIRD_PARTY_NOTICES.md" \
+            "$staged/THIRD_PARTY_LICENSES.html" "$archive_root/"
+          cp -R "$staged/licenses" "$archive_root/licenses"
+          mkdir "$GITHUB_WORKSPACE/artifacts"
+          archive="$GITHUB_WORKSPACE/artifacts/typeul-$TARGET.tar.gz"
+          COPYFILE_DISABLE=1 tar -C "$archive_parent" -czf "$archive" "typeul-$TARGET"
+          python3 - "$archive_root" "$archive" <<'PY'
+          import pathlib, sys, tarfile
+          root = pathlib.Path(sys.argv[1])
+          expected = sorted([root.name, *(str(pathlib.PurePosixPath(root.name, path.relative_to(root))) for path in root.rglob("*"))])
+          with tarfile.open(sys.argv[2]) as bundle:
+              actual = sorted(member.name.rstrip("/") for member in bundle.getmembers())
+          if actual != expected:
+              raise SystemExit(f"archive entries differ; expected={expected!r}; actual={actual!r}")
+          PY
+          extracted="$temporary/extracted"
+          mkdir "$extracted"
+          COPYFILE_DISABLE=1 tar -C "$extracted" -xzf "$archive"
+          test -x "$extracted/typeul-$TARGET/$EXECUTABLE"
+          cp "$platform_tgz" "$GITHUB_WORKSPACE/artifacts/"
+          test "$(find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 2
+      - name: Smoke, pack, install, archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+          PACKAGE: ${{ matrix.package }}
+          EXECUTABLE: ${{ matrix.executable }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $temporary = Join-Path ([IO.Path]::GetTempPath()) ("typeul-ci-" + [guid]::NewGuid())
+          New-Item -ItemType Directory -Path $temporary | Out-Null
+          try {
+            $binary = Join-Path $env:GITHUB_WORKSPACE "target\$env:TARGET\release\$env:EXECUTABLE"
+            $env:TYPEUL_HOME = Join-Path $temporary "direct-home"
+            $env:TYPEUL_NO_UPDATE_CHECK = "1"
+            & $binary --version
+            & $binary paths | Out-File (Join-Path $temporary "direct-paths.txt") -Encoding utf8
+            & $binary licenses | Out-File (Join-Path $temporary "direct-licenses.txt") -Encoding utf8
+            & $binary --smoke
+
+            $staged = Join-Path $temporary "staged\$env:PACKAGE"
+            node scripts/stage-platform-package.mjs --package-dir "npm\$env:PACKAGE" --binary $binary --out $staged
+            $packs = Join-Path $temporary "packs"
+            New-Item -ItemType Directory -Path $packs | Out-Null
+            $version = node -p "require('./package.json').version"
+            npm.cmd pack --ignore-scripts --pack-destination $packs $staged
+            $platformTgz = Join-Path $packs "$env:PACKAGE-$version.tgz"
+            if (-not (Test-Path -LiteralPath $platformTgz -PathType Leaf)) {
+              throw "native npm tarball is missing: $platformTgz"
+            }
+            npm.cmd pack --ignore-scripts --pack-destination $packs .
+            $rootTgz = Join-Path $packs "typeul-$version.tgz"
+            if (-not (Test-Path -LiteralPath $rootTgz -PathType Leaf)) {
+              throw "root npm tarball is missing: $rootTgz"
+            }
+
+            $install = Join-Path $temporary "install"
+            New-Item -ItemType Directory -Path $install | Out-Null
+            '{"name":"typeul-ci","private":true}' |
+              Set-Content (Join-Path $install "package.json") -Encoding utf8
+            npm.cmd install --prefix $install --ignore-scripts --no-audit --no-fund $rootTgz $platformTgz
+            $env:TYPEUL_HOME = Join-Path $temporary "installed-home"
+            Push-Location $install
+            try {
+              npx.cmd --no-install typeul --version
+              npx.cmd --no-install typeul paths |
+                Out-File (Join-Path $temporary "installed-paths.txt") -Encoding utf8
+              npx.cmd --no-install typeul licenses |
+                Out-File (Join-Path $temporary "installed-licenses.txt") -Encoding utf8
+              npx.cmd --no-install typeul --smoke
+            } finally {
+              Pop-Location
+            }
+
+            $archiveParent = Join-Path $temporary "archive"
+            $archiveRoot = Join-Path $archiveParent "typeul-$env:TARGET"
+            New-Item -ItemType Directory -Path $archiveRoot | Out-Null
+            Copy-Item (Join-Path $staged $env:EXECUTABLE) (Join-Path $archiveRoot $env:EXECUTABLE)
+            Copy-Item (Join-Path $staged "LICENSE") $archiveRoot
+            Copy-Item (Join-Path $staged "THIRD_PARTY_NOTICES.md") $archiveRoot
+            Copy-Item (Join-Path $staged "THIRD_PARTY_LICENSES.html") $archiveRoot
+            Copy-Item (Join-Path $staged "licenses") (Join-Path $archiveRoot "licenses") -Recurse
+            if ((Get-ChildItem -LiteralPath $archiveRoot).Count -ne 5) {
+              throw "archive root must contain only the binary and license material"
+            }
+            $artifacts = Join-Path $env:GITHUB_WORKSPACE "artifacts"
+            New-Item -ItemType Directory -Path $artifacts | Out-Null
+            $archive = Join-Path $artifacts "typeul-$env:TARGET.zip"
+            Compress-Archive -Path $archiveRoot -DestinationPath $archive
+            Copy-Item $platformTgz $artifacts
+            if ((Get-ChildItem -LiteralPath $artifacts -File).Count -ne 2) {
+              throw "artifacts must contain exactly one native tarball and one archive"
+            }
+          } finally {
+            Remove-Item -LiteralPath $temporary -Recurse -Force -ErrorAction SilentlyContinue
+          }
+      - name: Upload native artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-${{ matrix.package }}-${{ matrix.target }}
+          path: |
+            artifacts/${{ matrix.package }}-*.tgz
+            artifacts/typeul-${{ matrix.target }}.${{ matrix.archive_extension }}
+          if-no-files-found: error
+          retention-days: 1
