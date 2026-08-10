@@ -586,6 +586,10 @@ impl App {
         self.quit
     }
 
+    pub(crate) fn request_quit(&mut self) {
+        self.quit = true;
+    }
+
     pub fn active_practice(&self) -> Option<&ActivePractice> {
         self.practice.as_ref()
     }
@@ -781,6 +785,39 @@ impl App {
         self.practice = Some(active);
         self.result = None;
         Ok(())
+    }
+
+    pub fn start_default(
+        &mut self,
+        kind: PracticeKind,
+        language: Language,
+        seconds: Option<u64>,
+        seed: u64,
+        now: Instant,
+    ) -> Result<()> {
+        match kind {
+            PracticeKind::Quick => self.start_quick(
+                QuickOptions::new(
+                    language,
+                    QuickSource::Words,
+                    StopRule::ActiveTime(Duration::from_secs(seconds.unwrap_or(30))),
+                )?,
+                seed,
+                now,
+            ),
+            PracticeKind::Key => self.start_key(language, 1, false, false, seed, now),
+            PracticeKind::Words => self.start_words(language, Difficulty::Mixed, seed, now),
+            PracticeKind::Sentence => self.start_sentence(language, seed, now),
+            PracticeKind::Long => {
+                let item_id = self
+                    .long_items(language, None)
+                    .first()
+                    .map(|item| item.id.clone())
+                    .ok_or_else(|| anyhow!("no long-text content for {language:?}"))?;
+                self.start_long(&item_id, now)
+            }
+            PracticeKind::Test => self.start_test(language, seconds, seed, now),
+        }
     }
 
     pub fn start_quick(&mut self, options: QuickOptions, seed: u64, now: Instant) -> Result<()> {
@@ -1197,7 +1234,7 @@ impl App {
             {
                 self.disable_selected_content();
             }
-            KeyCode::Enter if key.modifiers == KeyModifiers::NONE => self.enter(),
+            KeyCode::Enter if key.modifiers == KeyModifiers::NONE => self.enter(now)?,
             KeyCode::Char('r')
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
@@ -1658,6 +1695,7 @@ impl App {
     fn focus_count(&self) -> usize {
         match self.screen {
             Screen::Home => 10,
+            Screen::ModeSelect => 6,
             Screen::Stats => 5,
             Screen::History => 3,
             Screen::Goals => 4,
@@ -1713,18 +1751,38 @@ impl App {
         }
     }
 
-    fn enter(&mut self) {
+    fn enter(&mut self, now: Instant) -> Result<()> {
         match self.screen {
             Screen::Home => {
-                let screen = match self.focus {
-                    0..=5 => Screen::ModeSelect,
-                    6 => Screen::Stats,
-                    7 => Screen::Goals,
-                    8 => Screen::Content,
-                    9 => Screen::Settings,
-                    _ => return,
+                let focus = self.focus;
+                if focus <= 5 {
+                    self.open(Screen::ModeSelect);
+                    self.focus = focus;
+                } else {
+                    let screen = match focus {
+                        6 => Screen::Stats,
+                        7 => Screen::Goals,
+                        8 => Screen::Content,
+                        9 => Screen::Settings,
+                        _ => return Ok(()),
+                    };
+                    self.open(screen);
+                }
+            }
+            Screen::ModeSelect => {
+                let Some(kind) = [
+                    PracticeKind::Quick,
+                    PracticeKind::Key,
+                    PracticeKind::Words,
+                    PracticeKind::Sentence,
+                    PracticeKind::Long,
+                    PracticeKind::Test,
+                ]
+                .get(self.focus)
+                .copied() else {
+                    return Ok(());
                 };
-                self.open(screen);
+                self.start_default(kind, self.settings.language, None, fastrand::u64(..), now)?;
             }
             Screen::Stats => match self.focus {
                 0..=2 => self.adjust(1),
@@ -1752,6 +1810,7 @@ impl App {
             }
             _ => {}
         }
+        Ok(())
     }
 
     fn activate_setting(&mut self) {

@@ -352,11 +352,9 @@ fn direct_files_are_bounded_nonempty_utf8_custom_text() {
             text: "연습 text\n".into(),
         })
     );
-    assert!(
-        binary(&root.home(), &[valid.to_str().unwrap()])
-            .status
-            .success()
-    );
+    let launched = binary(&root.home(), &[valid.to_str().unwrap()]);
+    assert_eq!(launched.status.code(), Some(2));
+    assert!(stderr(&launched).contains("interactive terminal"));
 
     let whitespace = root.path().join("whitespace.txt");
     fs::write(&whitespace, " \n\t").unwrap();
@@ -475,13 +473,11 @@ fn direct_stdin_commands_normalize_crlf() {
 }
 
 #[test]
-fn no_arg_nonterminal_stdin_is_bounded_custom_text() {
+fn no_arg_nonterminal_stdin_is_validated_before_terminal_preflight() {
     let root = TestDir::new("stdin");
-    assert!(
-        piped_binary(&root.home(), &[], "stdin 연습".as_bytes())
-            .status
-            .success()
-    );
+    let valid = piped_binary(&root.home(), &[], "stdin 연습".as_bytes());
+    assert_eq!(valid.status.code(), Some(2));
+    assert!(stderr(&valid).contains("interactive terminal"));
     assert_eq!(piped_binary(&root.home(), &[], b"").status.code(), Some(2));
     assert_eq!(
         piped_binary(&root.home(), &[], b" \n\t").status.code(),

@@ -357,6 +357,49 @@ fn home_renders_exactly_ten_actions_and_marks_the_focused_one() {
 }
 
 #[test]
+fn every_home_practice_action_can_start_its_default_mode() {
+    let now = Instant::now();
+    for (index, kind, label) in [
+        (0, PracticeKind::Quick, "Quick practice"),
+        (1, PracticeKind::Key, "Key practice"),
+        (2, PracticeKind::Words, "Word practice"),
+        (3, PracticeKind::Sentence, "Sentence practice"),
+        (4, PracticeKind::Long, "Long-text practice"),
+        (5, PracticeKind::Test, "Typing test"),
+    ] {
+        let (_root, mut app) = fixture_app();
+        app.warnings.clear();
+        for _ in 0..index {
+            app.handle_event(key(KeyCode::Tab), now).unwrap();
+        }
+
+        app.handle_event(key(KeyCode::Enter), now).unwrap();
+        assert_eq!(app.screen(), Screen::ModeSelect, "{kind:?}");
+        assert_eq!(app.focus(), index, "{kind:?}");
+        let selection = buffer_text(&draw(&app, 80, 24).buffer);
+        assert!(selection.contains(&format!("> {label}")), "{selection}");
+
+        app.handle_event(key(KeyCode::Enter), now).unwrap();
+        assert_eq!(app.screen(), Screen::Practice, "{kind:?}");
+        assert_eq!(app.active_practice().unwrap().kind(), kind);
+    }
+}
+
+#[test]
+fn mode_select_focus_moves_across_all_six_practice_modes() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+
+    app.handle_event(key(KeyCode::Tab), now).unwrap();
+    assert_eq!(app.focus(), 1);
+    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("> Key practice"));
+
+    app.handle_event(key(KeyCode::BackTab), now).unwrap();
+    assert_eq!(app.focus(), 0);
+}
+
+#[test]
 fn tiny_terminals_return_before_layout_and_hide_the_cursor() {
     for language in [Language::Ko, Language::En] {
         for (width, height) in [(1, 1), (40, 10), (79, 23)] {

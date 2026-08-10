@@ -7,6 +7,7 @@ pub mod model;
 pub mod practice;
 pub mod stats;
 pub mod storage;
+pub mod terminal;
 pub mod theme;
 pub mod typing;
 pub mod ui;

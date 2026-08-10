@@ -25,9 +25,13 @@ use unicode_width::UnicodeWidthStr;
 const MIN_WIDTH: u16 = 80;
 const MIN_HEIGHT: u16 = 24;
 
+pub(crate) const fn supports_size(width: u16, height: u16) -> bool {
+    width >= MIN_WIDTH && height >= MIN_HEIGHT
+}
+
 pub fn render(frame: &mut Frame<'_>, app: &App) {
     let area = frame.area();
-    if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
+    if !supports_size(area.width, area.height) {
         render_too_small(frame, app.settings.ui_language, area);
         return;
     }
@@ -186,23 +190,30 @@ fn render_home(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
 
 fn render_mode_select(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
     let language = app.settings.ui_language;
-    let block = titled(text(language, TextKey::HomeQuick), styles);
+    let actions = [
+        TextKey::HomeQuick,
+        TextKey::HomeKeys,
+        TextKey::HomeWords,
+        TextKey::HomeSentence,
+        TextKey::HomeLong,
+        TextKey::HomeTest,
+    ];
+    let title = actions
+        .get(app.focus())
+        .copied()
+        .unwrap_or(TextKey::HomeQuick);
+    let block = titled(text(language, title), styles);
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let regions = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(inner);
     frame.render_widget(
-        List::new(
-            [
-                TextKey::HomeQuick,
-                TextKey::HomeKeys,
-                TextKey::HomeWords,
-                TextKey::HomeSentence,
-                TextKey::HomeLong,
-                TextKey::HomeTest,
-            ]
-            .into_iter()
-            .map(|key| ListItem::new(text(language, key))),
-        )
+        List::new(actions.into_iter().enumerate().map(|(index, key)| {
+            let marker = if index == app.focus() { "> " } else { "  " };
+            ListItem::new(Line::from(vec![
+                Span::styled(marker, styles.accent),
+                Span::styled(text(language, key), styles.base),
+            ]))
+        }))
         .style(styles.base),
         regions[0],
     );

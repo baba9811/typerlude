@@ -1,5 +1,9 @@
 use std::io::IsTerminal;
-use typeul::cli::{Exit, is_input_error, parse_args, run, stdin_command, terminal_safe};
+use typeul::{
+    cli::{Exit, is_input_error, parse_args, prepare_app, run, stdin_command, terminal_safe},
+    storage::AppPaths,
+    terminal,
+};
 
 fn main() {
     if let Err((code, error)) = execute() {
@@ -19,8 +23,16 @@ fn execute() -> Result<(), (i32, anyhow::Error)> {
         let code = if is_input_error(&error) { 2 } else { 1 };
         (code, error)
     })?;
-    if let Exit::Launch(_) = exit {
-        // Plan 2 consumes the fully validated startup without re-parsing input.
+    if let Exit::Launch(startup) = exit {
+        if !terminal::is_interactive_terminal() {
+            return Err((2, anyhow::anyhow!("interactive terminal required")));
+        }
+        let paths = AppPaths::discover().map_err(|error| (1, error))?;
+        let app = prepare_app(startup, paths).map_err(|error| {
+            let code = if is_input_error(&error) { 2 } else { 1 };
+            (code, error)
+        })?;
+        terminal::run(app).map_err(|error| (1, error))?;
     }
     Ok(())
 }

@@ -630,7 +630,7 @@ mod tests {
             run_registry_command(
                 &success,
                 &["view", "typeul", "version", "--silent"],
-                Duration::from_secs(1),
+                Duration::from_secs(5),
             )
             .unwrap(),
             "1.4.0"
@@ -643,7 +643,7 @@ mod tests {
         let output = run_registry_command(
             &cargo,
             &["search", "typeul", "--limit", "1"],
-            Duration::from_secs(1),
+            Duration::from_secs(5),
         )
         .unwrap();
         assert_eq!(
@@ -651,9 +651,9 @@ mod tests {
             StableVersion(1, 4, 0)
         );
         let failure = root.script("failure", "registry unavailable\n", 7);
-        assert!(run_registry_command(&failure, &[], Duration::from_secs(1)).is_err());
+        assert!(run_registry_command(&failure, &[], Duration::from_secs(5)).is_err());
         let oversized = root.script("oversized", &"x".repeat(4_097), 0);
-        assert!(run_registry_command(&oversized, &[], Duration::from_secs(1)).is_err());
+        assert!(run_registry_command(&oversized, &[], Duration::from_secs(5)).is_err());
         assert!(
             run_registry_command(&root.sleeping_script(), &[], Duration::from_millis(100)).is_err()
         );

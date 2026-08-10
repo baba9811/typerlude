@@ -1,14 +1,15 @@
 use crate::{
     VERSION,
-    app::CustomTextSource,
+    app::{App, CustomTextSource, Screen},
     config::Settings,
     content::{
         ContentCatalog, ContentError, ContentPack, MAX_CONTENT_BYTES, parse_pack, read_pack_bytes,
         validate_pack,
     },
     model::{Language, PracticeKind},
-    storage::{AppPaths, atomic_write_new, load_sessions, rename_no_replace},
-    update::foreground_check,
+    storage::{AppPaths, LoadWarning, atomic_write_new, load_sessions, rename_no_replace},
+    theme::ThemeCatalog,
+    update::{foreground_check, start_background_check},
 };
 use anyhow::{Context, Result, anyhow, bail};
 use std::{
@@ -19,6 +20,7 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{self, ErrorKind, Read},
     path::{Path, PathBuf},
+    time::Instant,
 };
 
 const HELP: &str = r#"Usage:
@@ -331,6 +333,76 @@ pub fn run(command: Command) -> Result<Exit> {
             Ok(Exit::Done)
         }
     }
+}
+
+pub fn prepare_app(startup: Startup, paths: AppPaths) -> Result<App> {
+    let mut app = build_app(startup, paths)?;
+    if let Some(receiver) = start_background_check(&app.settings, &app.paths) {
+        app.set_update_receiver(receiver);
+    }
+    Ok(app)
+}
+
+fn build_app(startup: Startup, paths: AppPaths) -> Result<App> {
+    let settings = Settings::load(&paths)?;
+    let content = ContentCatalog::load(&paths.content)?;
+    let themes = ThemeCatalog::load(&paths.themes)?;
+    let sessions = load_sessions(&paths)?;
+    let mut warnings = settings
+        .warnings
+        .iter()
+        .map(|warning| format_load_warning("config", warning))
+        .collect::<Vec<_>>();
+    warnings.extend(
+        content
+            .warnings
+            .iter()
+            .map(|warning| format!("content: {}", format_content_error(warning))),
+    );
+    warnings.extend(
+        themes
+            .warnings
+            .iter()
+            .map(|warning| format_load_warning("theme", warning)),
+    );
+    warnings.extend(
+        sessions
+            .warnings
+            .iter()
+            .map(|warning| format_load_warning("session", warning)),
+    );
+
+    let mut app = App::new(
+        settings.value,
+        paths,
+        content.catalog,
+        themes.catalog,
+        sessions.values,
+        warnings,
+    );
+    let now = Instant::now();
+    match startup {
+        Startup::Home => {}
+        Startup::Practice(args) => {
+            let language = args.language.unwrap_or(app.settings.language);
+            app.start_default(args.kind, language, args.seconds, fastrand::u64(..), now)?;
+        }
+        Startup::CustomText { source, name, text } => {
+            app.start_custom_text(source, &name, &text, now)?
+        }
+        Startup::Stats => app.open(Screen::Stats),
+        Startup::History => app.open(Screen::History),
+        Startup::Themes => app.open(Screen::Themes),
+    }
+    Ok(app)
+}
+
+fn format_load_warning(scope: &str, warning: &LoadWarning) -> String {
+    format!(
+        "{scope}: {}: {}",
+        warning.path.to_string_lossy(),
+        warning.message
+    )
 }
 
 fn custom_file(path: &Path) -> Result<Exit> {
@@ -735,28 +807,14 @@ fn print_licenses() {
 
 fn smoke() -> Result<()> {
     let paths = AppPaths::discover()?;
-    let settings = Settings::load(&paths)?;
-    for warning in settings.warnings {
-        eprintln!(
-            "warning: {}: {}",
-            terminal_safe(&warning.path.to_string_lossy()),
-            terminal_safe(&warning.message)
-        );
-    }
-    let content = ContentCatalog::load(&paths.content)?;
-    print_content_warnings(&content.warnings);
-    let sessions = load_sessions(&paths)?;
-    for warning in sessions.warnings {
-        eprintln!(
-            "warning: {}: {}",
-            terminal_safe(&warning.path.to_string_lossy()),
-            terminal_safe(&warning.message)
-        );
+    let app = build_app(Startup::Home, paths)?;
+    for warning in &app.warnings {
+        eprintln!("warning: {}", terminal_safe(warning));
     }
     println!(
         "smoke ok: {} content items, {} sessions",
-        content.catalog.items().count(),
-        sessions.values.len()
+        app.content.items().count(),
+        app.sessions.len()
     );
     Ok(())
 }
