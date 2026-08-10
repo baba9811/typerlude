@@ -304,3 +304,14 @@ session, checking Result persistence, privacy-safe aggregates, and terminal clea
 
 The repository does not claim npm or crates.io publication until those registry
 steps have actually completed.
+
+## 배포와 보안 / Releases and security
+
+현재 레지스트리 배포 전 설치 방법은 위의 source installation입니다. 공개 배포가 완료되기
+전에는 npm, crates.io, 또는 GitHub Release에 패키지가 있다고 가정하지 마세요. Maintainers
+should follow the guarded bootstrap and OIDC checklist in
+[docs/releasing.md](docs/releasing.md); it keeps the GitHub release as a draft until both registries
+succeed. This ordering reduces accidental exposure but cannot make separate registries atomic.
+
+보안 취약점은 공개 issue 대신 [GitHub Security Advisory](SECURITY.md)로 비공개 제보해
+주세요. Please see the [security policy](SECURITY.md) for supported versions and private reporting.
