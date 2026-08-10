@@ -154,6 +154,48 @@ fn finish_started_practice(app: &mut App, now: Instant) {
     assert_eq!(app.screen(), Screen::Result);
 }
 
+fn type_first_item(app: &mut App, now: Instant) {
+    let end = app.active_practice().unwrap().item_ends[0];
+    let item = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(end)
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(app, &item, now);
+}
+
+fn assert_catalog_progress(app: &App, expected: usize) {
+    match &app.active_practice().unwrap().mode {
+        PracticeMode::Quick { completed } | PracticeMode::Sentence { completed, .. } => {
+            assert_eq!(*completed, expected);
+        }
+        PracticeMode::Words {
+            completed, streak, ..
+        } => assert_eq!((*completed, *streak), (expected, expected)),
+        _ => unreachable!(),
+    }
+}
+
+fn finish_after_timed_quick_extension(app: &mut App, now: Instant) {
+    let initial_items = app.active_practice().unwrap().item_ends.len();
+    let trigger_end = app.active_practice().unwrap().item_ends[initial_items - 10];
+    let prefix = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(trigger_end)
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(app, &prefix, now);
+    assert!(app.active_practice().unwrap().item_ends.len() > initial_items);
+    app.finish_practice(now + Duration::from_secs(1)).unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+}
+
 fn start_result_next_catalog_case(app: &mut App, kind: PracticeKind, seed: u64, now: Instant) {
     match kind {
         PracticeKind::Quick => app
@@ -190,6 +232,29 @@ fn assert_result_next_unavailable_and_retry_exact(app: &mut App, now: Instant) {
         .unwrap();
     assert_eq!(app.screen(), Screen::Practice);
     assert_eq!(app.retry_request(), Some(&request));
+}
+
+fn assert_custom_long_collision_is_not_next(source: CustomTextSource, item_id: &str) {
+    let (_root, mut app) = fixture_app();
+    fs::create_dir_all(&app.paths.content).unwrap();
+    fs::write(
+        app.paths.content.join("collision.toml"),
+        user_long_pack(item_id),
+    )
+    .unwrap();
+    let loaded = ContentCatalog::load(&app.paths.content).unwrap();
+    assert!(loaded.warnings.is_empty());
+    app.content = loaded.catalog;
+    assert!(
+        app.long_items(Language::En, None)
+            .iter()
+            .any(|item| item.id == item_id)
+    );
+
+    let start = Instant::now();
+    app.start_custom_text(source, item_id, "Private custom text", start)
+        .unwrap();
+    assert_result_next_unavailable_and_retry_exact(&mut app, start);
 }
 
 fn mode_for(kind: PracticeKind) -> PracticeMode {
@@ -304,6 +369,12 @@ modified = false
 retrieved_at = "2026-08-07"
 "#
     )
+}
+
+fn user_long_pack(item_id: &str) -> String {
+    user_pack("collision")
+        .replace("id = \"collision-item\"", &format!("id = \"{item_id}\""))
+        .replace("kind = \"word\"", "kind = \"text\"")
 }
 
 struct Drawn {
@@ -2220,7 +2291,10 @@ fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
             app.sessions.push(weak_history);
         }
         start_result_next_catalog_case(&mut app, kind, seed, start);
-        finish_started_practice(&mut app, start);
+        type_first_item(&mut app, start);
+        assert_catalog_progress(&app, 1);
+        app.finish_practice(start + Duration::from_secs(1)).unwrap();
+        assert_eq!(app.screen(), Screen::Result);
         if kind == PracticeKind::Quick {
             let output = buffer_text(&draw(&app, 80, 24).buffer);
             for action in ["r: 다시 연습", "n: 다음", "Esc: 메뉴"] {
@@ -2246,6 +2320,7 @@ fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
 
         assert_eq!(app.screen(), Screen::Practice);
         assert_eq!(app.retry_request(), Some(&expected_request), "{kind:?}");
+        assert_catalog_progress(&app, 0);
 
         if kind == PracticeKind::Quick {
             finish_started_practice(&mut app, start + Duration::from_secs(3));
@@ -2263,6 +2338,51 @@ fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
             assert_eq!(app.retry_request(), Some(&second_request));
         }
     }
+}
+
+#[test]
+fn result_next_timed_quick_skips_stream_seeds_consumed_before_result() {
+    let start = Instant::now();
+    let options = QuickOptions::new(
+        Language::En,
+        QuickSource::Words,
+        StopRule::ActiveTime(Duration::from_secs(120)),
+    )
+    .unwrap();
+    let (_root, mut app) = fixture_app();
+    app.start_quick(options.clone(), 23, start).unwrap();
+    finish_after_timed_quick_extension(&mut app, start);
+
+    let (_expected_root, mut expected) = fixture_app();
+    expected.sessions = app.sessions.clone();
+    expected
+        .start_quick(options.clone(), 25, start + Duration::from_secs(2))
+        .unwrap();
+    let expected_request = expected.retry_request().unwrap().clone();
+    app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(2))
+        .unwrap();
+    assert_eq!(app.retry_request(), Some(&expected_request));
+
+    finish_started_practice(&mut app, start + Duration::from_secs(3));
+    let (_second_root, mut second) = fixture_app();
+    second.sessions = app.sessions.clone();
+    second
+        .start_quick(options.clone(), 26, start + Duration::from_secs(5))
+        .unwrap();
+    let second_request = second.retry_request().unwrap().clone();
+    app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(5))
+        .unwrap();
+    assert_eq!(app.retry_request(), Some(&second_request));
+
+    let (_retry_root, mut retry) = fixture_app();
+    retry.start_quick(options, 23, start).unwrap();
+    let initial_request = retry.retry_request().unwrap().clone();
+    finish_after_timed_quick_extension(&mut retry, start);
+    retry
+        .handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(2))
+        .unwrap();
+    assert_eq!(retry.screen(), Screen::Practice);
+    assert_eq!(retry.retry_request(), Some(&initial_request));
 }
 
 #[test]
@@ -2312,6 +2432,16 @@ fn result_next_is_unavailable_for_key_and_test_but_retry_is_exact() {
     let (_test_root, mut test) = fixture_app();
     test.start_test(Language::Ko, Some(60), 13, start).unwrap();
     assert_result_next_unavailable_and_retry_exact(&mut test, start);
+}
+
+#[test]
+fn result_next_rejects_custom_file_catalog_id_collision() {
+    assert_custom_long_collision_is_not_next(CustomTextSource::File, "custom-file");
+}
+
+#[test]
+fn result_next_rejects_stdin_catalog_id_collision() {
+    assert_custom_long_collision_is_not_next(CustomTextSource::Stdin, "stdin");
 }
 
 #[test]

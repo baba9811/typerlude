@@ -1194,10 +1194,15 @@ impl App {
                 stream.language == request.language
                     && self.content.items().any(|item| catalog_match(item, stream))
             }),
-            PracticeMode::Long { item_id, .. } => self
-                .long_items(request.language, None)
-                .iter()
-                .any(|item| item.id == *item_id),
+            PracticeMode::Long { item_id, .. } => {
+                self.retry_long_metadata
+                    .as_ref()
+                    .is_some_and(|metadata| metadata.custom_source.is_none())
+                    && self
+                        .long_items(request.language, None)
+                        .iter()
+                        .any(|item| item.id == *item_id)
+            }
             PracticeMode::Key { .. } | PracticeMode::Test { .. } => false,
         }
     }
@@ -1721,6 +1726,9 @@ impl App {
         let Some(mut active) = self.practice.take() else {
             bail!("no active practice");
         };
+        if let Some(stream) = active.stream.clone() {
+            self.retry_stream = Some(stream);
+        }
         let metrics = active.engine.finalize(now);
         let language = active.engine.language();
         let kind = active.kind();
