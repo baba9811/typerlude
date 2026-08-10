@@ -2396,6 +2396,7 @@ fn typing_tests_refuse_both_pause_keys() {
     .unwrap();
     let footer = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(!footer.contains("Pause: Esc / Ctrl+P"), "{footer}");
+    assert!(footer.contains("Esc: Leave"), "{footer}");
 
     for pause in [
         key(KeyCode::Esc),
@@ -2409,6 +2410,95 @@ fn typing_tests_refuse_both_pause_keys() {
         assert_eq!(app.screen(), Screen::Practice);
         assert!(!app.active_practice().unwrap().engine.is_paused());
     }
+}
+
+#[test]
+fn typing_test_escape_then_q_persists_one_attempted_session() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::En,
+            "abc",
+            StopRule::ActiveTime(Duration::from_secs(60)),
+        ),
+        start,
+    )
+    .unwrap();
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(KeyCode::Esc), start).unwrap();
+
+    let confirmation = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(confirmation.contains("Q: Confirm"), "{confirmation}");
+    assert!(confirmation.contains("Esc: Cancel"), "{confirmation}");
+    assert!(!confirmation.contains("Pause"), "{confirmation}");
+    assert!(!app.active_practice().unwrap().engine.is_paused());
+
+    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+
+    assert_eq!(app.screen(), Screen::Result);
+    assert!(app.result.is_some());
+    assert_eq!(app.sessions.len(), 1);
+}
+
+#[test]
+fn empty_typing_test_escape_then_q_returns_home_without_a_session() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::En,
+            "abc",
+            StopRule::ActiveTime(Duration::from_secs(60)),
+        ),
+        start,
+    )
+    .unwrap();
+
+    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+
+    assert_eq!(app.screen(), Screen::Home);
+    assert!(app.result.is_none());
+    assert!(app.sessions.is_empty());
+    assert!(!app.paths.sessions.exists());
+}
+
+#[test]
+fn typing_test_second_escape_cancels_leave_confirmation() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::En,
+            "abc",
+            StopRule::ActiveTime(Duration::from_secs(60)),
+        ),
+        start,
+    )
+    .unwrap();
+
+    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    assert!(app.active_practice().unwrap().leave_confirmation());
+    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    assert!(!app.active_practice().unwrap().leave_confirmation());
+    app.handle_event(
+        key_with(
+            KeyCode::Char('p'),
+            KeyModifiers::CONTROL,
+            KeyEventKind::Press,
+        ),
+        start,
+    )
+    .unwrap();
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+
+    let active = app.active_practice().unwrap();
+    assert!(!active.engine.is_paused());
+    assert_eq!(active.engine.attempted_units(), 1);
 }
 
 #[test]

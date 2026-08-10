@@ -1318,6 +1318,42 @@ impl App {
     }
 
     fn handle_practice_key(&mut self, key: KeyEvent, now: Instant) -> Result<()> {
+        if self
+            .practice
+            .as_ref()
+            .is_some_and(|active| active.kind() == PracticeKind::Test)
+        {
+            if key.kind == KeyEventKind::Press && key.code == KeyCode::Esc {
+                if let Some(active) = self.practice.as_mut() {
+                    active.leave_confirmation = !active.leave_confirmation;
+                }
+                return Ok(());
+            }
+            if self
+                .practice
+                .as_ref()
+                .is_some_and(ActivePractice::leave_confirmation)
+            {
+                if key.kind == KeyEventKind::Press
+                    && key.code == KeyCode::Char('q')
+                    && key.modifiers == KeyModifiers::NONE
+                {
+                    let attempted = self
+                        .practice
+                        .as_ref()
+                        .is_some_and(|active| active.engine.attempted_units() != 0);
+                    if attempted {
+                        self.finish_practice(now)?;
+                    } else {
+                        self.practice = None;
+                        self.result = None;
+                        self.return_home();
+                    }
+                }
+                return Ok(());
+            }
+        }
+
         let pause = key.kind == KeyEventKind::Press
             && (key.code == KeyCode::Esc
                 || (matches!(key.code, KeyCode::Char('p' | 'P'))

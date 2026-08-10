@@ -473,7 +473,22 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         );
     }
     let mut footer = Vec::new();
-    if active.kind() != PracticeKind::Test {
+    if active.leave_confirmation() {
+        footer.push(Line::from(if active.kind() == PracticeKind::Test {
+            format!(
+                "Q: {} · Esc: {}",
+                text(language, TextKey::Confirm),
+                text(language, TextKey::Cancel)
+            )
+        } else {
+            leave_confirmation(language).into()
+        }));
+    } else if active.kind() == PracticeKind::Test {
+        footer.push(Line::from(format!(
+            "Esc: {}",
+            text(language, TextKey::Leave)
+        )));
+    } else {
         let action = if active.engine.is_paused() {
             TextKey::Resume
         } else {
@@ -484,11 +499,11 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
             text(language, action)
         )));
     }
-    if active.leave_confirmation() {
-        footer.push(Line::from(leave_confirmation(language)));
-    } else if let Some(status) = app.practice_status() {
+    if !active.leave_confirmation()
+        && let Some(status) = app.practice_status()
+    {
         footer.push(Line::from(terminal_safe(status)));
-    } else if active.engine.is_paused() {
+    } else if !active.leave_confirmation() && active.engine.is_paused() {
         footer.push(Line::from(match language {
             Language::Ko => "q: 연습 끝내기",
             Language::En => "q: Finish practice",
