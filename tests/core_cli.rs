@@ -138,7 +138,6 @@ fn parses_documented_launch_commands_without_a_framework() {
             kind: PracticeKind::Quick,
             language: Some(Language::Ko),
             seconds: Some(60),
-            word_count: None,
             file: None,
         }))
     ));

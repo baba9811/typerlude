@@ -665,6 +665,10 @@ fn validate_dependency_license_html(
     html: &str,
     expected_crates: &BTreeSet<(String, String)>,
 ) -> Result<(), String> {
+    if html.contains('\r') || html.lines().any(|line| line.ends_with([' ', '\t'])) {
+        return Err("license HTML must use LF without trailing horizontal whitespace".to_owned());
+    }
+
     let reported_crates = html
         .lines()
         .filter_map(|line| line.trim().strip_prefix("<dt>")?.strip_suffix("</dt>"))
@@ -711,6 +715,8 @@ fn third_party_rust_license_report_covers_locked_supported_target_graph() {
         "",
         "<dt>anyhow 1.0.104</dt>\n<dt>stale 1.0.0</dt>\n<section><pre>MIT</pre></section>",
         "<dt>anyhow 1.0.104</dt><section><pre> </pre></section>",
+        "<dt>anyhow 1.0.104</dt>\r\n<section><pre>MIT</pre></section>",
+        "<dt>anyhow 1.0.104</dt> \n<section><pre>MIT</pre></section>",
     ] {
         assert!(
             validate_dependency_license_html(invalid_html, &sample_crates).is_err(),

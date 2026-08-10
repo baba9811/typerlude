@@ -68,7 +68,6 @@ pub struct PracticeArgs {
     pub kind: PracticeKind,
     pub language: Option<Language>,
     pub seconds: Option<u64>,
-    pub word_count: Option<usize>,
     pub file: Option<PathBuf>,
 }
 
@@ -78,7 +77,6 @@ impl PracticeArgs {
             kind,
             language: None,
             seconds: None,
-            word_count: None,
             file: None,
         }
     }

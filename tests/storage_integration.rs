@@ -339,25 +339,18 @@ fn an_empty_session_is_rejected_before_creating_storage() {
 }
 
 #[test]
-fn a_preheld_session_lock_blocks_writes_and_preserves_the_destination() {
+fn stale_lock_file_does_not_block_session_save() {
     let root = TestDir::new();
     let paths = AppPaths::from_override(root.path().join("home"));
     let session = fixture_session("locked");
     fs::create_dir_all(&paths.sessions).unwrap();
     let lock_path = paths.sessions.join(".locked.lock");
-    let _lock = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&lock_path)
-        .unwrap();
+    fs::write(&lock_path, b"historical lock").unwrap();
     let destination = paths.sessions.join("locked.json");
 
-    assert!(save_session(&paths, &session).is_err());
-    assert!(!destination.exists());
-
-    fs::write(&destination, b"existing session bytes").unwrap();
-    assert!(save_session(&paths, &session).is_err());
-    assert_eq!(fs::read(&destination).unwrap(), b"existing session bytes");
+    assert_eq!(save_session(&paths, &session).unwrap(), destination);
+    assert_eq!(fs::read(&lock_path).unwrap(), b"historical lock");
+    assert_eq!(load_sessions(&paths).unwrap().values, vec![session]);
 }
 
 #[test]
@@ -390,7 +383,6 @@ fn concurrent_saves_of_one_id_create_exactly_one_session() {
         load_sessions(&paths).unwrap().values,
         vec![(*session).clone()]
     );
-    assert!(!paths.sessions.join(".shared.lock").exists());
 }
 
 #[test]

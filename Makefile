@@ -19,6 +19,7 @@ deny:
 
 licenses:
 	cargo about generate about.hbs -o THIRD_PARTY_LICENSES.html
+	node -e 'const fs = require("fs"); const path = "THIRD_PARTY_LICENSES.html"; fs.writeFileSync(path, fs.readFileSync(path, "utf8").replace(/\r\n?/g, "\n").replace(/[ \t]+$$/gm, ""));'
 
 package-check: test licenses
 	node scripts/verify-package.mjs --check-license-tree

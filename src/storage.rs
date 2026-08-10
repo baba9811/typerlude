@@ -19,26 +19,6 @@ use time::{Date, OffsetDateTime, UtcOffset};
 static SESSION_COUNTER: AtomicU64 = AtomicU64::new(0);
 static NEW_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-struct SessionLock {
-    path: PathBuf,
-}
-
-impl SessionLock {
-    fn acquire(path: PathBuf) -> std::io::Result<Self> {
-        OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)?;
-        Ok(Self { path })
-    }
-}
-
-impl Drop for SessionLock {
-    fn drop(&mut self) {
-        let _ = fs::remove_file(&self.path);
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AppPaths {
     pub config: PathBuf,
@@ -197,8 +177,6 @@ pub fn save_session(paths: &AppPaths, session: &SessionRecord) -> Result<PathBuf
     fs::create_dir_all(&paths.sessions)
         .with_context(|| format!("failed to create {}", paths.sessions.display()))?;
     let path = paths.sessions.join(format!("{}.json", session.id));
-    let _lock = SessionLock::acquire(paths.sessions.join(format!(".{}.lock", session.id)))
-        .with_context(|| format!("session {} is already being saved", session.id))?;
     match atomic_write_new(&path, &bytes) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
