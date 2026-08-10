@@ -2,3 +2,8 @@
 /docs/superpowers/
 /.superpowers/
 /.worktrees/
+/target/
+node_modules/
+*.tgz
+dist/
+.env

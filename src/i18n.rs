@@ -1,0 +1,353 @@
+use crate::model::Language;
+use std::ffi::OsStr;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum TextKey {
+    AppTitle,
+    HomeQuick,
+    HomeKeys,
+    HomeWords,
+    HomeSentence,
+    HomeLong,
+    HomeTest,
+    HomeStats,
+    HomeGoals,
+    HomeContent,
+    HomeSettings,
+    Help,
+    Back,
+    Confirm,
+    Pause,
+    Resume,
+    Quit,
+    Language,
+    Difficulty,
+    Duration,
+    WordCount,
+    Speed,
+    Accuracy,
+    Errors,
+    Backspaces,
+    Remaining,
+    Progress,
+    Result,
+    Previous,
+    Best,
+    GoalMet,
+    GoalMissed,
+    History,
+    WeakKeys,
+    Streak,
+    DailyMinutes,
+    Theme,
+    Sources,
+    License,
+    UpdateAvailable,
+    UpdateLater,
+    UpdateSkip,
+    UpdateCommand,
+    PasteIgnored,
+    TooSmall,
+    SaveFailed,
+    CorruptFile,
+    NoData,
+    TestGrade,
+    Source,
+    Stop,
+    Preset,
+    Stage,
+    Random,
+    RepeatWeakKeys,
+    Start,
+    Time,
+    Items,
+    Words,
+    Quote,
+    Easy,
+    Medium,
+    Hard,
+    Mixed,
+    Title,
+    Author,
+    Tags,
+}
+
+impl TextKey {
+    pub const ALL: &'static [Self] = &[
+        Self::AppTitle,
+        Self::HomeQuick,
+        Self::HomeKeys,
+        Self::HomeWords,
+        Self::HomeSentence,
+        Self::HomeLong,
+        Self::HomeTest,
+        Self::HomeStats,
+        Self::HomeGoals,
+        Self::HomeContent,
+        Self::HomeSettings,
+        Self::Help,
+        Self::Back,
+        Self::Confirm,
+        Self::Pause,
+        Self::Resume,
+        Self::Quit,
+        Self::Language,
+        Self::Difficulty,
+        Self::Duration,
+        Self::WordCount,
+        Self::Speed,
+        Self::Accuracy,
+        Self::Errors,
+        Self::Backspaces,
+        Self::Remaining,
+        Self::Progress,
+        Self::Result,
+        Self::Previous,
+        Self::Best,
+        Self::GoalMet,
+        Self::GoalMissed,
+        Self::History,
+        Self::WeakKeys,
+        Self::Streak,
+        Self::DailyMinutes,
+        Self::Theme,
+        Self::Sources,
+        Self::License,
+        Self::UpdateAvailable,
+        Self::UpdateLater,
+        Self::UpdateSkip,
+        Self::UpdateCommand,
+        Self::PasteIgnored,
+        Self::TooSmall,
+        Self::SaveFailed,
+        Self::CorruptFile,
+        Self::NoData,
+        Self::TestGrade,
+        Self::Source,
+        Self::Stop,
+        Self::Preset,
+        Self::Stage,
+        Self::Random,
+        Self::RepeatWeakKeys,
+        Self::Start,
+        Self::Time,
+        Self::Items,
+        Self::Words,
+        Self::Quote,
+        Self::Easy,
+        Self::Medium,
+        Self::Hard,
+        Self::Mixed,
+        Self::Title,
+        Self::Author,
+        Self::Tags,
+    ];
+}
+
+pub const fn text(language: Language, key: TextKey) -> &'static str {
+    match language {
+        Language::Ko => match key {
+            TextKey::AppTitle => "타이플",
+            TextKey::HomeQuick => "빠른 연습",
+            TextKey::HomeKeys => "키 연습",
+            TextKey::HomeWords => "단어 연습",
+            TextKey::HomeSentence => "문장 연습",
+            TextKey::HomeLong => "긴 글 연습",
+            TextKey::HomeTest => "타자 시험",
+            TextKey::HomeStats => "통계",
+            TextKey::HomeGoals => "목표",
+            TextKey::HomeContent => "콘텐츠",
+            TextKey::HomeSettings => "설정",
+            TextKey::Help => "도움말",
+            TextKey::Back => "뒤로",
+            TextKey::Confirm => "확인",
+            TextKey::Pause => "일시 정지",
+            TextKey::Resume => "계속",
+            TextKey::Quit => "종료",
+            TextKey::Language => "언어",
+            TextKey::Difficulty => "난이도",
+            TextKey::Duration => "시간",
+            TextKey::WordCount => "단어 수",
+            TextKey::Speed => "속도",
+            TextKey::Accuracy => "정확도",
+            TextKey::Errors => "오류",
+            TextKey::Backspaces => "백스페이스",
+            TextKey::Remaining => "남은 시간",
+            TextKey::Progress => "진행",
+            TextKey::Result => "결과",
+            TextKey::Previous => "이전",
+            TextKey::Best => "최고",
+            TextKey::GoalMet => "목표 달성",
+            TextKey::GoalMissed => "목표 미달",
+            TextKey::History => "기록",
+            TextKey::WeakKeys => "약한 키",
+            TextKey::Streak => "연속 기록",
+            TextKey::DailyMinutes => "하루 연습 시간",
+            TextKey::Theme => "테마",
+            TextKey::Sources => "출처",
+            TextKey::License => "라이선스",
+            TextKey::UpdateAvailable => "업데이트 가능",
+            TextKey::UpdateLater => "나중에",
+            TextKey::UpdateSkip => "이번 버전 건너뛰기",
+            TextKey::UpdateCommand => "업데이트 명령",
+            TextKey::PasteIgnored => "붙여넣기 무시됨",
+            TextKey::TooSmall => "터미널이 너무 작습니다",
+            TextKey::SaveFailed => "저장 실패",
+            TextKey::CorruptFile => "손상된 파일",
+            TextKey::NoData => "데이터 없음",
+            TextKey::TestGrade => "시험 등급",
+            TextKey::Source => "출처",
+            TextKey::Stop => "종료 기준",
+            TextKey::Preset => "사전 설정",
+            TextKey::Stage => "단계",
+            TextKey::Random => "무작위",
+            TextKey::RepeatWeakKeys => "약한 키 반복",
+            TextKey::Start => "시작",
+            TextKey::Time => "시간",
+            TextKey::Items => "항목",
+            TextKey::Words => "단어",
+            TextKey::Quote => "인용문",
+            TextKey::Easy => "쉬움",
+            TextKey::Medium => "보통",
+            TextKey::Hard => "어려움",
+            TextKey::Mixed => "혼합",
+            TextKey::Title => "제목",
+            TextKey::Author => "저자",
+            TextKey::Tags => "태그",
+        },
+        Language::En => match key {
+            TextKey::AppTitle => "Typeul",
+            TextKey::HomeQuick => "Quick practice",
+            TextKey::HomeKeys => "Key practice",
+            TextKey::HomeWords => "Word practice",
+            TextKey::HomeSentence => "Sentence practice",
+            TextKey::HomeLong => "Long-text practice",
+            TextKey::HomeTest => "Typing test",
+            TextKey::HomeStats => "Statistics",
+            TextKey::HomeGoals => "Goals",
+            TextKey::HomeContent => "Content",
+            TextKey::HomeSettings => "Settings",
+            TextKey::Help => "Help",
+            TextKey::Back => "Back",
+            TextKey::Confirm => "Confirm",
+            TextKey::Pause => "Pause",
+            TextKey::Resume => "Resume",
+            TextKey::Quit => "Quit",
+            TextKey::Language => "Language",
+            TextKey::Difficulty => "Difficulty",
+            TextKey::Duration => "Duration",
+            TextKey::WordCount => "Word count",
+            TextKey::Speed => "Speed",
+            TextKey::Accuracy => "Accuracy",
+            TextKey::Errors => "Errors",
+            TextKey::Backspaces => "Backspaces",
+            TextKey::Remaining => "Remaining",
+            TextKey::Progress => "Progress",
+            TextKey::Result => "Result",
+            TextKey::Previous => "Previous",
+            TextKey::Best => "Best",
+            TextKey::GoalMet => "Goal met",
+            TextKey::GoalMissed => "Goal missed",
+            TextKey::History => "History",
+            TextKey::WeakKeys => "Weak keys",
+            TextKey::Streak => "Streak",
+            TextKey::DailyMinutes => "Daily minutes",
+            TextKey::Theme => "Theme",
+            TextKey::Sources => "Sources",
+            TextKey::License => "License",
+            TextKey::UpdateAvailable => "Update available",
+            TextKey::UpdateLater => "Later",
+            TextKey::UpdateSkip => "Skip this version",
+            TextKey::UpdateCommand => "Update command",
+            TextKey::PasteIgnored => "Paste ignored",
+            TextKey::TooSmall => "Terminal is too small",
+            TextKey::SaveFailed => "Save failed",
+            TextKey::CorruptFile => "Corrupt file",
+            TextKey::NoData => "No data",
+            TextKey::TestGrade => "Test grade",
+            TextKey::Source => "Source",
+            TextKey::Stop => "Stop",
+            TextKey::Preset => "Preset",
+            TextKey::Stage => "Stage",
+            TextKey::Random => "Random",
+            TextKey::RepeatWeakKeys => "Repeat weak keys",
+            TextKey::Start => "Start",
+            TextKey::Time => "Time",
+            TextKey::Items => "Items",
+            TextKey::Words => "Words",
+            TextKey::Quote => "Quote",
+            TextKey::Easy => "Easy",
+            TextKey::Medium => "Medium",
+            TextKey::Hard => "Hard",
+            TextKey::Mixed => "Mixed",
+            TextKey::Title => "Title",
+            TextKey::Author => "Author",
+            TextKey::Tags => "Tags",
+        },
+    }
+}
+
+pub fn initial_ui_language(lc_all: Option<&str>, lang: Option<&str>) -> Language {
+    initial_ui_language_os(lc_all.map(OsStr::new), lang.map(OsStr::new))
+}
+
+pub(crate) const fn result_actions(language: Language, can_start_next: bool) -> &'static str {
+    match (language, can_start_next) {
+        (Language::Ko, true) => "r: 다시 연습 · n: 다음 · Esc: 메뉴",
+        (Language::Ko, false) => "r: 다시 연습 · Esc: 메뉴",
+        (Language::En, true) => "r: Retry · n: Next · Esc: Menu",
+        (Language::En, false) => "r: Retry · Esc: Menu",
+    }
+}
+
+pub(crate) fn initial_ui_language_os(lc_all: Option<&OsStr>, lang: Option<&OsStr>) -> Language {
+    let locale = lc_all.or(lang).and_then(OsStr::to_str).unwrap_or_default();
+    let prefix = locale.split(['_', '-', '.']).next().unwrap_or_default();
+    if prefix.eq_ignore_ascii_case("ko") {
+        Language::Ko
+    } else {
+        Language::En
+    }
+}
+
+#[cfg(test)]
+mod locale_tests {
+    use super::initial_ui_language_os;
+    use crate::model::Language;
+
+    #[cfg(unix)]
+    #[test]
+    fn present_non_unicode_lc_all_wins_over_korean_lang_as_english() {
+        use std::{
+            ffi::{OsStr, OsString},
+            os::unix::ffi::OsStringExt,
+        };
+
+        let non_unicode = OsString::from_vec(vec![0xff]);
+        assert_eq!(
+            initial_ui_language_os(
+                Some(non_unicode.as_os_str()),
+                Some(OsStr::new("ko_KR.UTF-8")),
+            ),
+            Language::En
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn present_non_unicode_lc_all_wins_over_korean_lang_as_english() {
+        use std::{
+            ffi::{OsStr, OsString},
+            os::windows::ffi::OsStringExt,
+        };
+
+        let non_unicode = OsString::from_wide(&[0xd800]);
+        assert_eq!(
+            initial_ui_language_os(
+                Some(non_unicode.as_os_str()),
+                Some(OsStr::new("ko_KR.UTF-8")),
+            ),
+            Language::En
+        );
+    }
+}

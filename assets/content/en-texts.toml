@@ -1,0 +1,173 @@
+schema_version = 1
+id = "en-texts"
+title = "English Long Texts"
+language = "en"
+
+[source]
+author = "Typeul contributors"
+source_id = "typeul-en-texts-v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-essay-useful-pause"
+kind = "text"
+title = "The Use of a Useful Pause"
+difficulty = 2
+tags = ["essay"]
+text = """When a task feels urgent, the first impulse is often to move faster. Yet haste can hide the simplest question: what, exactly, needs to be done? A brief pause lets us name the goal, notice what is missing, and choose the next small action. It is not a retreat from work. It is part of doing the work well.
+
+A useful pause has a limit. Close the extra tabs, take one breath, and write a sentence that describes the result you want. Then begin with the piece that can be checked. If you are cleaning a room, clear one surface. If you are writing a message, state the main point first. A clear beginning reduces the need to restart.
+
+Rest can also be deliberate rather than accidental. A short walk, a glass of water, or a quiet look out the window may return attention that effort alone cannot produce. The purpose is not to wait for perfect focus. It is to make enough room for good judgment, then continue."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-essay-useful-pause:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-essay-mending-small-things"
+kind = "text"
+title = "The Habit of Mending Small Things"
+difficulty = 2
+tags = ["essay"]
+text = """A loose button and a wobbling chair make quiet requests. Neither problem is urgent, so it is easy to let both grow. The missing button becomes a torn seam; the chair joint wears wider. Mending small things is partly the habit of noticing them while the repair is still modest.
+
+Good repair begins with a boundary. Threading a needle or tightening a visible screw may be reasonable, while a frayed power cord or a gas fitting belongs with a trained professional. For a safe task, gather the right tool, keep tiny parts in a shallow dish, and take a photograph before removing anything unfamiliar. Preparation often saves more time than speed.
+
+A repaired object may show its history. The new thread may not match, and a patch may remain visible in bright light. That is not a flaw in the effort. The useful result is an object that can return to service and a person who understands it better. Care becomes a routine when the next small repair no longer feels like an interruption."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-essay-mending-small-things:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-fiction-upper-window"
+kind = "text"
+title = "The Light in the Upper Window"
+difficulty = 2
+tags = ["fiction"]
+text = """For a week, a warm square of light appeared in the upper window of the old station hall. The building had been quiet since the ticket office moved across the tracks. Mara passed it on her evening bicycle route and wondered who climbed the narrow stairs after dark.
+
+On Friday, she delivered a parcel addressed to the hall's new workshop. The caretaker led her upstairs, where six neighbors were repairing paper lanterns from the town's winter parade. Bent frames lay beside pots of paste, and faded blue paper covered the long table. The mysterious light came from an ordinary work lamp aimed at the smallest tears.
+
+Mara stayed to hold a frame while the caretaker tied a new crosspiece. By closing time, one lantern was ready for testing. They lowered it in front of the upper window and switched on its tiny bulb. From the street, the square of light now held a blue star. The next evening, Mara returned without a parcel and brought her own scissors."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-fiction-upper-window:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-fiction-paper-bridge"
+kind = "text"
+title = "The Paper Bridge"
+difficulty = 2
+tags = ["fiction"]
+text = """Noor was building a paper model of the river district for the local history room. The houses stood neatly, but the narrow bridge kept sagging between its cardboard banks. A flat strip looked accurate from above and collapsed whenever she moved the model.
+
+During lunch, a young visitor watched Noor start again. He folded a scrap into a row of small ridges and set it across two books. The shape was too plain for the finished model, but it held a stack of coins. Noor copied the idea inside a second strip, hiding the folds beneath a smooth paper surface. This time the bridge kept its line when she lifted the base.
+
+At the exhibit opening, the visitor found his experiment displayed beside the model. A label explained that the paper folds were only a test, not a plan for a real bridge. Engineers would need measurements, materials, and safety checks. He read the label twice, then placed one coin on the demonstration strip. The little bridge held, and Noor handed him a second coin."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-fiction-paper-bridge:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-aphorism-steady-compass"
+kind = "text"
+title = "A Steady Compass"
+difficulty = 2
+tags = ["aphorism"]
+text = """A checklist earns its place when it remembers the dull step that confidence skips. A useful routine protects attention without asking for applause.
+
+When instructions fail, record the point where the reader had to guess. One precise example can shorten a disagreement that ten broad claims would prolong.
+
+A repaired handle teaches more about a tool than a polished label. Leave the last five minutes of a task for the person who must use its result.
+
+A quiet correction travels farther than a loud excuse. If a plan survives only in memory, it changes a little each time someone defends it."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-aphorism-steady-compass:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-retelling-tortoise-hare"
+kind = "text"
+title = "Two Ways to the Finish — The Tortoise and the Hare Retold"
+difficulty = 2
+tags = ["retelling"]
+text = """A hare liked to circle the meadow at sunrise, scattering dew with every stride. One morning he laughed at a tortoise who was crossing the same field one careful step at a time. The tortoise pointed to a fig tree on the far ridge and suggested that they both travel there. The hare agreed before the last word was spoken.
+
+He reached the lower hill quickly and looked back. The tortoise was a small mark beside the grass, so the hare stopped to eat clover in the shade. Certain that he could recover any lead, he stretched out and fell asleep. The tortoise kept moving, resting only long enough to choose firm ground around stones and roots.
+
+When the hare woke, the shadow of the fig tree had lengthened. He raced uphill and found the tortoise already beside the trunk, catching his breath. The hare had spent less time running, but he had treated the journey as if only his fastest moment mattered. On the walk home, he matched the tortoise's pace and listened when his companion described the safer path through the grass."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-retelling-tortoise-hare:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-retelling-stone-soup"
+kind = "text"
+title = "The Empty Pot — Stone Soup Retold"
+difficulty = 2
+tags = ["retelling"]
+text = """A traveling pot-mender reached a village after the market had closed. At each door, people apologized that their cupboards were too bare to feed a stranger. In the square, she filled her copper pot from the well, washed a smooth road stone, and announced that it would make an excellent broth.
+
+Curious neighbors gathered while the water warmed. The mender tasted it and said the stone was promising, though one onion would give it a rounder flavor. Someone brought an onion. Another person offered two carrots, and a third returned with a handful of barley. Soon a gardener added herbs that would have wilted by morning.
+
+The stone remained at the bottom while the village shared the soup. No single gift had been enough for a meal, but none had been too small for the pot. Before leaving, the mender set the clean stone beside the well. The villagers kept no recipe for stone broth; instead, they began a chalkboard where anyone could list what was available to share."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:en-text-retelling-stone-soup:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "en-text-constitution-article-1-section-2-clauses-1-2"
+kind = "text"
+title = "U.S. Constitution, Article I, Section 2, Clauses 1–2"
+difficulty = 3
+tags = ["public-domain"]
+text = """The House of Representatives shall be composed of Members chosen every second Year by the People of the several States, and the Electors in each State shall have the Qualifications requisite for Electors of the most numerous Branch of the State Legislature.
+
+No Person shall be a Representative who shall not have attained to the Age of twenty five Years, and been seven Years a Citizen of the United States, and who shall not, when elected, be an Inhabitant of that State in which he shall be chosen."""
+[items.source]
+author = "Constitutional Convention of 1787"
+source_id = "us-constitution:article-1-section-2-clauses-1-2"
+source_url = "https://constitution.congress.gov/constitution/article-1/"
+license = "LicenseRef-Public-Domain"
+license_url = "https://copyright.gov/what-is-copyright/"
+modified = false
+retrieved_at = "2026-08-07"

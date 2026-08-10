@@ -1,0 +1,9 @@
+schema_version = 1
+id = "monochrome"
+background = "black"
+foreground = "white"
+accent = "gray"
+correct = "white"
+error = "gray"
+cursor = "white"
+dim = "gray"

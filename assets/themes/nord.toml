@@ -1,0 +1,9 @@
+schema_version = 1
+id = "nord"
+background = "#2e3440"
+foreground = "#d8dee9"
+accent = "#88c0d0"
+correct = "#a3be8c"
+error = "#bf616a"
+cursor = "#ebcb8b"
+dim = "#81a1c1"

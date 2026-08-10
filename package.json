@@ -1,0 +1,33 @@
+{
+  "name": "typeul",
+  "version": "1.0.0",
+  "description": "Offline-first Korean and English terminal typing tutor",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/baba9811/typeul.git"
+  },
+  "homepage": "https://github.com/baba9811/typeul#readme",
+  "bugs": "https://github.com/baba9811/typeul/issues",
+  "type": "commonjs",
+  "bin": { "typeul": "bin/typeul.js" },
+  "files": [
+    "bin/typeul.js", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
+    "THIRD_PARTY_LICENSES.html", "assets/licenses"
+  ],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test tests/launcher.test.js scripts/import-tatoeba.test.mjs scripts/check-versions.test.mjs scripts/stage-platform-package.test.mjs scripts/publish-npm-packages.test.mjs && node scripts/check-versions.mjs",
+    "test:launcher": "node --test tests/launcher.test.js",
+    "package-check": "node scripts/verify-package.mjs"
+  },
+  "optionalDependencies": {
+    "typeul-darwin-arm64": "1.0.0",
+    "typeul-darwin-x64": "1.0.0",
+    "typeul-linux-arm64": "1.0.0",
+    "typeul-linux-x64": "1.0.0",
+    "typeul-win32-arm64-msvc": "1.0.0",
+    "typeul-win32-x64-msvc": "1.0.0"
+  },
+  "publishConfig": { "access": "public" }
+}

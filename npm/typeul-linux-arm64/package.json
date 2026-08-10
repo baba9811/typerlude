@@ -1,0 +1,12 @@
+{
+  "name": "typeul-linux-arm64",
+  "version": "1.0.0",
+  "description": "Typeul native binary for the Typeul typing tutor",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": { "type": "git", "url": "git+https://github.com/baba9811/typeul.git" },
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "files": ["typeul", "LICENSE", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_LICENSES.html", "licenses"],
+  "engines": { "node": ">=18" },
+  "publishConfig": { "access": "public" }
+}

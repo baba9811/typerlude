@@ -1,0 +1,46 @@
+[graph]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-pc-windows-msvc",
+  "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[advisories]
+yanked = "deny"
+unmaintained = "all"
+unsound = "all"
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "MPL-2.0",
+]
+
+[bans]
+# Audited with `cargo tree --locked -d` on 2026-08-10. All are transitive:
+# - hashbrown 0.16 comes through ratatui/kasuari; 0.17 through ratatui/lru.
+# - nix 0.27 comes through command-group; 0.30 through atomic-write-file.
+# - syn 2/3 and thiserror 1/2 come through the crossterm/ratatui ecosystem
+#   (with syn 3 also used by serde_derive).
+# Keep warnings and no skip exceptions. Recheck after upstream releases and collapse each pair by
+# upgrading ratatui/kasuari/lru, command-group/atomic-write-file, and crossterm/ratatui as they
+# converge on one compatible version.
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

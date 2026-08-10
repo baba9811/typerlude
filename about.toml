@@ -1,0 +1,29 @@
+accepted = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+  "MPL-2.0",
+]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "aarch64-unknown-linux-gnu",
+  "x86_64-unknown-linux-gnu",
+  "aarch64-pc-windows-msvc",
+  "x86_64-pc-windows-msvc",
+]
+
+# The workspace package is excluded by about.hbs. This clarification covers
+# only Typeul's MIT-licensed code so the composite LICENSE remains authoritative
+# for project-authored data and external material.
+[typeul.clarify]
+license = "MIT"
+
+[[typeul.clarify.files]]
+path = "LICENSE"
+checksum = "537731e3c9f0ba9da1079ac96dd24abea3c4fc8d7868a6d574dd7473cf82cb26"
+start = "MIT License"

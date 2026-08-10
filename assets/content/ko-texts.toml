@@ -1,0 +1,187 @@
+schema_version = 1
+id = "ko-texts"
+title = "Korean Long Texts"
+language = "ko"
+
+[source]
+author = "Typeul contributors"
+source_id = "typeul-ko-texts-v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-essay-room-to-revise"
+kind = "text"
+title = "고칠 자리를 남기는 일"
+difficulty = 2
+tags = ["essay"]
+text = """처음부터 완벽한 문장을 만들겠다고 마음먹으면 손이 자주 멈춘다. 생각은 아직 자라는 중인데 이미 끝난 모양을 요구하기 때문이다. 나는 초안에서 모르는 낱말에 동그라미를 치고, 이어지지 않는 문장 사이에는 한 줄을 비워 둔다.
+
+고칠 자리를 남겨 둔 글은 실패한 글이 아니다. 다음 생각이 들어올 문이 있는 글이다. 한 번 쉬었다 돌아오면 불필요한 말은 덜어 내고, 흐린 부분에는 구체적인 장면을 보탤 수 있다. 수정은 처음의 부족함을 숨기는 일이 아니라 생각이 제 모양을 찾도록 돕는 과정이다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-essay-room-to-revise:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-essay-window-routine"
+kind = "text"
+title = "창문을 닦는 순서"
+difficulty = 2
+tags = ["essay"]
+text = """창문을 닦는 날에는 유리부터 문지르기 쉽지만, 먼저 창틀의 먼지를 걷어 내는 편이 낫다. 마른 솔로 모서리를 쓸고 젖은 천으로 틀을 닦은 뒤에야 유리에 맑은 길이 생긴다. 순서를 바꾸면 방금 닦은 면에 먼지 섞인 물이 다시 흐른다.
+
+작은 집안일에도 앞뒤가 있다. 필요한 도구를 한곳에 모으고, 위에서 아래로 움직이고, 마지막에는 마른 천으로 물기를 확인한다. 이런 순서는 서두르기 위한 요령이 아니라 같은 일을 되풀이하지 않게 하는 약속이다.
+
+깨끗해진 창은 대단한 변화를 만들지 않는다. 다만 바깥의 나뭇가지와 건너편 지붕이 전보다 또렷하게 보인다. 손을 쓴 결과가 바로 드러나는 일은 복잡한 하루에 조용한 마침표를 찍어 준다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-essay-window-routine:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-fiction-blue-umbrella"
+kind = "text"
+title = "파란 우산의 행선지"
+difficulty = 2
+tags = ["fiction"]
+text = """비가 그친 저녁, 민서는 우체국 대기 의자 밑에서 파란 우산을 발견했다. 손잡이에는 흰 실이 여러 번 감겨 있었고, 안쪽 천 한 칸에는 작은 반달 모양의 덧댐이 보였다. 민서는 우산을 말린 뒤 분실물 표에 특징을 적어 두었다.
+
+다음 날 한 아이가 찾아와 할머니의 우산 같다고 말했다. 민서는 바로 건네지 않고 할머니와 함께 다시 오라고 부탁했다. 오후에 온 할머니는 손잡이의 실을 직접 감았고, 반달 덧댐 아래에는 보이지 않는 초록색 바늘땀이 있다고 설명했다. 확인해 보니 말한 그대로였다.
+
+할머니는 우산을 펼쳐 살피고는 아이에게 손잡이를 맡겼다. 두 사람은 좁은 우산 아래 나란히 서서 우체국을 나섰다. 민서는 분실물 표에 돌려준 시각을 적고 창밖을 보았다. 맑아진 골목 끝에서 파란 원 하나가 천천히 멀어지고 있었다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-fiction-blue-umbrella:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-fiction-last-seed"
+kind = "text"
+title = "마지막 씨앗 봉투"
+difficulty = 2
+tags = ["fiction"]
+text = """마을 텃밭의 봄 준비가 끝날 무렵, 서랍 뒤에서 누런 씨앗 봉투 하나가 나왔다. 이름표는 없고 연필로 ‘첫 비가 온 뒤’라고만 적혀 있었다. 관리인 수현은 씨앗을 모두 밭에 뿌리는 대신 몇 알을 작은 화분에 심고 날짜를 붙였다.
+
+첫 비가 지나자 가느다란 싹 세 개가 올라왔다. 잎 모양을 본 이웃들은 저마다 다른 꽃 이름을 말했지만, 수현은 꽃이 필 때까지 기다리기로 했다. 물을 너무 많이 주지 않고, 아침마다 키와 잎 수를 기록했다.
+
+초여름에 주황빛 꽃이 피자 오래전 텃밭을 돌보던 사람이 금잔화라고 알려 주었다. 그는 씨앗을 받은 날을 기억했지만 봉투에 이름 쓰는 일은 잊었다며 웃었다. 가을이 되자 수현은 새 씨앗을 받아 품종과 날짜를 또렷이 적었다. 마지막 봉투는 그렇게 다음 봉투들의 시작이 되었다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-fiction-last-seed:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-aphorism-daily-bearings"
+kind = "text"
+title = "생활의 작은 방위표"
+difficulty = 2
+tags = ["aphorism"]
+text = """빠른 대답이 늘 친절한 것은 아니다. 잠시 생각한 뒤 건네는 정확한 말이 상대의 시간을 더 아껴 준다.
+
+우산을 접기 전에 빗물을 한 번 털어 내면 다음 사람의 바닥이 덜 미끄럽다. 사소한 마무리는 나보다 늦게 도착할 사람을 배려하는 방식이다.
+
+계획은 미래를 맞히는 문서가 아니다. 사정이 달라졌을 때 무엇부터 바꿀지 알려 주는 지도다.
+
+익숙한 길에서도 표지판을 보는 사람은 길을 의심하는 것이 아니다. 자신이 아는 것과 지금 보이는 것을 함께 확인하는 것이다.
+
+도움은 큰 결심보다 구체적인 질문에서 시작된다. 무엇이 필요한지 물으면 선의가 쓸모 있는 행동으로 바뀐다.
+
+끝까지 해낸 일만 기록할 필요는 없다. 멈춘 이유를 적어 두면 다음 시작은 같은 자리에서 헤매지 않는다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-aphorism-daily-bearings:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-retelling-heungbu-nolbu"
+kind = "text"
+title = "박씨 하나의 몫 — 흥부와 놀부 다시 쓰기"
+difficulty = 3
+tags = ["retelling"]
+text = """한마을에 성품이 다른 형제가 살았다. 형 놀부는 넉넉한 살림을 혼자 지키려 했고, 동생 흥부는 어려운 형편에도 이웃과 일을 나누었다. 어느 봄날 흥부는 처마 밑에서 다친 제비를 발견했다. 그는 부러진 다리를 가볍게 받쳐 주고 날개에 힘이 돌아올 때까지 안전한 곳에서 보살폈다.
+
+이듬해 봄, 제비가 가져온 박씨를 심었다. 여름이 되자 지붕 위로 큼직한 박이 열렸다. 흥부 가족이 박을 타니 먹을거리와 살림에 필요한 물건이 나왔다. 소문을 들은 놀부는 같은 행운을 억지로 만들려고 멀쩡한 제비를 다치게 한 뒤 치료하는 시늉을 했다. 이듬해 그의 박에서는 쓸모없는 소동만 쏟아져 나와 쌓아 둔 재물과 집 안을 어지럽혔다.
+
+흥부는 형의 실패를 비웃지 않고 사람들을 불러 함께 집을 정돈했다. 놀부는 자신이 얻으려 한 것이 보상이 아니라 남의 몫이었다는 사실을 뒤늦게 깨달았다. 그는 동생에게 사과하고 창고를 열어 마을과 곡식을 나누었다. 두 형제의 형편은 하루아침에 같아지지 않았지만, 그날부터 도움을 주고받는 문은 닫히지 않았다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-retelling-heungbu-nolbu:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-retelling-sun-moon-siblings"
+kind = "text"
+title = "하늘에 남은 두 빛 — 해와 달이 된 오누이 다시 쓰기"
+difficulty = 2
+tags = ["retelling"]
+text = """산마을의 오누이는 장에 간 어머니를 기다리고 있었다. 밤이 깊었을 때 문밖에서 어머니를 흉내 내는 목소리가 들렸다. 그러나 문틈으로 보인 그림자는 사람보다 크고 손에는 거친 털이 가득했다. 오누이는 호랑이가 왔음을 알아차리고 뒤뜰의 높은 나무로 달아났다.
+
+호랑이가 나무를 오르기 시작하자 오누이는 하늘을 향해 살려 달라고 외쳤다. 구름 사이에서 튼튼한 줄 하나가 내려왔고, 두 아이는 서로를 밀어 주며 올라갔다. 뒤따르던 호랑이 앞에는 삭은 줄이 떨어졌다. 줄은 무게를 견디지 못했고 호랑이는 땅으로 떨어져 다시 아이들을 쫓지 못했다.
+
+하늘에 닿은 오누이는 세상을 비출 일을 맡았다. 처음에는 동생이 밤을 두려워했으나 누이가 곁에서 지켜 주겠다고 약속하자 서로의 자리를 정할 수 있었다. 한 아이는 낮을 밝히는 해가 되고 다른 아이는 어둠을 살피는 달이 되었다. 두 빛은 번갈아 산마을의 지붕과 숲길을 비추었다."""
+[items.source]
+author = "Typeul contributors"
+source_id = "typeul:ko-text-retelling-sun-moon-siblings:v1.0.0"
+source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+license = "CC0-1.0"
+license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
+modified = false
+retrieved_at = "2026-08-07"
+
+[[items]]
+id = "ko-text-constitution-articles-1-5"
+kind = "text"
+title = "대한민국헌법 제1조부터 제5조"
+difficulty = 3
+tags = ["public-domain"]
+text = """제1조 ①대한민국은 민주공화국이다.
+
+②대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.
+
+제2조 ①대한민국의 국민이 되는 요건은 법률로 정한다.
+
+②국가는 법률이 정하는 바에 의하여 재외국민을 보호할 의무를 진다.
+
+제3조 대한민국의 영토는 한반도와 그 부속도서로 한다.
+
+제4조 대한민국은 통일을 지향하며, 자유민주적 기본질서에 입각한 평화적 통일정책을 수립하고 이를 추진한다.
+
+제5조 ①대한민국은 국제평화의 유지에 노력하고 침략적 전쟁을 부인한다.
+
+②국군은 국가의 안전보장과 국토방위의 신성한 의무를 수행함을 사명으로 하며, 그 정치적 중립성은 준수된다."""
+[items.source]
+author = "대한민국"
+source_id = "rok-constitution:articles-1-5"
+source_url = "https://www.law.go.kr/법령/대한민국헌법"
+license = "LicenseRef-Public-Domain"
+license_url = "https://www.law.go.kr/법령/저작권법/제7조"
+modified = false
+retrieved_at = "2026-08-07"
