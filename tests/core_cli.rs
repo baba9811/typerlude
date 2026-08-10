@@ -14,6 +14,7 @@ use std::{
 };
 use typeul::{
     VERSION,
+    app::CustomTextSource,
     cli::{Command, ContentCommand, Exit, PracticeArgs, Startup, is_input_error, parse_args, run},
     model::{Language, PracticeKind},
 };
@@ -346,6 +347,7 @@ fn direct_files_are_bounded_nonempty_utf8_custom_text() {
     assert_eq!(
         exit,
         Exit::Launch(Startup::CustomText {
+            source: CustomTextSource::File,
             name: "한글.txt".into(),
             text: "연습 text\n".into(),
         })
@@ -396,6 +398,7 @@ fn custom_text_normalizes_crlf_before_launch() {
     assert_eq!(
         run(Command::File(path)).unwrap(),
         Exit::Launch(Startup::CustomText {
+            source: CustomTextSource::File,
             name: "windows-lines.txt".into(),
             text: "line one\nline two\n".into(),
         })
@@ -409,10 +412,13 @@ fn custom_text_escapes_controls_in_the_startup_display_name() {
     let path = root.path().join("visible\u{1b}]0;startup\u{7}.txt");
     fs::write(&path, "safe text").unwrap();
 
-    let Exit::Launch(Startup::CustomText { name, text }) = run(Command::File(path)).unwrap() else {
+    let Exit::Launch(Startup::CustomText { source, name, text }) =
+        run(Command::File(path)).unwrap()
+    else {
         panic!("expected custom text startup");
     };
 
+    assert_eq!(source, CustomTextSource::File);
     assert_eq!(text, "safe text");
     assert!(
         !name
@@ -461,6 +467,7 @@ fn direct_stdin_commands_normalize_crlf() {
     assert_eq!(
         run(Command::Stdin("line one\r\nline two\r\n".into())).unwrap(),
         Exit::Launch(Startup::CustomText {
+            source: CustomTextSource::Stdin,
             name: "stdin".into(),
             text: "line one\nline two\n".into(),
         })

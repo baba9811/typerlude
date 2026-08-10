@@ -1,6 +1,6 @@
 use crate::{
     config::Settings,
-    content::{ContentCatalog, ContentKind, ResolvedItem},
+    content::{ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem},
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     practice::{Metrics, PracticeEngine},
@@ -93,6 +93,48 @@ pub struct ResultView {
     pub weak_keys: Vec<KeyAccuracy>,
     pub grade: Option<Grade>,
     pub save_error: Option<String>,
+    pub long: Option<LongOutcome>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CustomTextSource {
+    File,
+    Stdin,
+}
+
+impl CustomTextSource {
+    const fn content_id(self) -> &'static str {
+        match self {
+            Self::File => "custom-file",
+            Self::Stdin => "stdin",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LongMetadata {
+    pub title: String,
+    pub author: String,
+    pub source: String,
+    pub license: String,
+    pub difficulty: Option<u8>,
+    pub tags: Vec<String>,
+    pub custom_source: Option<CustomTextSource>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LongScroll {
+    pub active_paragraph: usize,
+    pub total_paragraphs: usize,
+    pub percent: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LongOutcome {
+    pub best_rolling_speed: f64,
+    pub completed_graphemes: usize,
+    pub total_graphemes: usize,
+    pub percent: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -384,6 +426,7 @@ pub struct ActivePractice {
     current_item_delta: Option<ItemDelta>,
     sentence_delta_expires_at: Option<Instant>,
     stream: Option<CatalogStream>,
+    long_metadata: Option<LongMetadata>,
     leave_confirmation: bool,
 }
 
@@ -402,6 +445,22 @@ impl ActivePractice {
 
     pub const fn leave_confirmation(&self) -> bool {
         self.leave_confirmation
+    }
+
+    pub fn long_metadata(&self) -> Option<&LongMetadata> {
+        self.long_metadata.as_ref()
+    }
+
+    pub fn long_scroll(&self) -> Option<LongScroll> {
+        let PracticeMode::Long { paragraph, .. } = self.mode else {
+            return None;
+        };
+        let total_paragraphs = self.item_ends.len();
+        Some(LongScroll {
+            active_paragraph: paragraph.saturating_add(1).min(total_paragraphs),
+            total_paragraphs,
+            percent: self.engine.cursor().saturating_mul(100) / self.engine.target_len(),
+        })
     }
 }
 
@@ -423,6 +482,7 @@ pub struct App {
     quit: bool,
     retry_request: Option<ModeRequest>,
     retry_stream: Option<CatalogStream>,
+    retry_long_metadata: Option<LongMetadata>,
     pub settings: Settings,
     pub paths: AppPaths,
     pub content: ContentCatalog,
@@ -450,6 +510,7 @@ impl App {
             quit: false,
             retry_request: None,
             retry_stream: None,
+            retry_long_metadata: None,
             settings,
             paths,
             content,
@@ -542,6 +603,7 @@ impl App {
             current_item_delta: None,
             sentence_delta_expires_at: None,
             stream: None,
+            long_metadata: None,
             leave_confirmation: false,
         };
 
@@ -551,6 +613,7 @@ impl App {
         self.focus = 0;
         self.retry_request = Some(retry_request);
         self.retry_stream = None;
+        self.retry_long_metadata = None;
         self.practice = Some(active);
         self.result = None;
         Ok(())
@@ -642,6 +705,161 @@ impl App {
             seed,
         )?;
         self.start_mode(request, now)
+    }
+
+    pub fn long_items(&self, language: Language, category: Option<&str>) -> Vec<&ResolvedItem> {
+        self.content
+            .items()
+            .filter(|item| {
+                item.language == language
+                    && item.kind == ContentKind::Text
+                    && category.is_none_or(|tag| item.tags.iter().any(|item_tag| item_tag == tag))
+            })
+            .collect()
+    }
+
+    pub fn start_long(&mut self, item_id: &str, now: Instant) -> Result<()> {
+        let Some(item) = self
+            .content
+            .items()
+            .find(|item| item.id == item_id && item.kind == ContentKind::Text)
+            .cloned()
+        else {
+            bail!("unknown long-text item");
+        };
+        let item_id = item.id;
+        let target = item.text;
+        let metadata = LongMetadata {
+            title: item.title.unwrap_or_else(|| item_id.clone()),
+            author: item.source.author,
+            source: item.source.source_url,
+            license: item.source.license,
+            difficulty: item.difficulty,
+            tags: item.tags,
+            custom_source: None,
+        };
+        let item_ends = paragraph_ends(&target);
+        self.start_mode(
+            ModeRequest {
+                kind: PracticeKind::Long,
+                language: item.language,
+                target,
+                mode: PracticeMode::Long {
+                    item_id: item_id.clone(),
+                    paragraph: 0,
+                },
+                stop: StopRule::TargetEnd,
+                item_ends,
+                content_ids: vec![item_id],
+            },
+            now,
+        )?;
+        if let Some(active) = self.practice.as_mut() {
+            active.long_metadata = Some(metadata.clone());
+        }
+        self.retry_long_metadata = Some(metadata);
+        Ok(())
+    }
+
+    pub fn start_custom_text(
+        &mut self,
+        source: CustomTextSource,
+        name: &str,
+        text: &str,
+        now: Instant,
+    ) -> Result<()> {
+        if name.trim().is_empty() || name.chars().any(char::is_control) {
+            bail!("custom text name must be visible");
+        }
+        if text.len() > MAX_CONTENT_BYTES {
+            bail!("custom text exceeds the 8 MiB limit");
+        }
+        let text = text.replace("\r\n", "\n");
+        if text.trim().is_empty()
+            || text
+                .chars()
+                .any(|character| character != '\n' && character.is_control())
+        {
+            bail!("custom text is empty or contains a disallowed control character");
+        }
+        let metadata = LongMetadata {
+            title: name.into(),
+            author: match source {
+                CustomTextSource::File => "Local file",
+                CustomTextSource::Stdin => "Standard input",
+            }
+            .into(),
+            source: "User-provided text".into(),
+            license: "Not redistributed".into(),
+            difficulty: None,
+            tags: Vec::new(),
+            custom_source: Some(source),
+        };
+        let item_ends = paragraph_ends(&text);
+        self.start_mode(
+            ModeRequest {
+                kind: PracticeKind::Long,
+                language: self.settings.language,
+                target: text,
+                mode: PracticeMode::Long {
+                    item_id: source.content_id().into(),
+                    paragraph: 0,
+                },
+                stop: StopRule::TargetEnd,
+                item_ends,
+                content_ids: vec![source.content_id().into()],
+            },
+            now,
+        )?;
+        if let Some(active) = self.practice.as_mut() {
+            active.long_metadata = Some(metadata.clone());
+        }
+        self.retry_long_metadata = Some(metadata);
+        Ok(())
+    }
+
+    pub fn start_test(
+        &mut self,
+        language: Language,
+        seconds: Option<u64>,
+        seed: u64,
+        now: Instant,
+    ) -> Result<()> {
+        let seconds = seconds.unwrap_or(300);
+        if ![60, 180, 300, 600].contains(&seconds) {
+            bail!("invalid typing-test duration");
+        }
+        let stream = CatalogStream {
+            language,
+            kinds: SENTENCE_KINDS,
+            difficulty: Difficulty::Mixed,
+            separator: "\n",
+            next_seed: seed.wrapping_add(1),
+            adaptive: false,
+        };
+        let request = self.catalog_request(
+            PracticeMode::Test { grade: None },
+            StopRule::ActiveTime(Duration::from_secs(seconds)),
+            &stream,
+            SENTENCE_BATCH_ITEMS,
+            seed,
+        )?;
+        self.start_mode(request, now)?;
+        if let Some(active) = self.practice.as_mut() {
+            active.stream = Some(stream.clone());
+        }
+        self.retry_stream = Some(stream);
+        Ok(())
+    }
+
+    pub fn long_metadata(&self) -> Option<&LongMetadata> {
+        self.practice
+            .as_ref()
+            .and_then(ActivePractice::long_metadata)
+    }
+
+    pub fn long_scroll(&self) -> Option<LongScroll> {
+        self.practice.as_ref().and_then(ActivePractice::long_scroll)
     }
 
     pub fn start_key(
@@ -778,12 +996,19 @@ impl App {
             {
                 if let Some(request) = self.retry_request.clone() {
                     let stream = self.retry_stream.clone();
+                    let long_metadata = self.retry_long_metadata.clone();
                     self.start_mode(request, now)?;
                     if let Some(stream) = stream {
                         if let Some(active) = self.practice.as_mut() {
                             active.stream = Some(stream.clone());
                         }
                         self.retry_stream = Some(stream);
+                    }
+                    if let Some(metadata) = long_metadata {
+                        if let Some(active) = self.practice.as_mut() {
+                            active.long_metadata = Some(metadata.clone());
+                        }
+                        self.retry_long_metadata = Some(metadata);
                     }
                 }
             }
@@ -941,9 +1166,10 @@ impl App {
                         active.sentence_delta_expires_at =
                             Some(now.checked_add(Duration::from_secs(3)).unwrap_or(now));
                     }
-                    PracticeMode::Key { .. }
-                    | PracticeMode::Long { .. }
-                    | PracticeMode::Test { .. } => {}
+                    PracticeMode::Long { paragraph, .. } => {
+                        *paragraph = paragraph.saturating_add(1);
+                    }
+                    PracticeMode::Key { .. } | PracticeMode::Test { .. } => {}
                 }
                 advanced = true;
             }
@@ -1074,6 +1300,16 @@ impl App {
         let metrics = active.engine.finalize(now);
         let language = active.engine.language();
         let kind = active.kind();
+        let long = (kind == PracticeKind::Long).then(|| {
+            let completed_graphemes = active.engine.cursor();
+            let total_graphemes = active.engine.target_len();
+            LongOutcome {
+                best_rolling_speed: active.engine.best_rolling_speed(),
+                completed_graphemes,
+                total_graphemes,
+                percent: completed_graphemes.saturating_mul(100) / total_graphemes,
+            }
+        });
         let started_at = active
             .started_at_utc
             .unwrap_or_else(OffsetDateTime::now_utc);
@@ -1082,6 +1318,10 @@ impl App {
             .first()
             .cloned()
             .unwrap_or_else(|| practice_id(kind).into());
+        let long_difficulty = active
+            .long_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.difficulty);
         let difficulty = match active.mode {
             PracticeMode::Words { difficulty, .. } => match difficulty {
                 Difficulty::Easy => Some(1),
@@ -1089,6 +1329,7 @@ impl App {
                 Difficulty::Hard => Some(3),
                 Difficulty::Mixed => None,
             },
+            PracticeMode::Long { .. } => long_difficulty,
             _ => None,
         };
         let session = SessionRecord::from_result(
@@ -1154,6 +1395,7 @@ impl App {
                 .collect(),
             grade: result_grade,
             save_error: None,
+            long,
             session,
         };
         match save_session(&self.paths, &view.session) {
@@ -1243,6 +1485,24 @@ const STREAM_BATCH_ITEMS: usize = 20;
 const WORD_BATCH_ITEMS: usize = 25;
 const SENTENCE_BATCH_ITEMS: usize = 10;
 const KEY_SEQUENCE_UNITS: usize = 120;
+
+fn paragraph_ends(target: &str) -> Vec<usize> {
+    let mut ends = Vec::new();
+    let mut count = 0;
+    let mut newline_run = false;
+    for grapheme in UnicodeSegmentation::graphemes(target, true) {
+        if grapheme != "\n" && newline_run {
+            ends.push(count);
+            newline_run = false;
+        }
+        count += 1;
+        newline_run |= grapheme == "\n";
+    }
+    if ends.last().copied() != Some(count) {
+        ends.push(count);
+    }
+    ends
+}
 
 fn select_catalog_items<'a>(
     catalog: &'a ContentCatalog,

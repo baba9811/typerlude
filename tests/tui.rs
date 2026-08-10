@@ -19,8 +19,8 @@ use time::OffsetDateTime;
 use time::macros::date;
 use typeul::{
     app::{
-        App, Grade, ItemDelta, ModeRequest, PracticeMode, QuickOptions, QuickSource, ResultView,
-        Screen, StopRule, grade, key_sequence, key_stages,
+        App, CustomTextSource, Grade, ItemDelta, ModeRequest, PracticeMode, QuickOptions,
+        QuickSource, ResultView, Screen, StopRule, grade, key_sequence, key_stages,
     },
     config::Settings,
     content::{ContentCatalog, ContentKind},
@@ -167,6 +167,7 @@ fn result_view(id: &str) -> ResultView {
         weak_keys: Vec::new(),
         grade: None,
         save_error: Some("preserve this result".into()),
+        long: None,
     }
 }
 
@@ -706,7 +707,7 @@ fn populated_result_renders_only_its_stored_outcome_fields() {
         "Errors: 0",
         "Previous: 10.0",
         "Best: 12.0",
-        "Test grade: B",
+        "Typeul relative grade: B",
         "preserve this result",
     ] {
         assert!(output.contains(value), "missing {value:?}: {output}");
@@ -2483,4 +2484,263 @@ fn key_keyboard_includes_every_supported_punctuation_key() {
             .count();
         assert!(highlighted >= 2, "missing keyboard key {target:?}");
     }
+}
+
+#[test]
+fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
+    let (_root, mut app) = fixture_app();
+    let essays = app.long_items(Language::En, Some("essay"));
+    assert_eq!(essays.len(), 2);
+    assert!(essays.iter().all(|item| {
+        item.language == Language::En
+            && item.kind == ContentKind::Text
+            && item.tags.iter().any(|tag| tag == "essay")
+    }));
+
+    let start = Instant::now();
+    app.start_long("en-text-essay-useful-pause", start).unwrap();
+    let metadata = app.long_metadata().unwrap();
+    assert_eq!(metadata.title, "The Use of a Useful Pause");
+    assert_eq!(metadata.author, "Typeul contributors");
+    assert_eq!(metadata.license, "CC0-1.0");
+    assert_eq!(metadata.difficulty, Some(2));
+    assert_eq!(metadata.tags, ["essay"]);
+    assert!(metadata.source.ends_with("/assets/content/en-texts.toml"));
+    assert_eq!(
+        app.long_scroll().unwrap(),
+        typeul::app::LongScroll {
+            active_paragraph: 1,
+            total_paragraphs: 3,
+            percent: 0,
+        }
+    );
+
+    let second_end = app.active_practice().unwrap().item_ends[1];
+    let prefix = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(second_end)
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(&mut app, &prefix, start + Duration::from_secs(30));
+
+    let progress = app.long_scroll().unwrap();
+    assert_eq!(progress.active_paragraph, 3);
+    assert_eq!(progress.total_paragraphs, 3);
+    assert!((1..100).contains(&progress.percent));
+    let drawn = draw(&app, 120, 40);
+    let output = buffer_text(&drawn.buffer);
+    for marker in [
+        "The Use of a Useful Pause",
+        "Typeul contributors",
+        "CC0-1.0",
+        "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml",
+        "Difficulty: 2",
+        "essay",
+        "Paragraph 3/3",
+    ] {
+        assert!(output.contains(marker), "missing {marker}: {output}");
+    }
+    let (_, cursor_y) = drawn.cursor.unwrap();
+    assert!(
+        (8..=22).contains(&cursor_y),
+        "cursor not centered: {cursor_y}"
+    );
+    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    app.handle_event(key(KeyCode::Char('r')), start).unwrap();
+    assert_eq!(
+        app.long_metadata().unwrap().title,
+        "The Use of a Useful Pause"
+    );
+}
+
+#[test]
+fn long_viewport_reaches_valid_custom_text_beyond_u16_rows() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let start = Instant::now();
+    let prefix = "a\n".repeat(66_000);
+    let target = format!("{prefix}CURRENT-PARAGRAPH");
+    app.start_custom_text(CustomTextSource::File, "large-lines.txt", &target, start)
+        .unwrap();
+    app.active_practice_mut()
+        .unwrap()
+        .engine
+        .input(&prefix, start);
+
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("CURRENT-PARAGRAPH"), "{output}");
+    let cursor = drawn.cursor.unwrap();
+    assert_eq!(drawn.buffer[cursor].symbol(), "C");
+}
+
+#[test]
+fn custom_long_text_is_memory_only_and_uses_safe_content_ids() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let start = Instant::now();
+    let name = "private-target-name.txt";
+    let target = format!("{} PRIVATE-TARGET-SHOULD-STAY-IN-MEMORY", "a".repeat(31));
+    app.start_custom_text(CustomTextSource::File, name, &target, start)
+        .unwrap();
+    assert_eq!(app.active_practice().unwrap().content_ids, ["custom-file"]);
+    app.settings.ui_language = Language::Ko;
+    let korean_metadata = buffer_text(&draw(&app, 80, 24).buffer);
+    for marker in ["로컬 파일", "사용자 제공 텍스트", "재배포하지 않음"] {
+        assert!(
+            korean_metadata.contains(marker),
+            "missing {marker}: {korean_metadata}"
+        );
+    }
+    for english in ["Local file", "User-provided text", "Not redistributed"] {
+        assert!(!korean_metadata.contains(english), "{korean_metadata}");
+    }
+    app.settings.ui_language = Language::En;
+
+    for second in 0..=30 {
+        app.handle_event(key(KeyCode::Char('a')), start + Duration::from_secs(second))
+            .unwrap();
+    }
+    let result = app
+        .finish_practice(start + Duration::from_secs(30))
+        .unwrap();
+    assert_eq!(result.session.mode, PracticeKind::Long);
+    assert_eq!(result.session.content_id, "custom-file");
+    let long = result.long.unwrap();
+    assert_eq!(long.completed_graphemes, 31);
+    assert!(long.total_graphemes > long.completed_graphemes);
+    assert!((long.best_rolling_speed - 12.0).abs() < f64::EPSILON * 8.0);
+    assert!((1..100).contains(&long.percent));
+    app.settings.ui_language = Language::Ko;
+    let korean_result = buffer_text(&draw(&app, 80, 24).buffer);
+    for marker in ["최고 30초 속도", "글자: 31/", "진행:"] {
+        assert!(
+            korean_result.contains(marker),
+            "missing {marker}: {korean_result}"
+        );
+    }
+
+    let stored = fs::read_dir(&app.paths.sessions)
+        .unwrap()
+        .map(|entry| fs::read_to_string(entry.unwrap().path()).unwrap())
+        .collect::<String>();
+    for private in [
+        name,
+        target.as_str(),
+        "PRIVATE-TARGET-SHOULD-STAY-IN-MEMORY",
+    ] {
+        assert!(
+            !stored.contains(private),
+            "private text persisted: {stored}"
+        );
+    }
+
+    let (_stdin_root, mut stdin) = fixture_app();
+    stdin
+        .start_custom_text(CustomTextSource::Stdin, "stdin", "stdin text", start)
+        .unwrap();
+    assert_eq!(stdin.active_practice().unwrap().content_ids, ["stdin"]);
+    assert!(
+        stdin
+            .start_custom_text(CustomTextSource::Stdin, "stdin", " \n\t", start)
+            .is_err()
+    );
+    assert!(
+        stdin
+            .start_custom_text(CustomTextSource::File, "bad\u{1b}", "safe", start)
+            .is_err()
+    );
+    assert!(
+        stdin
+            .start_custom_text(
+                CustomTextSource::File,
+                "large.txt",
+                &"a".repeat(8 * 1024 * 1024 + 1),
+                start,
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn typing_test_uses_allowed_durations_sentence_extension_and_relative_grade() {
+    let start = Instant::now();
+    for seconds in [60, 180, 300, 600] {
+        let (_root, mut app) = fixture_app();
+        app.start_test(Language::En, Some(seconds), 7, start)
+            .unwrap();
+        assert_eq!(
+            app.active_practice().unwrap().stop,
+            StopRule::ActiveTime(Duration::from_secs(seconds))
+        );
+    }
+    let (_invalid_root, mut invalid) = fixture_app();
+    assert!(
+        invalid
+            .start_test(Language::En, Some(120), 7, start)
+            .is_err()
+    );
+    assert_eq!(invalid.screen(), Screen::Home);
+
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.start_test(Language::En, None, 11, start).unwrap();
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.stop, StopRule::ActiveTime(Duration::from_secs(300)));
+    assert_eq!(active.content_ids.len(), 10);
+    assert!(
+        active
+            .content_ids
+            .iter()
+            .all(|id| app.content.items().any(|item| {
+                item.id == *id
+                    && item.language == Language::En
+                    && matches!(item.kind, ContentKind::Sentence | ContentKind::Quote)
+            }))
+    );
+    assert!(!buffer_text(&draw(&app, 80, 24).buffer).contains("Pause:"));
+    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("Remaining: 300s"));
+    assert!(
+        !app.active_practice_mut()
+            .unwrap()
+            .engine
+            .toggle_pause(start)
+    );
+
+    let initial_len = app.active_practice().unwrap().engine.target_len();
+    let first_end = app.active_practice().unwrap().item_ends[0];
+    let first = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(first_end)
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    type_text(&mut app, &first, start);
+    assert!(app.active_practice().unwrap().engine.target_len() > initial_len);
+    assert!(app.active_practice().unwrap().content_ids.len() > 10);
+
+    app.tick(start + Duration::from_secs(299)).unwrap();
+    assert_eq!(app.screen(), Screen::Practice);
+    app.tick(start + Duration::from_secs(300)).unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+    let result = app.result.as_ref().unwrap();
+    assert_eq!(result.session.mode, PracticeKind::Test);
+    assert_eq!(
+        result.grade,
+        Some(grade(
+            result.session.wpm,
+            f64::from(app.settings.target_wpm),
+            result.session.accuracy,
+            app.settings.target_accuracy,
+        ))
+    );
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("Typeul relative grade"), "{output}");
 }

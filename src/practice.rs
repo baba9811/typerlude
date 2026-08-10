@@ -1,16 +1,16 @@
 use crate::{
     model::{Language, PracticeKind},
-    typing::{key_units, split_graphemes, unit_count},
+    typing::{key_units, normalize_nfc, unit_count},
 };
 use anyhow::{Result, bail};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     time::{Duration, Instant},
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Clone, Debug)]
 struct Cell {
-    text: String,
     correct: bool,
 }
 
@@ -30,7 +30,8 @@ pub struct Metrics {
 pub struct PracticeEngine {
     language: Language,
     kind: PracticeKind,
-    target: Vec<String>,
+    target: String,
+    target_ends: Vec<u32>,
     input: Vec<Cell>,
     started_at: Option<Instant>,
     finalized_at: Option<Instant>,
@@ -39,9 +40,13 @@ pub struct PracticeEngine {
     limit: Option<Duration>,
     attempted_units: u64,
     correct_attempt_units: u64,
+    correct_cells: u64,
+    correct_units: u64,
     errors: u64,
     backspaces: u64,
     intended: BTreeMap<char, [u64; 2]>,
+    rolling_samples: VecDeque<(Duration, u64)>,
+    best_rolling_speed: f64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -58,8 +63,9 @@ impl PracticeEngine {
         target: &str,
         limit: Option<Duration>,
     ) -> Result<Self> {
-        let target = split_graphemes(target);
-        if target.is_empty() {
+        let target = normalize_nfc(target);
+        let target_ends = grapheme_ends(&target, 0)?;
+        if target_ends.is_empty() {
             bail!("practice target cannot be empty");
         }
 
@@ -67,6 +73,7 @@ impl PracticeEngine {
             language,
             kind,
             target,
+            target_ends,
             input: Vec::new(),
             started_at: None,
             finalized_at: None,
@@ -75,9 +82,13 @@ impl PracticeEngine {
             limit,
             attempted_units: 0,
             correct_attempt_units: 0,
+            correct_cells: 0,
+            correct_units: 0,
             errors: 0,
             backspaces: 0,
             intended: BTreeMap::new(),
+            rolling_samples: VecDeque::new(),
+            best_rolling_speed: 0.0,
         })
     }
 
@@ -89,41 +100,56 @@ impl PracticeEngine {
             return InputOutcome::Finished;
         }
 
-        for grapheme in split_graphemes(text) {
-            let Some(target) = self.target.get(self.input.len()) else {
+        let attempted_before = self.attempted_units;
+        let mut outcome = InputOutcome::Accepted;
+        let input = normalize_nfc(text);
+        for grapheme in UnicodeSegmentation::graphemes(input.as_str(), true) {
+            let Some(target) = self.target_grapheme(self.input.len()) else {
                 break;
             };
+            let correct = grapheme == target;
+            let intended = key_units(self.language, target);
+            let units = intended.len() as u64;
             self.started_at.get_or_insert(now);
-
-            let correct = grapheme == *target;
-            let units = unit_count(self.language, target);
             self.attempted_units += units;
             if correct {
                 self.correct_attempt_units += units;
+                self.correct_cells += 1;
+                self.correct_units += units;
             } else {
                 self.errors += 1;
             }
-            for unit in key_units(self.language, target) {
+            for unit in intended {
                 self.intended.entry(unit).or_default()[usize::from(!correct)] += 1;
             }
-            self.input.push(Cell {
-                text: grapheme,
-                correct,
-            });
+            self.input.push(Cell { correct });
 
             if self.target_complete() {
-                return InputOutcome::Finished;
+                outcome = InputOutcome::Finished;
+                break;
             }
         }
 
-        InputOutcome::Accepted
+        if self.kind == PracticeKind::Long && self.attempted_units != attempted_before {
+            self.record_rolling_sample(now);
+        }
+        outcome
     }
 
     pub fn backspace(&mut self) -> bool {
         if self.finalized_at.is_some() || self.paused_at.is_some() || self.target_complete() {
             return false;
         }
-        if self.input.pop().is_some() {
+        let index = self.input.len().saturating_sub(1);
+        let units = self
+            .target_grapheme(index)
+            .map(|target| unit_count(self.language, target))
+            .unwrap_or(0);
+        if let Some(cell) = self.input.pop() {
+            if cell.correct {
+                self.correct_cells = self.correct_cells.saturating_sub(1);
+                self.correct_units = self.correct_units.saturating_sub(units);
+            }
             self.backspaces += 1;
             true
         } else {
@@ -148,34 +174,21 @@ impl PracticeEngine {
 
     pub fn metrics(&self, now: Instant) -> Metrics {
         let active = self.active(now);
-        let correct_cells = self
-            .input
-            .iter()
-            .zip(&self.target)
-            .filter(|(cell, target)| cell.correct && cell.text == **target)
-            .count() as u64;
-        let correct_units = self
-            .input
-            .iter()
-            .zip(&self.target)
-            .filter(|(cell, target)| cell.correct && cell.text == **target)
-            .map(|(_, target)| unit_count(self.language, target))
-            .sum();
         let minutes = active.as_secs_f64() / 60.0;
         let cpm = if minutes > 0.0 {
-            correct_cells as f64 / minutes
+            self.correct_cells as f64 / minutes
         } else {
             0.0
         };
         let kpm = if minutes > 0.0 {
-            correct_units as f64 / minutes
+            self.correct_units as f64 / minutes
         } else {
             0.0
         };
 
         Metrics {
             active,
-            correct_units,
+            correct_units: self.correct_units,
             attempted_units: self.attempted_units,
             errors: self.errors,
             backspaces: self.backspaces,
@@ -211,28 +224,37 @@ impl PracticeEngine {
     }
 
     pub fn target_len(&self) -> usize {
-        self.target.len()
+        self.target_ends.len()
     }
 
     pub fn target_cells(&self) -> impl Iterator<Item = (&str, Option<bool>)> {
-        self.target.iter().enumerate().map(|(index, target)| {
+        self.target_ends.iter().enumerate().map(|(index, &end)| {
+            let start = index
+                .checked_sub(1)
+                .map_or(0, |previous| self.target_ends[previous] as usize);
             (
-                target.as_str(),
+                &self.target[start..end as usize],
                 self.input.get(index).map(|cell| cell.correct),
             )
         })
+    }
+
+    pub const fn best_rolling_speed(&self) -> f64 {
+        self.best_rolling_speed
     }
 
     pub fn extend_target(&mut self, separator: &str, target: &str) -> Result<()> {
         if self.finalized_at.is_some() {
             bail!("cannot extend finalized practice");
         }
-        let target = split_graphemes(target);
+        let target = normalize_nfc(target);
         if target.is_empty() {
             bail!("practice target extension cannot be empty");
         }
-        self.target.extend(split_graphemes(separator));
-        self.target.extend(target);
+        let extension = format!("{}{target}", normalize_nfc(separator));
+        let ends = grapheme_ends(&extension, self.target.len())?;
+        self.target.push_str(&extension);
+        self.target_ends.extend(ends);
         Ok(())
     }
 
@@ -250,7 +272,7 @@ impl PracticeEngine {
     }
 
     pub fn target_complete(&self) -> bool {
-        self.input.len() == self.target.len() && self.input.iter().all(|cell| cell.correct)
+        self.input.len() == self.target_ends.len() && self.input.iter().all(|cell| cell.correct)
     }
 
     fn active(&self, now: Instant) -> Duration {
@@ -265,6 +287,65 @@ impl PracticeEngine {
             .saturating_sub(self.paused_total)
             .saturating_sub(current_pause)
     }
+
+    fn target_grapheme(&self, index: usize) -> Option<&str> {
+        let end = *self.target_ends.get(index)? as usize;
+        let start = index
+            .checked_sub(1)
+            .map_or(0, |previous| self.target_ends[previous] as usize);
+        self.target.get(start..end)
+    }
+
+    fn record_rolling_sample(&mut self, now: Instant) {
+        const WINDOW: Duration = Duration::from_secs(30);
+        let active = self.active(now);
+        let units = match self.language {
+            Language::Ko => self.correct_units,
+            Language::En => self.correct_cells,
+        };
+        if let Some((last, _)) = self.rolling_samples.back()
+            && active < *last
+        {
+            let last = *last;
+            self.rolling_samples.clear();
+            self.rolling_samples.push_back((last, units));
+            return;
+        }
+        self.rolling_samples.push_back((active, units));
+        let cutoff = active.saturating_sub(WINDOW);
+        while self.rolling_samples.len() > 1 && self.rolling_samples[1].0 <= cutoff {
+            self.rolling_samples.pop_front();
+        }
+        if let Some((time, _)) = self.rolling_samples.front_mut() {
+            *time = (*time).max(cutoff);
+        }
+        if active < WINDOW {
+            return;
+        }
+        let Some((_, baseline)) = self.rolling_samples.front() else {
+            return;
+        };
+        let per_minute = units.saturating_sub(*baseline) as f64 * 2.0;
+        let speed = match self.language {
+            Language::Ko => per_minute,
+            Language::En => per_minute / 5.0,
+        };
+        self.best_rolling_speed = self.best_rolling_speed.max(speed);
+    }
+}
+
+fn grapheme_ends(text: &str, offset: usize) -> Result<Vec<u32>> {
+    let mut ends = Vec::new();
+    for (start, grapheme) in UnicodeSegmentation::grapheme_indices(text, true) {
+        let Some(end) = offset.checked_add(start.saturating_add(grapheme.len())) else {
+            bail!("practice target is too large");
+        };
+        let Ok(end) = u32::try_from(end) else {
+            bail!("practice target exceeds 4 GiB");
+        };
+        ends.push(end);
+    }
+    Ok(ends)
 }
 
 #[cfg(test)]
@@ -539,5 +620,46 @@ mod tests {
         assert!(!timed.time_limit_reached(start + Duration::from_secs(59)));
         assert!(timed.time_limit_reached(start + Duration::from_secs(60)));
         assert_eq!(timed.language(), Language::En);
+    }
+
+    #[test]
+    fn best_rolling_speed_uses_the_last_thirty_active_seconds() {
+        let start = Instant::now();
+        let mut engine =
+            PracticeEngine::new(Language::En, PracticeKind::Long, &"a".repeat(40), None).unwrap();
+
+        for second in 0..=30 {
+            engine.input("a", start + Duration::from_secs(second));
+        }
+
+        assert!((engine.best_rolling_speed() - 12.0).abs() < f64::EPSILON * 8.0);
+    }
+
+    #[test]
+    fn out_of_order_event_times_cannot_inflate_rolling_speed() {
+        let start = Instant::now();
+        let mut ordered =
+            PracticeEngine::new(Language::En, PracticeKind::Long, "aaaaa", None).unwrap();
+        let mut out_of_order =
+            PracticeEngine::new(Language::En, PracticeKind::Long, "aaaaa", None).unwrap();
+        for second in [0, 20, 30, 50] {
+            ordered.input("a", start + Duration::from_secs(second));
+        }
+        for second in [0, 30, 20, 50] {
+            out_of_order.input("a", start + Duration::from_secs(second));
+        }
+
+        assert!(out_of_order.best_rolling_speed() <= ordered.best_rolling_speed());
+    }
+
+    #[test]
+    fn large_ascii_target_uses_compact_indexed_storage() {
+        let target = "a".repeat(1024 * 1024);
+        let engine = PracticeEngine::new(Language::En, PracticeKind::Long, &target, None).unwrap();
+        let indexed_bytes =
+            engine.target.capacity() + engine.target_ends.capacity() * std::mem::size_of::<u32>();
+
+        assert_eq!(engine.target_len(), target.len());
+        assert!(indexed_bytes <= target.len() * 6, "{indexed_bytes}");
     }
 }

@@ -1,5 +1,7 @@
 use crate::{
-    app::{ActivePractice, App, Grade, PracticeMode, Screen, StopRule, key_stages},
+    app::{
+        ActivePractice, App, CustomTextSource, Grade, PracticeMode, Screen, StopRule, key_stages,
+    },
     cli::terminal_safe,
     content::ContentKind,
     i18n::{TextKey, text},
@@ -72,7 +74,7 @@ pub fn practice_cursor(area: Rect, active: &ActivePractice) -> Option<(u16, u16)
     }
 
     let (column, row) = practice_cursor_offset(usize::from(area.width), active);
-    let scroll = usize::from(practice_scroll(area, active));
+    let scroll = practice_scroll(area, active);
     let column = column.min(usize::from(area.width - 1)) as u16;
     let row = row.saturating_sub(scroll).min(usize::from(area.height - 1)) as u16;
     Some((area.x.saturating_add(column), area.y.saturating_add(row)))
@@ -102,10 +104,14 @@ fn practice_cursor_offset(width: usize, active: &ActivePractice) -> (usize, usiz
     (column, row)
 }
 
-fn practice_scroll(area: Rect, active: &ActivePractice) -> u16 {
+fn practice_scroll(area: Rect, active: &ActivePractice) -> usize {
     let (_, row) = practice_cursor_offset(usize::from(area.width), active);
-    row.saturating_sub(usize::from(area.height.saturating_sub(1)))
-        .min(usize::from(u16::MAX)) as u16
+    let visible_before_cursor = if active.kind() == PracticeKind::Long {
+        usize::from(area.height / 2)
+    } else {
+        usize::from(area.height.saturating_sub(1))
+    };
+    row.saturating_sub(visible_before_cursor)
 }
 
 fn selected_styles(app: &App) -> Option<ThemeStyles> {
@@ -215,27 +221,51 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         return;
     };
     let key_mode = active.kind() == PracticeKind::Key;
+    let long_mode = active.kind() == PracticeKind::Long;
     let keyboard_height = u16::from(key_mode && app.settings.show_keyboard) * 4;
     let finger_height = u16::from(key_mode && app.settings.show_finger_guide);
+    let live_height = if long_mode { 5 } else { 2 };
     let regions = Layout::vertical([
         Constraint::Min(1),
-        Constraint::Length(2),
+        Constraint::Length(live_height),
         Constraint::Length(keyboard_height),
         Constraint::Length(finger_height),
         Constraint::Length(2),
     ])
     .split(inner);
     let scroll = practice_scroll(regions[0], active);
+    let target = target_lines(active, regions[0].width, scroll, regions[0].height, styles);
     frame.render_widget(
-        Paragraph::new(Text::from(target_lines(active, regions[0].width, styles)))
-            .style(styles.base)
-            .scroll((scroll, 0)),
+        Paragraph::new(Text::from(target)).style(styles.base),
         regions[0],
     );
-    frame.render_widget(
-        Paragraph::new(practice_live_lines(active, language)).style(styles.base),
-        regions[1],
-    );
+    if let Some(progress) = active.long_scroll() {
+        let live =
+            Layout::vertical([Constraint::Length(4), Constraint::Length(1)]).split(regions[1]);
+        frame.render_widget(
+            Paragraph::new(practice_live_lines(active, language)).style(styles.base),
+            live[0],
+        );
+        let paragraph = match language {
+            Language::Ko => "문단",
+            Language::En => "Paragraph",
+        };
+        frame.render_widget(
+            Gauge::default()
+                .ratio(progress.percent as f64 / 100.0)
+                .label(format!(
+                    "{paragraph} {}/{} · {}%",
+                    progress.active_paragraph, progress.total_paragraphs, progress.percent
+                ))
+                .gauge_style(styles.accent),
+            live[1],
+        );
+    } else {
+        frame.render_widget(
+            Paragraph::new(practice_live_lines(active, language)).style(styles.base),
+            regions[1],
+        );
+    }
     if keyboard_height != 0 {
         frame.render_widget(
             Paragraph::new(keyboard_lines(active, styles)).style(styles.base),
@@ -317,6 +347,63 @@ fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<
         text(language, TextKey::Errors),
         metrics.errors
     );
+    if let PracticeMode::Long { item_id, .. } = &active.mode {
+        let (title, author, source, license, difficulty, tags) =
+            active.long_metadata().map_or_else(
+                || (item_id.as_str(), "", "", "", None, String::new()),
+                |metadata| {
+                    let (author, source, license) = match (metadata.custom_source, language) {
+                        (Some(CustomTextSource::File), Language::Ko) => {
+                            ("로컬 파일", "사용자 제공 텍스트", "재배포하지 않음")
+                        }
+                        (Some(CustomTextSource::Stdin), Language::Ko) => {
+                            ("표준 입력", "사용자 제공 텍스트", "재배포하지 않음")
+                        }
+                        (Some(CustomTextSource::File), Language::En) => {
+                            ("Local file", "User-provided text", "Not redistributed")
+                        }
+                        (Some(CustomTextSource::Stdin), Language::En) => {
+                            ("Standard input", "User-provided text", "Not redistributed")
+                        }
+                        (None, _) => (
+                            metadata.author.as_str(),
+                            metadata.source.as_str(),
+                            metadata.license.as_str(),
+                        ),
+                    };
+                    (
+                        metadata.title.as_str(),
+                        author,
+                        source,
+                        license,
+                        metadata.difficulty,
+                        metadata.tags.join(", "),
+                    )
+                },
+            );
+        let difficulty_label = match language {
+            Language::Ko => "난이도",
+            Language::En => "Difficulty",
+        };
+        let tags_label = match language {
+            Language::Ko => "태그",
+            Language::En => "Tags",
+        };
+        let details = match difficulty {
+            Some(difficulty) if !tags.is_empty() => {
+                format!("{difficulty_label}: {difficulty} · {tags_label}: {tags} · {summary}")
+            }
+            Some(difficulty) => format!("{difficulty_label}: {difficulty} · {summary}"),
+            None if !tags.is_empty() => format!("{tags_label}: {tags} · {summary}"),
+            None => summary,
+        };
+        return vec![
+            Line::from(title.to_owned()),
+            Line::from(format!("{author} · {license}")),
+            Line::from(source.to_owned()),
+            Line::from(details),
+        ];
+    }
     let detail = match &active.mode {
         PracticeMode::Quick { completed } => {
             let remaining = match active.stop {
@@ -359,9 +446,18 @@ fn practice_live_lines(active: &ActivePractice, language: Language) -> Vec<Line<
                 )
             },
         ),
-        PracticeMode::Key { .. } | PracticeMode::Long { .. } | PracticeMode::Test { .. } => {
-            String::new()
-        }
+        PracticeMode::Test { .. } => match active.stop {
+            StopRule::ActiveTime(limit) => format!(
+                "{}: {}s · {}: {}%",
+                text(language, TextKey::Remaining),
+                limit.saturating_sub(metrics.active).as_secs(),
+                text(language, TextKey::Progress),
+                (metrics.active.as_secs_f64() / limit.as_secs_f64() * 100.0).clamp(0.0, 100.0)
+                    as usize,
+            ),
+            StopRule::TargetEnd | StopRule::Items(_) => String::new(),
+        },
+        PracticeMode::Key { .. } | PracticeMode::Long { .. } => String::new(),
     };
     vec![Line::from(summary), Line::from(detail)]
 }
@@ -616,22 +712,47 @@ const fn leave_confirmation(language: Language) -> &'static str {
     }
 }
 
-fn target_lines<'a>(active: &'a ActivePractice, width: u16, styles: ThemeStyles) -> Vec<Line<'a>> {
+fn target_lines<'a>(
+    active: &'a ActivePractice,
+    width: u16,
+    scroll: usize,
+    height: u16,
+    styles: ThemeStyles,
+) -> Vec<Line<'a>> {
     let width = usize::from(width);
+    let height = usize::from(height);
+    let end_row = scroll.saturating_add(height);
     let cursor = active.engine.cursor();
-    let mut lines = Vec::new();
+    let mut lines = Vec::with_capacity(height);
     let mut spans = Vec::new();
     let mut column = 0_usize;
+    let mut row = 0_usize;
     for (index, (grapheme, entered)) in active.engine.target_cells().enumerate() {
+        if row >= end_row {
+            break;
+        }
         if grapheme == "\n" {
-            lines.push(Line::from(mem::take(&mut spans)));
+            if row >= scroll {
+                lines.push(Line::from(mem::take(&mut spans)));
+            } else {
+                spans.clear();
+            }
             column = 0;
+            row = row.saturating_add(1);
             continue;
         }
         let grapheme_width = UnicodeWidthStr::width(grapheme);
         if width != 0 && column != 0 && column.saturating_add(grapheme_width) > width {
-            lines.push(Line::from(mem::take(&mut spans)));
+            if row >= scroll {
+                lines.push(Line::from(mem::take(&mut spans)));
+            } else {
+                spans.clear();
+            }
             column = 0;
+            row = row.saturating_add(1);
+            if row >= end_row {
+                break;
+            }
         }
         let style = match entered {
             Some(true) => styles.correct,
@@ -639,14 +760,21 @@ fn target_lines<'a>(active: &'a ActivePractice, width: u16, styles: ThemeStyles)
             None if index == cursor => styles.cursor,
             None => styles.dim,
         };
-        spans.push(Span::styled(grapheme, style));
+        if row >= scroll {
+            spans.push(Span::styled(grapheme, style));
+        }
         column = column.saturating_add(grapheme_width);
         if width != 0 && column >= width {
-            lines.push(Line::from(mem::take(&mut spans)));
+            if row >= scroll {
+                lines.push(Line::from(mem::take(&mut spans)));
+            } else {
+                spans.clear();
+            }
             column = 0;
+            row = row.saturating_add(1);
         }
     }
-    if !spans.is_empty() || lines.is_empty() {
+    if !spans.is_empty() && row >= scroll && row < end_row {
         lines.push(Line::from(spans));
     }
     lines
@@ -702,8 +830,30 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
     if let Some(grade) = result.grade {
         lines.push(Line::from(format!(
             "{}: {}",
-            text(language, TextKey::TestGrade),
+            match language {
+                Language::Ko => "Typeul 상대 등급",
+                Language::En => "Typeul relative grade",
+            },
             grade_name(grade)
+        )));
+    }
+    if let Some(long) = result.long {
+        let (rolling, graphemes) = match language {
+            Language::Ko => ("최고 30초 속도", "글자"),
+            Language::En => ("Best rolling 30s", "Graphemes"),
+        };
+        lines.push(Line::from(format!(
+            "{rolling}: {:.1} {unit}",
+            long.best_rolling_speed
+        )));
+        lines.push(Line::from(format!(
+            "{graphemes}: {}/{}",
+            long.completed_graphemes, long.total_graphemes
+        )));
+        lines.push(Line::from(format!(
+            "{}: {}%",
+            text(language, TextKey::Progress),
+            long.percent
         )));
     }
     for (label, met) in [

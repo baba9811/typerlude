@@ -1,5 +1,6 @@
 use crate::{
     VERSION,
+    app::CustomTextSource,
     config::Settings,
     content::{
         ContentCatalog, ContentError, ContentPack, MAX_CONTENT_BYTES, parse_pack, read_pack_bytes,
@@ -84,7 +85,11 @@ impl PracticeArgs {
 pub enum Startup {
     Home,
     Practice(PracticeArgs),
-    CustomText { name: String, text: String },
+    CustomText {
+        source: CustomTextSource,
+        name: String,
+        text: String,
+    },
     Stats,
     History,
     Themes,
@@ -275,6 +280,7 @@ pub fn run(command: Command) -> Result<Exit> {
             }
             let text = validate_text(text.into_bytes(), "stdin")?;
             Ok(Exit::Launch(Startup::CustomText {
+                source: CustomTextSource::Stdin,
                 name: "stdin".into(),
                 text,
             }))
@@ -326,6 +332,7 @@ fn custom_file(path: &Path) -> Result<Exit> {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string());
     Ok(Exit::Launch(Startup::CustomText {
+        source: CustomTextSource::File,
         name: terminal_safe(&name),
         text,
     }))
