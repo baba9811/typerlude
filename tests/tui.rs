@@ -2435,11 +2435,45 @@ fn typing_test_escape_then_q_persists_one_attempted_session() {
     assert!(!confirmation.contains("Pause"), "{confirmation}");
     assert!(!app.active_practice().unwrap().engine.is_paused());
 
+    let before_confirmation_input = app.active_practice().unwrap().engine.metrics(start);
+    app.handle_event(key(KeyCode::Char('b')), start).unwrap();
+    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    app.handle_event(Event::Paste("private paste".into()), start)
+        .unwrap();
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.engine.metrics(start), before_confirmation_input);
+    assert!(app.practice_status().is_none());
+
     app.handle_event(key(KeyCode::Char('q')), start).unwrap();
 
     assert_eq!(app.screen(), Screen::Result);
     assert!(app.result.is_some());
     assert_eq!(app.sessions.len(), 1);
+    let session_files = fs::read_dir(&app.paths.sessions)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(session_files.len(), 1);
+
+    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    assert_eq!(app.sessions.len(), 1);
+    assert_eq!(
+        fs::read_dir(&app.paths.sessions)
+            .unwrap()
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry
+                    .path()
+                    .extension()
+                    .is_some_and(|extension| extension == "json")
+            })
+            .count(),
+        1
+    );
 }
 
 #[test]
@@ -3177,6 +3211,7 @@ fn paused_q_confirms_early_leave_and_saves_only_after_an_attempt() {
         .handle_event(key(KeyCode::Char('q')), start)
         .unwrap();
     assert_eq!(attempted.screen(), Screen::Practice);
+    assert!(buffer_text(&draw(&attempted, 80, 24).buffer).contains("Resume: Esc / Ctrl+P"));
     assert!(buffer_text(&draw(&attempted, 80, 24).buffer).contains("again"));
     assert!(attempted.sessions.is_empty());
     attempted

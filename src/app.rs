@@ -1200,7 +1200,9 @@ impl App {
         }
         match event {
             Event::Paste(_) if self.screen == Screen::Practice => {
-                if let Some(active) = self.practice.as_mut() {
+                if let Some(active) = self.practice.as_mut()
+                    && !(active.kind() == PracticeKind::Test && active.leave_confirmation())
+                {
                     active.status = Some((
                         text(self.settings.ui_language, TextKey::PasteIgnored).into(),
                         now.checked_add(Duration::from_secs(3)).unwrap_or(now),

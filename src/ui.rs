@@ -473,21 +473,12 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         );
     }
     let mut footer = Vec::new();
-    if active.leave_confirmation() {
-        footer.push(Line::from(if active.kind() == PracticeKind::Test {
-            format!(
-                "Q: {} · Esc: {}",
-                text(language, TextKey::Confirm),
-                text(language, TextKey::Cancel)
-            )
+    if active.kind() == PracticeKind::Test {
+        footer.push(Line::from(if active.leave_confirmation() {
+            test_leave_confirmation(language)
         } else {
-            leave_confirmation(language).into()
+            test_leave_instruction(language)
         }));
-    } else if active.kind() == PracticeKind::Test {
-        footer.push(Line::from(format!(
-            "Esc: {}",
-            text(language, TextKey::Leave)
-        )));
     } else {
         let action = if active.engine.is_paused() {
             TextKey::Resume
@@ -498,16 +489,16 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
             "{}: Esc / Ctrl+P",
             text(language, action)
         )));
-    }
-    if !active.leave_confirmation()
-        && let Some(status) = app.practice_status()
-    {
-        footer.push(Line::from(terminal_safe(status)));
-    } else if !active.leave_confirmation() && active.engine.is_paused() {
-        footer.push(Line::from(match language {
-            Language::Ko => "q: 연습 끝내기",
-            Language::En => "q: Finish practice",
-        }));
+        if active.leave_confirmation() {
+            footer.push(Line::from(leave_confirmation(language)));
+        } else if let Some(status) = app.practice_status() {
+            footer.push(Line::from(terminal_safe(status)));
+        } else if active.engine.is_paused() {
+            footer.push(Line::from(match language {
+                Language::Ko => "q: 연습 끝내기",
+                Language::En => "q: Finish practice",
+            }));
+        }
     }
     frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[4]);
     if !active.engine.is_paused()
@@ -918,6 +909,20 @@ const fn leave_confirmation(language: Language) -> &'static str {
     match language {
         Language::Ko => "끝내려면 q를 다시 누르세요",
         Language::En => "Press q again to finish",
+    }
+}
+
+const fn test_leave_instruction(language: Language) -> &'static str {
+    match language {
+        Language::Ko => "Esc: 나가기",
+        Language::En => "Esc: Leave",
+    }
+}
+
+const fn test_leave_confirmation(language: Language) -> &'static str {
+    match language {
+        Language::Ko => "Q: 확인 · Esc: 취소",
+        Language::En => "Q: Confirm · Esc: Cancel",
     }
 }
 
