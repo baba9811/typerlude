@@ -477,23 +477,56 @@ jobs:
           test -n "$NPM_TOKEN" || { echo "NPM_TOKEN is required for bootstrap" >&2; exit 1; }
       - name: Verify Cargo package again
         run: cargo publish --dry-run --locked
+      - name: Check for an identical existing Cargo version
+        id: cargo-version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          crate="target/package/typeul-$version.crate"
+          test -f "$crate"
+          local_checksum="$(sha256sum "$crate" | awk '{print $1}')"
+          response="$(mktemp)"
+          trap 'rm -f "$response"' EXIT
+          status="$(curl --silent --show-error \
+            --user-agent "typeul-release/$GITHUB_REF_NAME" \
+            --output "$response" --write-out '%{http_code}' \
+            "https://crates.io/api/v1/crates/typeul/$version")"
+          case "$status" in
+            200)
+              remote_checksum="$(python3 -c \
+                'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["version"]["checksum"])' \
+                "$response")"
+              [[ "$remote_checksum" =~ ^[0-9a-f]{64}$ ]] || {
+                echo "crates.io returned a malformed checksum" >&2
+                exit 1
+              }
+              test "$local_checksum" = "$remote_checksum" || {
+                echo "crates.io checksum differs for typeul $version" >&2
+                exit 1
+              }
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+              ;;
+            404) echo "publish=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "crates.io query failed with HTTP $status" >&2; exit 1 ;;
+          esac
       - name: Authenticate with crates.io
-        if: vars.TYPEUL_BOOTSTRAP != '1'
+        if: vars.TYPEUL_BOOTSTRAP != '1' && steps.cargo-version.outputs.publish == 'true'
         id: crates-auth
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
       - name: Require OIDC credential
-        if: vars.TYPEUL_BOOTSTRAP != '1'
+        if: vars.TYPEUL_BOOTSTRAP != '1' && steps.cargo-version.outputs.publish == 'true'
         shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
         run: test -n "$CARGO_REGISTRY_TOKEN"
       - name: Publish Cargo bootstrap
-        if: vars.TYPEUL_BOOTSTRAP == '1'
+        if: vars.TYPEUL_BOOTSTRAP == '1' && steps.cargo-version.outputs.publish == 'true'
         run: cargo publish --locked
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
       - name: Publish Cargo with OIDC
-        if: vars.TYPEUL_BOOTSTRAP != '1'
+        if: vars.TYPEUL_BOOTSTRAP != '1' && steps.cargo-version.outputs.publish == 'true'
         run: cargo publish --locked
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
@@ -556,7 +589,7 @@ jobs:
             typeul-linux-x64 typeul-win32-arm64-msvc typeul-win32-x64-msvc typeul
           )
           for package in "${packages[@]}"; do
-            npm publish --dry-run --ignore-scripts "dist/$package-$version.tgz"
+            npm publish --dry-run --ignore-scripts "./dist/$package-$version.tgz"
           done
       - name: Publish npm bootstrap, native packages first
         if: vars.TYPEUL_BOOTSTRAP == '1'

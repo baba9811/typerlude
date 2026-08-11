@@ -46,11 +46,12 @@ function e404() {
 test("queries E404 then publishes every exact tarball in fixed root-last order", async () => {
   const { publishNpmPackages } = await loadPublisher();
   const { root, version } = fixture();
+  const relativeRoot = path.relative(process.cwd(), root);
   const calls = [];
   try {
     publishNpmPackages({
       version,
-      distDir: root,
+      distDir: relativeRoot,
       provenance: true,
       runNpm(args, capture) {
         calls.push({ args, capture });

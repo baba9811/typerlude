@@ -86,7 +86,7 @@ export function publishNpmPackages({
 
   for (const packageName of packages) {
     const spec = `${packageName}@${version}`;
-    const tarball = path.join(distDir, `${packageName}-${version}.tgz`);
+    const tarball = path.resolve(distDir, `${packageName}-${version}.tgz`);
     if (!fs.lstatSync(tarball).isFile()) throw new Error(`missing npm tarball for ${spec}`);
     const local = localIntegrity(tarball);
     const remote = remoteIntegrity(packageName, version, runNpm);
