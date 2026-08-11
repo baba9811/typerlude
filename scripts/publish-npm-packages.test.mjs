@@ -6,13 +6,13 @@ import os from "node:os";
 import path from "node:path";
 
 const expectedPackages = [
-  "typeul-darwin-arm64",
-  "typeul-darwin-x64",
-  "typeul-linux-arm64",
-  "typeul-linux-x64",
-  "typeul-win32-arm64-msvc",
-  "typeul-win32-x64-msvc",
-  "typeul",
+  ["typeul-darwin-arm64", "typeul-darwin-arm64"],
+  ["typeul-darwin-x64", "typeul-darwin-x64"],
+  ["typeul-linux-arm64", "typeul-linux-arm64"],
+  ["typeul-linux-x64", "typeul-linux-x64"],
+  ["@baba9811/typeul-win32-arm64-msvc", "typeul-win32-arm64-msvc"],
+  ["@baba9811/typeul-win32-x64-msvc", "typeul-win32-x64-msvc"],
+  ["typeul", "typeul"],
 ];
 const registry = "https://registry.npmjs.org/";
 
@@ -25,8 +25,8 @@ async function loadPublisher() {
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-publish-npm-"));
   const version = "1.2.3";
-  for (const packageName of expectedPackages) {
-    fs.writeFileSync(path.join(root, `${packageName}-${version}.tgz`), `tarball:${packageName}`);
+  for (const [packageName, tarballName] of expectedPackages) {
+    fs.writeFileSync(path.join(root, `${tarballName}-${version}.tgz`), `tarball:${packageName}`);
   }
   return { root, version };
 }
@@ -63,7 +63,7 @@ test("queries E404 then publishes every exact tarball in fixed root-last order",
   }
 
   assert.equal(calls.length, 14);
-  for (const [index, packageName] of expectedPackages.entries()) {
+  for (const [index, [packageName, tarballName]] of expectedPackages.entries()) {
     assert.deepEqual(calls[index * 2], {
       args: [
         "view",
@@ -83,7 +83,7 @@ test("queries E404 then publishes every exact tarball in fixed root-last order",
         "public",
         "--provenance",
         `--registry=${registry}`,
-        path.join(root, `${packageName}-${version}.tgz`),
+        path.join(root, `${tarballName}-${version}.tgz`),
       ],
       capture: false,
     });
@@ -104,9 +104,10 @@ test("a partial rerun skips exact remote SRI and publishes only absent packages"
         if (args[0] === "publish") return { status: 0, stdout: "", stderr: "" };
         const packageName = args[1].slice(0, -(`@${version}`.length));
         if (packageName === absent) return e404();
+        const tarballName = expectedPackages.find(([name]) => name === packageName)[1];
         return {
           status: 0,
-          stdout: JSON.stringify(integrity(path.join(root, `${packageName}-${version}.tgz`))),
+          stdout: JSON.stringify(integrity(path.join(root, `${tarballName}-${version}.tgz`))),
           stderr: "",
         };
       },
@@ -117,7 +118,7 @@ test("a partial rerun skips exact remote SRI and publishes only absent packages"
 
   assert.deepEqual(
     calls.filter(({ args }) => args[0] === "view").map(({ args }) => args[1]),
-    expectedPackages.map((packageName) => `${packageName}@${version}`),
+    expectedPackages.map(([packageName]) => `${packageName}@${version}`),
   );
   assert.deepEqual(
     calls.filter(({ args }) => args[0] === "publish").map(({ args }) => args.at(-1)),
@@ -137,8 +138,9 @@ test("an integrity mismatch aborts before publishing or querying later packages"
         runNpm(args, capture) {
           calls.push({ args, capture });
           const packageName = args[1].slice(0, -(`@${version}`.length));
-          const remote = packageName === expectedPackages[0]
-            ? integrity(path.join(root, `${packageName}-${version}.tgz`))
+          const [firstName, firstTarball] = expectedPackages[0];
+          const remote = packageName === firstName
+            ? integrity(path.join(root, `${firstTarball}-${version}.tgz`))
             : `sha512-${crypto.createHash("sha512").update("different tarball").digest("base64")}`;
           return { status: 0, stdout: JSON.stringify(remote), stderr: "" };
         },

@@ -1,5 +1,5 @@
 {
-  "name": "typeul-win32-x64-msvc",
+  "name": "@baba9811/typeul-win32-x64-msvc",
   "version": "1.0.0",
   "description": "Typeul native binary for the Typeul typing tutor",
   "license": "SEE LICENSE IN LICENSE",

@@ -2,19 +2,21 @@
 
 const { spawnSync } = require("node:child_process");
 
-const packages = {
-  "darwin-arm64": ["typeul-darwin-arm64", "typeul"],
-  "darwin-x64": ["typeul-darwin-x64", "typeul"],
-  "linux-arm64": ["typeul-linux-arm64", "typeul"],
-  "linux-x64": ["typeul-linux-x64", "typeul"],
-  "win32-arm64": ["typeul-win32-arm64-msvc", "typeul.exe"],
-  "win32-x64": ["typeul-win32-x64-msvc", "typeul.exe"],
-};
+const nativePackages = [
+  { platform: "darwin", arch: "arm64", directory: "typeul-darwin-arm64", name: "typeul-darwin-arm64", executable: "typeul" },
+  { platform: "darwin", arch: "x64", directory: "typeul-darwin-x64", name: "typeul-darwin-x64", executable: "typeul" },
+  { platform: "linux", arch: "arm64", directory: "typeul-linux-arm64", name: "typeul-linux-arm64", executable: "typeul" },
+  { platform: "linux", arch: "x64", directory: "typeul-linux-x64", name: "typeul-linux-x64", executable: "typeul" },
+  { platform: "win32", arch: "arm64", directory: "typeul-win32-arm64-msvc", name: "@baba9811/typeul-win32-arm64-msvc", executable: "typeul.exe" },
+  { platform: "win32", arch: "x64", directory: "typeul-win32-x64-msvc", name: "@baba9811/typeul-win32-x64-msvc", executable: "typeul.exe" },
+];
 
 function packageFor(platform, arch) {
-  const result = packages[`${platform}-${arch}`];
+  const result = nativePackages.find((item) => item.platform === platform && item.arch === arch);
   if (!result) throw new Error(`unsupported platform: ${platform}-${arch}`);
-  return result;
+  return result.name === result.directory
+    ? [result.name, result.executable]
+    : [result.name, result.executable, result.directory];
 }
 
 function run(argv, platform, arch) {
@@ -41,4 +43,4 @@ function run(argv, platform, arch) {
 
 if (require.main === module) run(process.argv.slice(2), process.platform, process.arch);
 
-module.exports = { packageFor };
+module.exports = { nativePackages, packageFor };

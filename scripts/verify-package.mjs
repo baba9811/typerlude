@@ -7,12 +7,9 @@ import { fileURLToPath } from "node:url";
 import { readVersions, validateVersions } from "./check-versions.mjs";
 import { stagePlatform } from "./stage-platform-package.mjs";
 
-const { packageFor } = createRequire(import.meta.url)("../bin/typeul.js");
+const { nativePackages, packageFor } = createRequire(import.meta.url)("../bin/typeul.js");
 const sourceRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const supportedPairs = [
-  ["darwin", "arm64"], ["darwin", "x64"], ["linux", "arm64"],
-  ["linux", "x64"], ["win32", "arm64"], ["win32", "x64"],
-];
+const supportedPairs = nativePackages.map(({ platform, arch }) => [platform, arch]);
 const legalRoots = ["LICENSE", "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md"];
 const rootManifestFiles = [
   "bin/typeul.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
@@ -157,7 +154,10 @@ export function validatePackRecord(record, expected) {
   }
   if (record.name !== expected.name) throw new Error(`npm pack name must be ${expected.name}`);
   if (record.version !== expected.version) throw new Error(`npm pack version must be ${expected.version}`);
-  const filename = `${expected.name}-${expected.version}.tgz`;
+  const tarballName = expected.name.startsWith("@")
+    ? expected.name.slice(1).replaceAll("/", "-")
+    : expected.name;
+  const filename = `${tarballName}-${expected.version}.tgz`;
   if (record.filename !== filename) throw new Error(`npm pack filename must be ${filename}`);
   if (!Array.isArray(record.bundled) || record.bundled.length !== 0) {
     throw new Error("npm pack bundled dependencies must be empty");
@@ -282,15 +282,18 @@ function nativeDependencies(version) {
 export function validateNativeManifests(rootValue, version) {
   const root = realDirectory(rootValue, "package root");
   const npm = realDirectory(path.join(root, "npm"), "native manifest directory");
-  const expectedNames = supportedPairs.map(([os, cpu]) => packageFor(os, cpu)[0]).sort();
+  const expectedNames = supportedPairs.map(([os, cpu]) => {
+    const [name, , directory = name] = packageFor(os, cpu);
+    return directory;
+  }).sort();
   const actualNames = fs.readdirSync(npm, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
     .map((entry) => entry.name)
     .sort();
   exactArray(actualNames, expectedNames, "source native manifest directories");
   for (const [os, cpu] of supportedPairs) {
-    const [name, executable] = packageFor(os, cpu);
-    const manifest = readJson(path.join(npm, name, "package.json"), `${name} manifest`);
+    const [name, executable, directory = name] = packageFor(os, cpu);
+    const manifest = readJson(path.join(npm, directory, "package.json"), `${directory} manifest`);
     try {
       validatePackedManifest(manifest, {
         name, version, files: [executable, ...legalRoots, "licenses"], os, cpu,
@@ -298,7 +301,7 @@ export function validateNativeManifests(rootValue, version) {
         peerDependenciesMeta: {},
       });
     } catch (error) {
-      throw new Error(`${name}: ${error.message}`);
+      throw new Error(`${directory}: ${error.message}`);
     }
   }
 }
@@ -439,8 +442,8 @@ function main() {
   const root = fs.realpathSync(process.cwd());
   const expectedVersion = validateVersions(readVersions(root));
   validateNativeManifests(root, expectedVersion);
-  const [platformName, executable] = packageFor(process.platform, process.arch);
-  const platformDir = path.join(root, "npm", platformName);
+  const [platformName, executable, platformDirectory = platformName] = packageFor(process.platform, process.arch);
+  const platformDir = path.join(root, "npm", platformDirectory);
   const rootManifest = readJson(path.join(root, "package.json"), "root manifest");
   validatePackedManifest(rootManifest, {
     name: "typeul", version: expectedVersion, files: rootManifestFiles,
@@ -461,7 +464,7 @@ function main() {
       throw new Error(`release --smoke returned ${JSON.stringify(directSmoke)}`);
     }
 
-    const staged = stagePlatform(platformDir, binary, path.join(temporary, "staged", platformName));
+    const staged = stagePlatform(platformDir, binary, path.join(temporary, "staged", platformDirectory));
     const platformFiles = new Map([
       ["package.json", 0o644], [executable, process.platform === "win32" ? null : 0o755],
       ...legalRoots.map((name) => [name, 0o644]),

@@ -6,10 +6,16 @@ import os from "node:os";
 import path from "node:path";
 import { readVersions, validateVersions } from "./check-versions.mjs";
 
-const packageNames = [
-  "typeul-darwin-arm64", "typeul-darwin-x64", "typeul-linux-arm64",
-  "typeul-linux-x64", "typeul-win32-arm64-msvc", "typeul-win32-x64-msvc",
+const nativePackages = [
+  ["typeul-darwin-arm64", "typeul-darwin-arm64"],
+  ["typeul-darwin-x64", "typeul-darwin-x64"],
+  ["typeul-linux-arm64", "typeul-linux-arm64"],
+  ["typeul-linux-x64", "typeul-linux-x64"],
+  ["typeul-win32-arm64-msvc", "@baba9811/typeul-win32-arm64-msvc"],
+  ["typeul-win32-x64-msvc", "@baba9811/typeul-win32-x64-msvc"],
 ];
+const packageNames = nativePackages.map(([, name]) => name);
+const packageDirectories = nativePackages.map(([directory]) => directory);
 
 function withFixture(change, check) {
   const root = fs.mkdtempSync(path.join(process.cwd(), ".check-versions-"));
@@ -19,9 +25,9 @@ function withFixture(change, check) {
   fs.writeFileSync(path.join(root, "Cargo.lock"), `[[package]]\nname = "typeul"\nversion = "${version}"\n`);
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ version, optionalDependencies }));
   fs.mkdirSync(path.join(root, "npm"));
-  for (const name of packageNames) {
-    fs.mkdirSync(path.join(root, "npm", name));
-    fs.writeFileSync(path.join(root, "npm", name, "package.json"), JSON.stringify({ name, version }));
+  for (const [directory, name] of nativePackages) {
+    fs.mkdirSync(path.join(root, "npm", directory));
+    fs.writeFileSync(path.join(root, "npm", directory, "package.json"), JSON.stringify({ name, version }));
   }
   try {
     change(root);
@@ -46,7 +52,7 @@ test("reads one complete synchronized fixture", () => {
 
 test("rejects invalid fixture layouts", () => {
   for (const [name, change, message] of [
-    ["missing manifest", (root) => fs.rmSync(path.join(root, "npm", packageNames[0]), { recursive: true }), /Native manifests/],
+    ["missing manifest", (root) => fs.rmSync(path.join(root, "npm", packageDirectories[0]), { recursive: true }), /Native manifests/],
     ["extra manifest", (root) => fs.mkdirSync(path.join(root, "npm", "unrelated-package")), /Native manifests/],
     ["missing optional dependency", (root) => {
       const file = path.join(root, "package.json");
@@ -172,9 +178,9 @@ function releaseFailureFixture(failure) {
     optionalDependencies: Object.fromEntries(packageNames.map((name) => [name, "1.0.0"])),
   }, null, 2));
   fs.mkdirSync(path.join(root, "npm"));
-  for (const name of packageNames) {
-    fs.mkdirSync(path.join(root, "npm", name));
-    fs.writeFileSync(path.join(root, "npm", name, "package.json"), `${JSON.stringify({ name, version: "1.0.0" }, null, 2)}\n`);
+  for (const [directory, name] of nativePackages) {
+    fs.mkdirSync(path.join(root, "npm", directory));
+    fs.writeFileSync(path.join(root, "npm", directory, "package.json"), `${JSON.stringify({ name, version: "1.0.0" }, null, 2)}\n`);
   }
   fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "original\n");
 

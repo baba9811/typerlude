@@ -1,15 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 
-const platforms = [
-  ["darwin", "arm64"],
-  ["darwin", "x64"],
-  ["linux", "arm64"],
-  ["linux", "x64"],
-  ["win32", "arm64", "msvc"],
-  ["win32", "x64", "msvc"],
-];
-const packageNames = platforms.map((parts) => `typeul-${parts.join("-")}`);
+const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
 const versionPattern = /^\d+\.\d+\.\d+$/;
 
 function readJson(file) {
@@ -40,10 +33,11 @@ export function readVersions(root) {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
-  const expectedNames = [...packageNames].sort();
+  const expectedDirectories = nativePackages.map(({ directory }) => directory).sort();
+  const expectedNames = nativePackages.map(({ name }) => name).sort();
 
-  if (manifestNames.join("\n") !== expectedNames.join("\n")) {
-    throw new Error(`Native manifests must be exactly: ${expectedNames.join(", ")}`);
+  if (manifestNames.join("\n") !== expectedDirectories.join("\n")) {
+    throw new Error(`Native manifests must be exactly: ${expectedDirectories.join(", ")}`);
   }
   if (Object.keys(rootPackage.optionalDependencies ?? {}).sort().join("\n") !== expectedNames.join("\n")) {
     throw new Error(`optionalDependencies must be exactly: ${expectedNames.join(", ")}`);
@@ -54,10 +48,10 @@ export function readVersions(root) {
     ["Cargo.lock", cargoLockVersion(cargoLock)],
     ["package.json", rootPackage.version],
   ];
-  for (const name of packageNames) {
-    const manifest = readJson(path.join(root, "npm", name, "package.json"));
-    if (manifest.name !== name) throw new Error(`npm/${name}/package.json has name ${manifest.name}`);
-    records.push([`npm/${name}/package.json`, manifest.version]);
+  for (const { directory, name } of nativePackages) {
+    const manifest = readJson(path.join(root, "npm", directory, "package.json"));
+    if (manifest.name !== name) throw new Error(`npm/${directory}/package.json has name ${manifest.name}`);
+    records.push([`npm/${directory}/package.json`, manifest.version]);
     records.push([`package.json optionalDependencies.${name}`, rootPackage.optionalDependencies[name]]);
   }
   return records;

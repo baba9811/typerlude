@@ -2,17 +2,11 @@ import crypto from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-const packages = [
-  "typeul-darwin-arm64",
-  "typeul-darwin-x64",
-  "typeul-linux-arm64",
-  "typeul-linux-x64",
-  "typeul-win32-arm64-msvc",
-  "typeul-win32-x64-msvc",
-  "typeul",
-];
+const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
+const packages = [...nativePackages, { directory: "typeul", name: "typeul" }];
 const registry = "https://registry.npmjs.org/";
 
 function defaultRunNpm(args, capture) {
@@ -84,9 +78,9 @@ export function publishNpmPackages({
 }) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`invalid release version: ${version}`);
 
-  for (const packageName of packages) {
+  for (const { directory, name: packageName } of packages) {
     const spec = `${packageName}@${version}`;
-    const tarball = path.resolve(distDir, `${packageName}-${version}.tgz`);
+    const tarball = path.resolve(distDir, `${directory}-${version}.tgz`);
     if (!fs.lstatSync(tarball).isFile()) throw new Error(`missing npm tarball for ${spec}`);
     const local = localIntegrity(tarball);
     const remote = remoteIntegrity(packageName, version, runNpm);

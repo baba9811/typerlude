@@ -1,7 +1,7 @@
 # Typeul release handoff / 배포 인수인계
 
 이 문서는 공개 저장소 `baba9811/typeul`의 소스 공개와 일반 CI가 완료된 뒤, 최초
-`v1.0.0` 레지스트리 배포와 이후 OIDC 전용 배포에 실제로 남는 maintainer
+레지스트리 bootstrap과 이후 OIDC 전용 배포에 실제로 남는 maintainer
 checklist입니다. 명령의 토큰 자리에는 실제 값을 넣거나 로그로 출력하지 마세요.
 
 The workflow is deliberately not cross-registry atomic. A registry outage can leave Cargo or
@@ -57,14 +57,15 @@ Name ownership is first-come-first-served. Check immediately before bootstrap:
 - npm: `typeul-darwin-x64`
 - npm: `typeul-linux-arm64`
 - npm: `typeul-linux-x64`
-- npm: `typeul-win32-arm64-msvc`
-- npm: `typeul-win32-x64-msvc`
+- npm: `@baba9811/typeul-win32-arm64-msvc`
+- npm: `@baba9811/typeul-win32-x64-msvc`
 
 ```bash
 curl -fsS https://crates.io/api/v1/crates/typeul
 for package in \
   typeul typeul-darwin-arm64 typeul-darwin-x64 typeul-linux-arm64 \
-  typeul-linux-x64 typeul-win32-arm64-msvc typeul-win32-x64-msvc; do
+  typeul-linux-x64 @baba9811/typeul-win32-arm64-msvc \
+  @baba9811/typeul-win32-x64-msvc; do
   npm view "$package" name version --json
 done
 ```
@@ -159,8 +160,8 @@ The seven npm settings pages are:
 - <https://www.npmjs.com/package/typeul-darwin-x64/access>
 - <https://www.npmjs.com/package/typeul-linux-arm64/access>
 - <https://www.npmjs.com/package/typeul-linux-x64/access>
-- <https://www.npmjs.com/package/typeul-win32-arm64-msvc/access>
-- <https://www.npmjs.com/package/typeul-win32-x64-msvc/access>
+- <https://www.npmjs.com/package/@baba9811/typeul-win32-arm64-msvc/access>
+- <https://www.npmjs.com/package/@baba9811/typeul-win32-x64-msvc/access>
 
 Configure these records in the npm web UI. The `npm trust` command shown by newer npm
 documentation is not available in the workflow's pinned npm 11.5.1 minimum.
@@ -168,27 +169,28 @@ documentation is not available in the workflow's pinned npm 11.5.1 minimum.
 Trusted publication requires the exact public repository, workflow filename, environment,
 GitHub-hosted runner, Node 22.14.0+, npm 11.5.1+, and `id-token: write`. Normal OIDC publication
 creates provenance automatically. The one-time token-authenticated bootstrap explicitly passes
-`--provenance` so `v1.0.0` receives the same public GitHub Actions attestations.
+`--provenance` so bootstrap releases receive the same public GitHub Actions attestations.
 
 ## 6. Verify, remove bootstrap, and prove OIDC / 검증·삭제·OIDC 확인
 
 Verify all published material before removing temporary access:
 
 ```bash
-cargo info typeul@1.0.0
+cargo info typeul@1.0.1
 for package in \
   typeul typeul-darwin-arm64 typeul-darwin-x64 typeul-linux-arm64 \
-  typeul-linux-x64 typeul-win32-arm64-msvc typeul-win32-x64-msvc; do
-  npm view "$package@1.0.0" name version repository dist.integrity dist.attestations --json
+  typeul-linux-x64 @baba9811/typeul-win32-arm64-msvc \
+  @baba9811/typeul-win32-x64-msvc; do
+  npm view "$package@1.0.1" name version repository dist.integrity dist.attestations --json
 done
-gh release view v1.0.0 --repo baba9811/typeul --json isDraft,isImmutable,assets,url
+gh release view v1.0.1 --repo baba9811/typeul --json isDraft,isImmutable,assets,url
 temporary="$(mktemp -d)"
-gh release download v1.0.0 --repo baba9811/typeul --dir "$temporary"
+gh release download v1.0.1 --repo baba9811/typeul --dir "$temporary"
 (cd "$temporary" && sha256sum --check SHA256SUMS)
 ```
 
 Also inspect [crates.io/typeul](https://crates.io/crates/typeul), all seven npm package pages and
-their provenance records, and the [v1.0.0 release](https://github.com/baba9811/typeul/releases/tag/v1.0.0).
+their provenance records, and the [v1.0.1 release](https://github.com/baba9811/typeul/releases/tag/v1.0.1).
 Confirm the release has exactly 13 payload files plus `SHA256SUMS`, and manually inspect at least
 one tar.gz, one zip, the Cargo crate, the root npm tarball, and a native npm tarball.
 

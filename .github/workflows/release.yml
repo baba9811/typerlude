@@ -147,8 +147,16 @@ jobs:
           packs="$temporary/packs"
           mkdir "$packs"
           version="$(node -p "require('./package.json').version")"
-          npm pack --ignore-scripts --pack-destination "$packs" "$staged"
+          pack_json="$(npm pack --ignore-scripts --json --pack-destination "$packs" "$staged")"
+          packed="$(node -e '
+            const records = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            if (!Array.isArray(records) || records.length !== 1 || typeof records[0].filename !== "string") process.exit(1);
+            process.stdout.write(records[0].filename);
+          ' <<<"$pack_json")"
           platform_tgz="$packs/$PACKAGE-$version.tgz"
+          if [[ "$packs/$packed" != "$platform_tgz" ]]; then
+            mv -- "$packs/$packed" "$platform_tgz"
+          fi
           test -f "$platform_tgz"
 
           archive_parent="$temporary/archive"
@@ -205,8 +213,15 @@ jobs:
             $packs = Join-Path $temporary "packs"
             New-Item -ItemType Directory -Path $packs | Out-Null
             $version = node -p "require('./package.json').version"
-            npm.cmd pack --ignore-scripts --pack-destination $packs $staged
+            $packRecords = @(npm.cmd pack --ignore-scripts --json --pack-destination $packs $staged | ConvertFrom-Json)
+            if ($packRecords.Count -ne 1 -or -not ($packRecords[0].filename -is [string])) {
+              throw "npm pack did not return one filename"
+            }
+            $packedTgz = Join-Path $packs $packRecords[0].filename
             $platformTgz = Join-Path $packs "$env:PACKAGE-$version.tgz"
+            if ($packedTgz -ne $platformTgz) {
+              Move-Item -LiteralPath $packedTgz -Destination $platformTgz
+            }
             if (-not (Test-Path -LiteralPath $platformTgz -PathType Leaf)) {
               throw "native npm tarball is missing: $platformTgz"
             }

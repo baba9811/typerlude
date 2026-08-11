@@ -3,14 +3,8 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const { packageFor } = createRequire(import.meta.url)("../bin/typeul.js");
-const supported = new Map([
-  ["darwin", "arm64"], ["darwin", "x64"], ["linux", "arm64"],
-  ["linux", "x64"], ["win32", "arm64"], ["win32", "x64"],
-].map(([os, cpu]) => {
-  const [name, executable] = packageFor(os, cpu);
-  return [name, { os, cpu, executable }];
-}));
+const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
+const supported = new Map(nativePackages.map((item) => [item.directory, item]));
 const legalRoots = ["LICENSE", "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md"];
 
 function realDirectory(value, label) {
@@ -123,14 +117,14 @@ export function stagePlatform(packageDirValue, binaryValue, outputValue) {
     throw new Error(`invalid native package manifest: ${error.message}`);
   }
   const expected = supported.get(path.basename(packageDir));
-  if (!expected || manifest.name !== path.basename(packageDir)) {
+  if (!expected || manifest.name !== expected.name) {
     throw new Error(`manifest name does not match a supported package directory: ${manifest.name}`);
   }
-  if (!Array.isArray(manifest.os) || manifest.os.length !== 1 || manifest.os[0] !== expected.os) {
-    throw new Error(`manifest os must be ${expected.os}`);
+  if (!Array.isArray(manifest.os) || manifest.os.length !== 1 || manifest.os[0] !== expected.platform) {
+    throw new Error(`manifest os must be ${expected.platform}`);
   }
-  if (!Array.isArray(manifest.cpu) || manifest.cpu.length !== 1 || manifest.cpu[0] !== expected.cpu) {
-    throw new Error(`manifest cpu must be ${expected.cpu}`);
+  if (!Array.isArray(manifest.cpu) || manifest.cpu.length !== 1 || manifest.cpu[0] !== expected.arch) {
+    throw new Error(`manifest cpu must be ${expected.arch}`);
   }
   const expectedFiles = [expected.executable, ...legalRoots, "licenses"].sort();
   if (!sameStrings(manifest.files, expectedFiles)) {

@@ -23,11 +23,11 @@ function listFiles(root, prefix = "") {
     .sort();
 }
 
-function fixture() {
+function fixture(packageName = "typeul-linux-x64") {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-stage-test-"));
-  const packageName = "typeul-linux-x64";
   const packageDir = path.join(root, "npm", packageName);
-  const binary = path.join(root, "target", "release", "typeul");
+  const executable = packageName.startsWith("typeul-win32-") ? "typeul.exe" : "typeul";
+  const binary = path.join(root, "target", "release", executable);
   const output = path.join(root, "staged", packageName);
   fs.mkdirSync(packageDir, { recursive: true });
   fs.mkdirSync(path.dirname(binary), { recursive: true });
@@ -41,8 +41,8 @@ function fixture() {
   return { root, packageDir, binary, output };
 }
 
-function withFixture(check) {
-  const value = fixture();
+function withFixture(check, packageName) {
+  const value = fixture(packageName);
   try {
     check(value);
   } finally {
@@ -73,6 +73,20 @@ test("staging copies only the manifest, binary, and every committed license file
       assert.equal(fs.statSync(path.join(output, "typeul")).mode & 0o777, 0o755);
     }
   });
+});
+
+test("staging accepts a scoped registry name in a stable Windows source directory", () => {
+  withFixture(({ packageDir, binary, output }) => {
+    changeManifest(packageDir, (manifest) => {
+      manifest.name = "@baba9811/typeul-win32-x64-msvc";
+    });
+    stagePlatform(packageDir, binary, output);
+    assert.equal(
+      JSON.parse(fs.readFileSync(path.join(output, "package.json"))).name,
+      "@baba9811/typeul-win32-x64-msvc",
+    );
+    assert.equal(fs.readFileSync(path.join(output, "typeul.exe"), "utf8"), "native binary");
+  }, "typeul-win32-x64-msvc");
 });
 
 test("staging requires the native manifest name, os, cpu, and files allowlist", () => {
@@ -207,6 +221,14 @@ test("pack records require the exact versioned file and mode allowlist", () => {
     bundled: [],
   };
   assert.equal(validatePackRecord(record, expected), "typeul-1.0.0.tgz");
+
+  const scoped = structuredClone(record);
+  scoped.name = "@baba9811/typeul-win32-x64-msvc";
+  scoped.filename = "baba9811-typeul-win32-x64-msvc-1.0.0.tgz";
+  assert.equal(
+    validatePackRecord(scoped, { ...expected, name: scoped.name }),
+    scoped.filename,
+  );
 
   for (const [name, change, message] of [
     ["version", (value) => { value.version = "1.0.1"; }, /version/],
