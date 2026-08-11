@@ -11,7 +11,7 @@ homepage = "https://github.com/baba9811/typeul"
 keywords = ["typing", "korean", "terminal", "tui", "ratatui"]
 categories = ["command-line-utilities"]
 include = [
-  "/src/**", "/assets/**", "/Cargo.lock", "/LICENSE", "/README.md",
+  "/src/**", "/assets/**", "/Cargo.lock", "/LICENSE", "/README.ko.md", "/README.md",
   "/THIRD_PARTY_NOTICES.md", "/THIRD_PARTY_LICENSES.html", "/about.toml",
   "/about.hbs"
 ]

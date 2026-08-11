@@ -236,6 +236,7 @@ impl ContentCatalog {
                 parse_pack(source).with_context(|| format!("invalid built-in pack {path}"))?;
             let mut errors = validate_pack(&pack);
             errors.extend(validate_builtin_words(&pack));
+            errors.extend(validate_builtin_typeability(&pack));
             errors.extend(catalog.conflicts(&pack));
             if !errors.is_empty() {
                 bail!("invalid built-in pack {path}: {}", format_errors(&errors));
@@ -490,6 +491,33 @@ fn validate_builtin_words(pack: &ContentPack) -> Vec<ContentError> {
         .collect()
 }
 
+fn validate_builtin_typeability(pack: &ContentPack) -> Vec<ContentError> {
+    pack.items
+        .iter()
+        .filter_map(|item| {
+            item.text
+                .chars()
+                .find(|character| {
+                    !(*character == '\n'
+                        || *character == ' '
+                        || character.is_ascii_graphic()
+                        || (pack.language == Language::Ko && ('가'..='힣').contains(character)))
+                })
+                .map(|character| {
+                    error(
+                        pack,
+                        Some(&item.id),
+                        "text",
+                        &format!(
+                            "contains U+{:04X} {character}, which is not directly typable",
+                            character as u32
+                        ),
+                    )
+                })
+        })
+        .collect()
+}
+
 fn fallback_difficulty(language: Language, item: &ContentItem) -> Option<u8> {
     if item.kind != ContentKind::Word {
         return None;
@@ -608,7 +636,10 @@ fn format_errors(errors: &[ContentError]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContentCatalog, ContentKind, parse_pack, validate_builtin_words, validate_pack};
+    use super::{
+        ContentCatalog, ContentKind, parse_pack, validate_builtin_typeability,
+        validate_builtin_words, validate_pack,
+    };
     use crate::model::{Difficulty, Language};
     use include_dir::File;
     use std::{
@@ -994,6 +1025,25 @@ retrieved_at = "2026-08-06"
         assert_eq!(error.pack_id, "fixture");
         assert_eq!(error.item_id.as_deref(), Some("fixture-1"));
         assert_eq!(error.field, "difficulty");
+    }
+
+    #[test]
+    fn built_in_practice_text_requires_direct_keyboard_characters() {
+        let mut pack = fixture_pack();
+        pack.items[0].text = "plain ASCII".into();
+        assert!(validate_builtin_typeability(&pack).is_empty());
+
+        pack.language = Language::Ko;
+        pack.items[0].text = "한글과 ASCII 123!?\n다음 줄".into();
+        assert!(validate_builtin_typeability(&pack).is_empty());
+
+        for text in ["①항목", "곡선 ‘따옴표’", "한자 漢"] {
+            pack.items[0].text = text.into();
+            let error = validate_builtin_typeability(&pack).remove(0);
+            assert_eq!(error.item_id.as_deref(), Some("fixture-1"));
+            assert_eq!(error.field, "text");
+            assert!(error.message.contains("directly typable"));
+        }
     }
 
     #[test]

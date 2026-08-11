@@ -129,11 +129,15 @@ underlying constitutional text.
 
 ### 대한민국헌법 제1조부터 제5조
 
-`ko-text-constitution-articles-1-5` contains the exact current Korean
-Constitution Articles 1 through 5, source ID
+`ko-text-constitution-articles-1-5` contains Korean Constitution Articles 1
+through 5, source ID
 `rok-constitution:articles-1-5`, retrieved `2026-08-07` from the official
 National Law Information Center text:
 https://www.law.go.kr/법령/대한민국헌법.
+
+For direct keyboard practice, the official circled paragraph numerals `①` and
+`②` were transcribed as `(1)` and `(2)` without changing the wording. This item
+therefore declares `modified = true`.
 
 The public-domain basis is Korean Copyright Act Article 7, which excludes the
 Constitution and other official edicts from protected works:

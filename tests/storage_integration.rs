@@ -286,7 +286,10 @@ fn session_save_preserves_a_destination_created_during_publish() {
     let watched_destination = destination.clone();
     let done = Arc::new(AtomicBool::new(false));
     let watcher_done = Arc::clone(&done);
+    let ready = Arc::new(Barrier::new(2));
+    let watcher_ready = Arc::clone(&ready);
     let watcher = thread::spawn(move || {
+        watcher_ready.wait();
         let deadline = Instant::now() + Duration::from_secs(5);
         while !watcher_done.load(Ordering::Acquire) && Instant::now() < deadline {
             let temporary_exists = fs::read_dir(&watched_sessions)
@@ -318,6 +321,7 @@ fn session_save_preserves_a_destination_created_during_publish() {
         false
     });
 
+    ready.wait();
     let result = save_session(&paths, &session);
     done.store(true, Ordering::Release);
 

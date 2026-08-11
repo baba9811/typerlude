@@ -15,7 +15,7 @@ const supportedPairs = [
 ];
 const legalRoots = ["LICENSE", "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md"];
 const rootManifestFiles = [
-  "bin/typeul.js", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
+  "bin/typeul.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
   "THIRD_PARTY_LICENSES.html", "assets/licenses",
 ];
 const lifecycleScripts = new Set([
@@ -341,6 +341,7 @@ function sourceCopies(prefix, includeReadmeAndLauncher = false) {
   }
   if (includeReadmeAndLauncher) {
     copies.set("README.md", path.join(sourceRoot, "README.md"));
+    copies.set("README.ko.md", path.join(sourceRoot, "README.ko.md"));
     copies.set("bin/typeul.js", path.join(sourceRoot, "bin", "typeul.js"));
   }
   return copies;
@@ -386,7 +387,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   const licenseNames = sourceLicenseNames();
   const rootPackageDir = path.join(install, "node_modules", "typeul");
   validateInstalledPackageTree(rootPackageDir, [
-    "package.json", "bin/typeul.js", "LICENSE", "README.md",
+    "package.json", "bin/typeul.js", "LICENSE", "README.md", "README.ko.md",
     "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md",
     ...licenseNames.map((name) => path.posix.join("assets/licenses", name)),
   ], sourceCopies("assets/licenses", true));
@@ -468,6 +469,7 @@ function main() {
     ]);
     const rootFiles = new Map([
       ["package.json", 0o644], ["bin/typeul.js", 0o755], ["README.md", 0o644],
+      ["README.ko.md", 0o644],
       ...legalRoots.map((name) => [name, 0o644]),
       ...licenseFiles(root, "assets/licenses").map((name) => [name, 0o644]),
     ]);

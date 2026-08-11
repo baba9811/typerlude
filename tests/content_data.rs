@@ -20,6 +20,51 @@ fn load_pack(file_name: &str) -> ContentPack {
 }
 
 #[test]
+fn every_bundled_practice_text_uses_direct_keyboard_characters() {
+    for item in ContentCatalog::load_builtins().unwrap().items() {
+        for character in item.text.chars() {
+            let allowed = character == '\n'
+                || character == ' '
+                || character.is_ascii_graphic()
+                || (item.language == Language::Ko && ('가'..='힣').contains(&character));
+            assert!(
+                allowed,
+                "{} contains non-keyboard character U+{:04X} {character}",
+                item.id, character as u32
+            );
+        }
+    }
+}
+
+#[test]
+fn cargo_package_includes_both_readmes() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new(env!("CARGO"))
+        .current_dir(root)
+        .args([
+            "package",
+            "--list",
+            "--allow-dirty",
+            "--locked",
+            "--offline",
+        ])
+        .output()
+        .expect("cargo package must be executable");
+    assert!(
+        output.status.success(),
+        "cargo package --list failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let files = String::from_utf8(output.stdout).expect("package list must be UTF-8");
+    let readmes = files
+        .lines()
+        .filter(|path| path.starts_with("README") && path.ends_with(".md"))
+        .collect::<Vec<_>>();
+    assert_eq!(readmes, ["README.ko.md", "README.md"]);
+}
+
+#[test]
 fn bundled_word_packs_match_the_reviewed_5b1_contract() {
     let catalog = ContentCatalog::load_builtins().unwrap();
 
@@ -277,7 +322,7 @@ fn text_packs_have_exact_item_level_provenance() {
             "rok-constitution:articles-1-5",
             "https://www.law.go.kr/법령/대한민국헌법",
             "https://www.law.go.kr/법령/저작권법/제7조",
-            "제1조 ①대한민국은 민주공화국이다.\n\n②대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.\n\n제2조 ①대한민국의 국민이 되는 요건은 법률로 정한다.\n\n②국가는 법률이 정하는 바에 의하여 재외국민을 보호할 의무를 진다.\n\n제3조 대한민국의 영토는 한반도와 그 부속도서로 한다.\n\n제4조 대한민국은 통일을 지향하며, 자유민주적 기본질서에 입각한 평화적 통일정책을 수립하고 이를 추진한다.\n\n제5조 ①대한민국은 국제평화의 유지에 노력하고 침략적 전쟁을 부인한다.\n\n②국군은 국가의 안전보장과 국토방위의 신성한 의무를 수행함을 사명으로 하며, 그 정치적 중립성은 준수된다.",
+            "제1조 (1) 대한민국은 민주공화국이다.\n\n(2) 대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.\n\n제2조 (1) 대한민국의 국민이 되는 요건은 법률로 정한다.\n\n(2) 국가는 법률이 정하는 바에 의하여 재외국민을 보호할 의무를 진다.\n\n제3조 대한민국의 영토는 한반도와 그 부속도서로 한다.\n\n제4조 대한민국은 통일을 지향하며, 자유민주적 기본질서에 입각한 평화적 통일정책을 수립하고 이를 추진한다.\n\n제5조 (1) 대한민국은 국제평화의 유지에 노력하고 침략적 전쟁을 부인한다.\n\n(2) 국군은 국가의 안전보장과 국토방위의 신성한 의무를 수행함을 사명으로 하며, 그 정치적 중립성은 준수된다.",
         ),
         (
             "en-texts.toml",
@@ -318,7 +363,12 @@ fn text_packs_have_exact_item_level_provenance() {
         assert!(pack.items.iter().all(|item| item.source.is_some()));
 
         for item in pack.resolve_items().unwrap() {
-            assert!(!item.source.modified, "{}", item.id);
+            assert_eq!(
+                item.source.modified,
+                pack_id == "ko-texts" && item.id == constitution_id,
+                "{}",
+                item.id
+            );
             assert_eq!(item.source.retrieved_at, "2026-08-07", "{}", item.id);
             if item.id == constitution_id {
                 assert_eq!(item.source.author, constitution_author);
@@ -768,6 +818,8 @@ fn third_party_rust_license_report_covers_locked_supported_target_graph() {
 
     let html = fs::read_to_string(root.join("THIRD_PARTY_LICENSES.html"))
         .expect("THIRD_PARTY_LICENSES.html must be readable UTF-8");
+    assert!(html.contains("<title>Typeul third-party Rust licenses</title>"));
+    assert!(html.contains("<h1>Typeul third-party Rust licenses</h1>"));
     validate_dependency_license_html(&html, &expected_crates)
         .unwrap_or_else(|error| panic!("invalid THIRD_PARTY_LICENSES.html: {error}"));
 }
@@ -900,6 +952,8 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
         "not normalized or otherwise modified (`modified = false`)",
         "not 17 U.S.C. § 105",
         "federal-government material",
+        "circled paragraph numerals `①` and",
+        "therefore declares `modified = true`",
         "흥부와 놀부",
         "해와 달이 된 오누이",
         "The Tortoise and the Hare",

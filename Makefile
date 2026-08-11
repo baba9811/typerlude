@@ -1,4 +1,8 @@
-.PHONY: test fmt clippy rust-test npm-test deny licenses package-check pty-smoke
+.PHONY: test fmt clippy rust-test npm-test deny licenses package-check pty-smoke release
+
+ifeq ($(origin VERSION),command line)
+$(error use VERSION=1.2.3 make release, not make release VERSION=1.2.3)
+endif
 
 test: fmt clippy rust-test npm-test deny
 
@@ -29,3 +33,6 @@ package-check: test licenses
 pty-smoke:
 	cargo build --release --locked
 	python3 scripts/pty-smoke.py target/release/typeul
+
+release:
+	@scripts/release.sh

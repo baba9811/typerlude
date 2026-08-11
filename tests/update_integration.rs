@@ -8,6 +8,7 @@ use std::{
     time::Instant,
 };
 use typeul::{
+    VERSION,
     app::{App, Screen},
     config::Settings,
     content::ContentCatalog,
@@ -233,7 +234,7 @@ fn foreground_standalone_check_is_headless_and_never_installs() {
     let stdout = String::from_utf8(output.stdout).unwrap();
 
     assert!(output.status.success(), "{stdout}");
-    assert!(stdout.contains("current: 1.0.0"), "{stdout}");
+    assert!(stdout.contains(&format!("current: {VERSION}")), "{stdout}");
     assert!(
         stdout.contains("latest: see https://github.com/baba9811/typeul/releases"),
         "{stdout}"

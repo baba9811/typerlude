@@ -8,7 +8,7 @@ use std::{
 };
 #[cfg(unix)]
 use std::{
-    sync::{Arc, atomic::AtomicBool},
+    sync::{Arc, Barrier, atomic::AtomicBool},
     thread,
     time::{Duration, Instant},
 };
@@ -777,7 +777,10 @@ fn content_add_does_not_replace_a_destination_created_during_commit() {
     let watched_destination = destination.clone();
     let done = Arc::new(AtomicBool::new(false));
     let watcher_done = Arc::clone(&done);
+    let ready = Arc::new(Barrier::new(2));
+    let watcher_ready = Arc::clone(&ready);
     let watcher = thread::spawn(move || {
+        watcher_ready.wait();
         let deadline = Instant::now() + Duration::from_secs(5);
         while !watcher_done.load(Ordering::Acquire) && Instant::now() < deadline {
             let temporary_exists = fs::read_dir(&watched_content)
@@ -809,6 +812,7 @@ fn content_add_does_not_replace_a_destination_created_during_commit() {
         false
     });
 
+    ready.wait();
     let output = binary(&home, &["content", "add", candidate.to_str().unwrap()]);
     done.store(true, Ordering::Release);
     assert!(watcher.join().unwrap(), "temporary file was not observed");

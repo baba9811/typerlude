@@ -31,34 +31,19 @@ jobs:
           cargo +1.88.0 install cargo-deny --version 0.20.2 --locked
       - name: Validate tag and ancestry
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
             echo "release tag must be vMAJOR.MINOR.PATCH" >&2
             exit 1
           }
-          tag_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME")"
-          jq -e '.object.type == "tag"' <<< "$tag_ref" > /dev/null || {
-            echo "release tag must be an annotated tag" >&2
-            exit 1
-          }
-          tag_object_sha="$(jq -er '.object.sha | select(type == "string" and length > 0)' <<< "$tag_ref")"
-          tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha")"
-          jq -e '.object.type == "commit" and .verification.verified == true' \
-            <<< "$tag_object" > /dev/null || {
-            echo "release tag must be verified and point directly to a commit" >&2
-            exit 1
-          }
-          peeled_commit="$(jq -er '.object.sha | select(type == "string" and length > 0)' <<< "$tag_object")"
-          local_commit="$(git rev-parse "$GITHUB_REF_NAME^{}")"
-          test "$peeled_commit" = "$local_commit" || {
-            echo "GitHub tag target does not match the checked-out tag" >&2
+          tag_commit="$(git rev-parse "$GITHUB_REF_NAME^{commit}")"
+          test "$tag_commit" = "$(git rev-parse HEAD)" || {
+            echo "tag target does not match the checked-out commit" >&2
             exit 1
           }
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
-          git merge-base --is-ancestor "$peeled_commit" origin/main || {
+          git merge-base --is-ancestor "$tag_commit" origin/main || {
             echo "tag commit is not reachable from origin/main" >&2
             exit 1
           }
@@ -357,6 +342,7 @@ jobs:
           cmp package.json "$root/package/package.json"
           cmp bin/typeul.js "$root/package/bin/typeul.js"
           cmp README.md "$root/package/README.md"
+          cmp README.ko.md "$root/package/README.ko.md"
           for file in LICENSE THIRD_PARTY_NOTICES.md THIRD_PARTY_LICENSES.html; do
             cmp "$file" "$root/package/$file"
           done
@@ -368,7 +354,7 @@ jobs:
           done < <(find assets/licenses -type f -printf '%P\n' | LC_ALL=C sort)
           root_expected="$temporary/root-files"
           {
-            printf '%s\n' LICENSE README.md THIRD_PARTY_LICENSES.html THIRD_PARTY_NOTICES.md bin/typeul.js package.json
+            printf '%s\n' LICENSE README.ko.md README.md THIRD_PARTY_LICENSES.html THIRD_PARTY_NOTICES.md bin/typeul.js package.json
             find assets/licenses -type f -printf 'assets/licenses/%P\n'
           } | LC_ALL=C sort > "$root_expected"
           diff -u "$root_expected" <(find "$root/package" -type f -printf '%P\n' | LC_ALL=C sort)

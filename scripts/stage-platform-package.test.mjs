@@ -383,9 +383,10 @@ test("installed package trees reject extra, missing, replaced, and linked legal 
 
 test("all source native manifests are validated before selecting the host", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-native-manifests-"));
+  const version = JSON.parse(fs.readFileSync(path.join(sourceRoot, "package.json"))).version;
   try {
     fs.cpSync(path.join(sourceRoot, "npm"), path.join(root, "npm"), { recursive: true });
-    validateNativeManifests(root, "1.0.0");
+    validateNativeManifests(root, version);
     const host = process.platform === "win32"
       ? `typeul-${process.platform}-${process.arch}-msvc`
       : `typeul-${process.platform}-${process.arch}`;
@@ -393,7 +394,7 @@ test("all source native manifests are validated before selecting the host", () =
     changeManifest(path.join(root, "npm", nonHost), (manifest) => {
       manifest.dependencies = { "private-registry-code": "1.0.0" };
     });
-    assert.throws(() => validateNativeManifests(root, "1.0.0"), new RegExp(`${nonHost}.*dependencies|dependencies.*${nonHost}`, "s"));
+    assert.throws(() => validateNativeManifests(root, version), new RegExp(`${nonHost}.*dependencies|dependencies.*${nonHost}`, "s"));
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -31,14 +31,15 @@ isolation and trusted-publication provenance. Never put an auth token in these c
 ## 1. GitHub release protections / GitHub 배포 보호 설정
 
 - In GitHub `Settings → Rules → Rulesets`, protect `main`: require the reviewed CI checks,
-  block force-pushes and deletion, and restrict direct updates.
+  block force-pushes and deletion, and restrict direct updates except the release maintainer's
+  atomic version-commit-and-tag push from `make release`.
 - Add an active tag ruleset for `v*.*.*`: restrict creation to release maintainers and block
-  updates and deletion. The workflow additionally requires a GitHub-verified signed annotated tag
-  that points directly to the same commit checked out locally and is reachable from `origin/main`;
-  lightweight, unsigned, mismatched, and non-semver tags fail before builds begin.
-- Create the `release` environment. Allow only selected tags matching `v*.*.*`, add a required
-  reviewer, prevent bypass of protection rules, and limit deployment access to release
-  maintainers. Registry jobs must use this exact environment name.
+  updates and deletion. The workflow requires a semver tag that points to the checked-out commit
+  and is reachable from `origin/main`; mismatched and non-semver tags fail before builds begin.
+- Create the `release` environment for registry credentials and OIDC. Under **Deployment branches
+  and tags**, select only tags matching `v*.*.*` and disallow administrator bypass. This prevents
+  any other ref from receiving the bootstrap secrets. No reviewer is required, so a valid tag
+  starts publication automatically. Registry jobs must use this exact environment name.
 - Keep Actions workflow permissions read-only by default. The workflow grants only its draft
   and final release jobs `contents: write`, and its two registry jobs `id-token: write`.
 
@@ -83,7 +84,7 @@ Create **new Typeul-only, short-lived** credentials immediately before tagging:
    the shortest allowed expiry, **Packages and scopes: Read and write**, **All Packages** (the
    seven names do not exist yet), no organization-management access, and **Bypass 2FA enabled**.
    This exception is only for non-interactive first creation.
-3. In the protected Typeul `release` environment, add only these environment secrets:
+3. In the Typeul `release` environment, add only these environment secrets:
    `CRATES_TOKEN` and `NPM_TOKEN`. Add environment variable `TYPEUL_BOOTSTRAP=1`.
 
 The ignored, mode-`600` `.env` in the main worktree is only a local input convenience; GitHub
@@ -110,26 +111,28 @@ Practicode happens to use secret names `CRATES_TOKEN` and `NPM_TOKEN`. GitHub do
 copy, or transfer their values between repositories. Typeul uses the same names only for its own
 new temporary credentials, then deletes them in favor of OIDC. Never reuse a Practicode value.
 
-## 4. Signed first tag / 서명된 최초 태그
+## 4. First release tag / 최초 배포 태그
 
 Only after the repository, protections, environment, both new secrets, and bootstrap variable
-exist:
+exist, run the same guarded entry point used for later releases:
 
 ```bash
 git switch main
 git pull --ff-only origin main
-test -z "$(git status --short)"
-node scripts/check-versions.mjs v1.0.0
-git tag -s v1.0.0 -m "Typeul v1.0.0"
-git tag -v v1.0.0
-git push origin v1.0.0
+VERSION=1.0.0 make release
 ```
 
+For a later release, run `VERSION=1.0.1 make release` or use the interactive `make release`
+prompt. The command requires a
+clean synchronized `main`, updates Cargo and all seven npm package versions, runs the complete
+package and PTY gates, creates the version commit when needed, creates a semver tag, then
+atomically pushes `main` and that tag. `VERSION=1.0.0` tags the already
+synchronized initial version without creating an empty version commit.
+
 Open the [Release workflow](https://github.com/baba9811/typeul/actions/workflows/release.yml),
-inspect the tag SHA, and approve the `release` environment. The workflow builds and validates six
-native archives, creates a verified draft, publishes Cargo, publishes six native npm packages in
-fixed order and the root package last, then makes the same GitHub release public. Do not publish
-the draft manually.
+and watch the tag run. The workflow builds and validates six native archives, creates a verified
+draft, publishes Cargo, publishes six native npm packages in fixed order and the root package last,
+then makes the same GitHub release public. Do not publish the draft manually.
 
 ## 5. Configure trusted publishers / OIDC 설정
 
@@ -194,8 +197,8 @@ Then, in this order:
 1. Delete environment variable `TYPEUL_BOOTSTRAP`.
 2. Delete Typeul environment secrets `CRATES_TOKEN` and `NPM_TOKEN`.
 3. Revoke both bootstrap tokens on crates.io and npm; confirm they no longer appear as active.
-4. For the next synchronized signed semver tag, approve `release` and require both registry jobs
-   to succeed through OIDC with no registry token secret. Re-run the registry version,
+4. For the next synchronized semver tag, require both registry jobs to succeed through OIDC with
+   no registry token secret. Re-run the registry version,
    provenance, checksum, asset-closure, and public-release checks above for that version.
 
 Do not restore a long-lived token as an OIDC fallback. If either trusted-publisher binding is

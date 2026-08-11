@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { readVersions, validateVersions } from "./check-versions.mjs";
 
@@ -92,12 +93,14 @@ test("reports a mismatched optional dependency from a fixture", () => {
 });
 
 test("uses a positional release tag", () => {
-  const valid = spawnSync(process.execPath, ["scripts/check-versions.mjs", "v1.0.0"], { cwd: process.cwd(), encoding: "utf8" });
+  const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+  const [major, minor, patch] = version.split(".").map(Number);
+  const valid = spawnSync(process.execPath, ["scripts/check-versions.mjs", `v${version}`], { cwd: process.cwd(), encoding: "utf8" });
   assert.equal(valid.status, 0, valid.stderr);
-  assert.equal(valid.stdout, "1.0.0\n");
-  const invalid = spawnSync(process.execPath, ["scripts/check-versions.mjs", "v1.0.1"], { cwd: process.cwd(), encoding: "utf8" });
+  assert.equal(valid.stdout, `${version}\n`);
+  const invalid = spawnSync(process.execPath, ["scripts/check-versions.mjs", `v${major}.${minor}.${patch + 1}`], { cwd: process.cwd(), encoding: "utf8" });
   assert.notEqual(invalid.status, 0);
-  assert.match(invalid.stderr, /Tag must be v1\.0\.0/);
+  assert.match(invalid.stderr, new RegExp(`Tag must be v${version.replaceAll(".", "\\.")}`));
 });
 
 test("ignores a branch ref when no release tag is supplied", () => {
@@ -105,5 +108,122 @@ test("ignores a branch ref when no release tag is supplied", () => {
     cwd: process.cwd(), encoding: "utf8", env: { ...process.env, GITHUB_REF_NAME: "main" },
   });
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, "1.0.0\n");
+  const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+  assert.equal(result.stdout, `${version}\n`);
+});
+
+test("Make release rejects command-line VERSION without evaluating Make functions", () => {
+  const interactive = spawnSync("make", ["-n", "release"], { encoding: "utf8" });
+  assert.equal(interactive.status, 0, interactive.stderr);
+  assert.equal(interactive.stdout, "scripts/release.sh\n");
+
+  const result = spawnSync("make", [
+    "-n", "release", "VERSION=$(shell printf MAKE_FUNCTION_EXECUTED >&2)",
+  ], {
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /MAKE_FUNCTION_EXECUTED/);
+  assert.match(result.stderr, /VERSION=1\.2\.3 make release/);
+
+  const bypass = spawnSync("make", [
+    "-f", "Makefile", "-f", "-", "guard-probe", "MAKECMDGOALS=not-release",
+    "VERSION=$(shell printf MAKE_GUARD_BYPASSED >&2)",
+  ], {
+    encoding: "utf8",
+    input: "$(VERSION)\nguard-probe:\n\t@:\n",
+  });
+  assert.notEqual(bypass.status, 0);
+  assert.doesNotMatch(`${bypass.stdout}${bypass.stderr}`, /MAKE_GUARD_BYPASSED/);
+});
+
+function run(root, command, args, options = {}) {
+  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", ...options });
+  assert.equal(result.status, 0, `${command} ${args.join(" ")}\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function releaseFailureFixture(failure) {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-release-test-"));
+  const remote = path.join(temporary, "origin.git");
+  const root = path.join(temporary, "repo");
+  const fakeBin = path.join(temporary, "bin");
+  fs.mkdirSync(root);
+  fs.mkdirSync(fakeBin);
+  run(temporary, "git", ["init", "--bare", remote]);
+  run(root, "git", ["init", "-b", "main"]);
+  run(root, "git", ["config", "user.name", "Release Test"]);
+  run(root, "git", ["config", "user.email", "release@example.com"]);
+
+  fs.mkdirSync(path.join(root, "scripts"));
+  fs.copyFileSync("scripts/release.sh", path.join(root, "scripts/release.sh"));
+  fs.chmodSync(path.join(root, "scripts/release.sh"), 0o755);
+  fs.writeFileSync(path.join(root, "scripts/check-versions.mjs"), `
+    import fs from "node:fs";
+    const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+    if (process.argv[2] && process.argv[2] !== \`v\${version}\`) process.exit(1);
+    console.log(version);
+  `);
+  fs.writeFileSync(path.join(root, "scripts/verify-package.mjs"), "");
+  fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\nname = \"typeul\"\nversion = \"1.0.0\"\n");
+  fs.writeFileSync(path.join(root, "Cargo.lock"), "version = 3\n");
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
+    version: "1.0.0",
+    optionalDependencies: Object.fromEntries(packageNames.map((name) => [name, "1.0.0"])),
+  }, null, 2));
+  fs.mkdirSync(path.join(root, "npm"));
+  for (const name of packageNames) {
+    fs.mkdirSync(path.join(root, "npm", name));
+    fs.writeFileSync(path.join(root, "npm", name, "package.json"), `${JSON.stringify({ name, version: "1.0.0" }, null, 2)}\n`);
+  }
+  fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "original\n");
+
+  fs.writeFileSync(path.join(fakeBin, "make"), "#!/bin/sh\n[ \"${1-}\" = test ] && [ \"${2-}\" = licenses ] && printf 'generated\\n' > THIRD_PARTY_LICENSES.html\nexit 0\n");
+  for (const name of ["cargo", "npm", "go"]) {
+    fs.writeFileSync(path.join(fakeBin, name), "#!/bin/sh\nexit 0\n");
+  }
+  for (const name of ["make", "cargo", "npm", "go"]) fs.chmodSync(path.join(fakeBin, name), 0o755);
+
+  run(root, "git", ["add", "."]);
+  run(root, "git", ["commit", "-m", "initial"]);
+  const base = run(root, "git", ["rev-parse", "HEAD"]);
+  run(root, "git", ["remote", "add", "origin", remote]);
+  run(root, "git", ["push", "-u", "origin", "main"]);
+
+  if (failure === "commit") {
+    const hook = path.join(root, ".git/hooks/pre-commit");
+    fs.writeFileSync(hook, "#!/bin/sh\nexit 1\n");
+    fs.chmodSync(hook, 0o755);
+  } else {
+    const hook = path.join(remote, "hooks/pre-receive");
+    fs.writeFileSync(hook, "#!/bin/sh\nexit 1\n");
+    fs.chmodSync(hook, 0o755);
+  }
+
+  const result = spawnSync("bash", ["scripts/release.sh", "1.0.1"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` },
+  });
+  try {
+    assert.notEqual(result.status, 0, "the injected failure must stop the release");
+    assert.match(result.stdout, /Current version: 1\.0\.0/);
+    assert.match(result.stdout, /Current tag: \(none\)/);
+    assert.match(result.stdout, /Releasing v1\.0\.1/);
+    assert.equal(run(root, "git", ["rev-parse", "HEAD"]), base);
+    assert.equal(run(root, "git", ["status", "--porcelain"]), "");
+    assert.equal(run(root, "git", ["tag", "--list"]), "");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(root, "package.json"))).version, "1.0.0");
+    assert.equal(fs.readFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "utf8"), "original\n");
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+test("release restores index, worktree, and generated licenses after commit failure", () => {
+  releaseFailureFixture("commit");
+});
+
+test("release removes its commit and tag after atomic push failure", () => {
+  releaseFailureFixture("push");
 });

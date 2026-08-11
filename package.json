@@ -12,7 +12,7 @@
   "type": "commonjs",
   "bin": { "typeul": "bin/typeul.js" },
   "files": [
-    "bin/typeul.js", "LICENSE", "README.md", "THIRD_PARTY_NOTICES.md",
+    "bin/typeul.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
     "THIRD_PARTY_LICENSES.html", "assets/licenses"
   ],
   "engines": { "node": ">=18" },
