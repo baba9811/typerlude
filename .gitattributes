@@ -1,3 +1,7 @@
 assets/content/*.toml text eol=lf
 assets/licenses/*.txt text eol=lf
 assets/themes/*.toml text eol=lf
+LICENSE text eol=lf
+THIRD_PARTY_LICENSES.html text eol=lf
+THIRD_PARTY_NOTICES.md text eol=lf
+npm/*/package.json text eol=lf

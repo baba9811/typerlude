@@ -970,6 +970,10 @@ fn bundled_content_and_license_text_are_forced_to_lf_by_git_attributes() {
     for required in [
         "assets/content/*.toml text eol=lf",
         "assets/licenses/*.txt text eol=lf",
+        "LICENSE text eol=lf",
+        "THIRD_PARTY_LICENSES.html text eol=lf",
+        "THIRD_PARTY_NOTICES.md text eol=lf",
+        "npm/*/package.json text eol=lf",
     ] {
         assert!(
             attributes.lines().any(|line| line == required),
