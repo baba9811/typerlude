@@ -122,7 +122,8 @@ For a later release, run `VERSION=1.0.1 make release` or use the interactive `ma
 prompt. The command requires a
 clean synchronized `main`, updates Cargo and all seven npm package versions, runs the complete
 package and PTY gates, creates the version commit when needed, creates a semver tag, then
-atomically pushes `main` and that tag. `VERSION=1.0.0` tags the already
+atomically pushes `main` and that signed tag. Git must have a signing key configured;
+the workflow rejects lightweight, unsigned, or indirectly nested tags. `VERSION=1.0.0` tags the already
 synchronized initial version without creating an empty version commit.
 
 Open the [Release workflow](https://github.com/baba9811/typeul/actions/workflows/release.yml),

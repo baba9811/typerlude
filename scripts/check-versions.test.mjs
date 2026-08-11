@@ -126,6 +126,14 @@ test("release uses Cargo OIDC independently from npm bootstrap", () => {
   assert.match(workflow, /Publish npm bootstrap, native packages first/);
 });
 
+test("release requires a verified signed tag", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  const release = fs.readFileSync("scripts/release.sh", "utf8");
+  assert.match(workflow, /\.object\.type == "tag"/);
+  assert.match(workflow, /\.verification\.verified == true/);
+  assert.match(release, /git tag -s /);
+});
+
 test("Make release rejects command-line VERSION without evaluating Make functions", () => {
   const interactive = spawnSync("make", ["--no-print-directory", "-n", "release"], { encoding: "utf8" });
   assert.equal(interactive.status, 0, interactive.stderr);
@@ -168,6 +176,10 @@ function releaseFailureFixture(failure) {
   run(root, "git", ["init", "-b", "main"]);
   run(root, "git", ["config", "user.name", "Release Test"]);
   run(root, "git", ["config", "user.email", "release@example.com"]);
+  const signingKey = path.join(temporary, "release-signing-key");
+  run(temporary, "ssh-keygen", ["-q", "-t", "ed25519", "-N", "", "-C", "release test", "-f", signingKey]);
+  run(root, "git", ["config", "gpg.format", "ssh"]);
+  run(root, "git", ["config", "user.signingkey", `${signingKey}.pub`]);
 
   fs.mkdirSync(path.join(root, "scripts"));
   fs.copyFileSync("scripts/release.sh", path.join(root, "scripts/release.sh"));

@@ -41,15 +41,29 @@ jobs:
           cargo +1.88.0 install cargo-deny --version 0.20.2 --locked
       - name: Validate tag and ancestry
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
             echo "release tag must be vMAJOR.MINOR.PATCH" >&2
             exit 1
           }
-          tag_commit="$(git rev-parse "$RELEASE_TAG^{commit}")"
-          test "$tag_commit" = "$(git rev-parse HEAD)" || {
-            echo "tag target does not match the checked-out commit" >&2
+          tag_ref="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG")"
+          jq -e '.object.type == "tag"' <<< "$tag_ref" > /dev/null || {
+            echo "release tag must be an annotated tag" >&2
+            exit 1
+          }
+          tag_object_sha="$(jq -er '.object.sha | select(type == "string" and length > 0)' <<< "$tag_ref")"
+          tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$tag_object_sha")"
+          jq -e '.object.type == "commit" and .verification.verified == true' \
+            <<< "$tag_object" > /dev/null || {
+            echo "release tag must be verified and point directly to a commit" >&2
+            exit 1
+          }
+          tag_commit="$(jq -er '.object.sha | select(type == "string" and length > 0)' <<< "$tag_object")"
+          test "$tag_commit" = "$(git rev-parse "$RELEASE_TAG^{}")" || {
+            echo "GitHub tag target does not match the checked-out tag" >&2
             exit 1
           }
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
