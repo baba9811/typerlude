@@ -73,49 +73,44 @@ done
 For an available name these read-only commands are expected to return a not-found response.
 Any existing result is a stop condition until ownership is resolved.
 
-## 3. One-time bootstrap credentials / 최초 1회 자격 증명
+## 3. One-time npm bootstrap credential / npm 최초 1회 자격 증명
 
-Create **new Typeul-only, short-lived** credentials immediately before tagging:
+The `typeul` crate already exists and every later Cargo release uses OIDC. Never add a
+`CRATES_TOKEN` to this repository again. Until all seven npm packages have been created, make one
+**new Typeul-only, short-lived** npm credential immediately before tagging:
 
-1. On [crates.io token settings](https://crates.io/settings/tokens/new), create a token with the
-   shortest practical expiry, endpoint scope `publish-new`, and crate pattern `typeul`. It must
-   be able to create the new `typeul` crate; do not grant update, yank, owner, or trusted-publisher
-   administration scopes.
-2. On [npm access tokens](https://www.npmjs.com/settings/~/tokens), create a granular token with
-   the shortest allowed expiry, **Packages and scopes: Read and write**, **All Packages** (the
-   seven names do not exist yet), no organization-management access, and **Bypass 2FA enabled**.
+1. On [npm access tokens](https://www.npmjs.com/settings/~/tokens), create a granular token with
+   the shortest allowed expiry, **Packages and scopes: Read and write**, **All Packages** (some
+   required names do not exist yet), no organization-management access, and **Bypass 2FA enabled**.
    This exception is only for non-interactive first creation.
-3. In the Typeul `release` environment, add only these environment secrets:
-   `CRATES_TOKEN` and `NPM_TOKEN`. Add environment variable `TYPEUL_BOOTSTRAP=1`.
+2. In the Typeul `release` environment, add only environment secret `NPM_TOKEN` and environment
+   variable `TYPEUL_NPM_BOOTSTRAP=1`.
 
 The ignored, mode-`600` `.env` in the main worktree is only a local input convenience; GitHub
-Actions cannot read it. After filling its two values, upload them without printing them:
+Actions cannot read it. After filling its value, upload it without printing it:
 
 ```bash
 (
   set +x
   set -euo pipefail
   source .env
-  : "${CRATES_TOKEN:?fill CRATES_TOKEN in .env}"
   : "${NPM_TOKEN:?fill NPM_TOKEN in .env}"
-  printf '%s' "$CRATES_TOKEN" | gh secret set CRATES_TOKEN --env release --repo baba9811/typeul
   printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN --env release --repo baba9811/typeul
-  gh variable set TYPEUL_BOOTSTRAP --body 1 --env release --repo baba9811/typeul
+  gh variable set TYPEUL_NPM_BOOTSTRAP --body 1 --env release --repo baba9811/typeul
   rm -- .env
 )
 ```
 
-Before Cargo publishes in bootstrap mode, the workflow requires both secrets to be nonempty.
-Cargo uses only `CRATES_TOKEN`; npm uses only `NPM_TOKEN`. Values are never printed.
+Cargo never reads a registry secret. npm requires `NPM_TOKEN` only while
+`TYPEUL_NPM_BOOTSTRAP=1`. Values are never printed.
 
-Practicode happens to use secret names `CRATES_TOKEN` and `NPM_TOKEN`. GitHub does not reveal,
-copy, or transfer their values between repositories. Typeul uses the same names only for its own
-new temporary credentials, then deletes them in favor of OIDC. Never reuse a Practicode value.
+GitHub does not reveal, copy, or transfer secret values between repositories. Never reuse a
+Practicode credential.
 
 ## 4. First release tag / 최초 배포 태그
 
-Only after the repository, protections, environment, both new secrets, and bootstrap variable
-exist, run the same guarded entry point used for later releases:
+Only after the repository, protections, environment, crates.io trusted publisher, npm bootstrap
+secret, and npm bootstrap variable exist, run the same guarded entry point used for later releases:
 
 ```bash
 git switch main
@@ -196,9 +191,9 @@ one tar.gz, one zip, the Cargo crate, the root npm tarball, and a native npm tar
 
 Then, in this order:
 
-1. Delete environment variable `TYPEUL_BOOTSTRAP`.
-2. Delete Typeul environment secrets `CRATES_TOKEN` and `NPM_TOKEN`.
-3. Revoke both bootstrap tokens on crates.io and npm; confirm they no longer appear as active.
+1. Delete environment variable `TYPEUL_NPM_BOOTSTRAP`.
+2. Delete Typeul environment secret `NPM_TOKEN`.
+3. Revoke the npm bootstrap token; confirm it no longer appears as active.
 4. For the next synchronized semver tag, require both registry jobs to succeed through OIDC with
    no registry token secret. Re-run the registry version,
    provenance, checksum, asset-closure, and public-release checks above for that version.

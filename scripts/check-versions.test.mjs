@@ -118,6 +118,14 @@ test("ignores a branch ref when no release tag is supplied", () => {
   assert.equal(result.stdout, `${version}\n`);
 });
 
+test("release uses Cargo OIDC independently from npm bootstrap", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  assert.match(workflow, /rust-lang\/crates-io-auth-action@/);
+  assert.doesNotMatch(workflow, /Publish Cargo bootstrap|secrets\.CRATES_TOKEN|TYPEUL_BOOTSTRAP/);
+  assert.match(workflow, /TYPEUL_NPM_BOOTSTRAP/);
+  assert.match(workflow, /Publish npm bootstrap, native packages first/);
+});
+
 test("Make release rejects command-line VERSION without evaluating Make functions", () => {
   const interactive = spawnSync("make", ["--no-print-directory", "-n", "release"], { encoding: "utf8" });
   assert.equal(interactive.status, 0, interactive.stderr);
