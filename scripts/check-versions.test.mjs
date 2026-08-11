@@ -113,7 +113,7 @@ test("ignores a branch ref when no release tag is supplied", () => {
 });
 
 test("Make release rejects command-line VERSION without evaluating Make functions", () => {
-  const interactive = spawnSync("make", ["-n", "release"], { encoding: "utf8" });
+  const interactive = spawnSync("make", ["--no-print-directory", "-n", "release"], { encoding: "utf8" });
   assert.equal(interactive.status, 0, interactive.stderr);
   assert.equal(interactive.stdout, "scripts/release.sh\n");
 
