@@ -23,7 +23,7 @@ npm install -g typeul
 typeul
 ```
 
-npm 패키지는 macOS, glibc Linux, Windows의 x64·arm64에 맞는 사전 빌드 바이너리를 함께
+npm 패키지는 macOS, Linux, Windows의 x64·arm64에 맞는 사전 빌드 바이너리를 함께
 설치합니다. 이 설치 경로에는 Rust가 필요하지 않습니다.
 
 <details>

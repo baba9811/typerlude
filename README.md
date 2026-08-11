@@ -23,8 +23,8 @@ npm install -g typeul
 typeul
 ```
 
-The npm package installs the matching prebuilt binary for macOS, glibc Linux, or Windows on x64
-and arm64. Rust is not required for this path.
+The npm package installs the matching prebuilt binary for macOS, Linux, or Windows on x64 and
+arm64. Rust is not required for this path.
 
 <details>
 <summary>Install with Cargo</summary>
