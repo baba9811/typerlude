@@ -1,6 +1,6 @@
 {
   "name": "@baba9811/typeul",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Offline-first Korean and English terminal typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -31,12 +31,12 @@
     "package-check": "node scripts/verify-package.mjs"
   },
   "optionalDependencies": {
-    "typeul-darwin-arm64": "1.0.1",
-    "typeul-darwin-x64": "1.0.1",
-    "typeul-linux-arm64": "1.0.1",
-    "typeul-linux-x64": "1.0.1",
-    "@baba9811/typeul-win32-arm64-msvc": "1.0.1",
-    "@baba9811/typeul-win32-x64-msvc": "1.0.1"
+    "typeul-darwin-arm64": "1.0.2",
+    "typeul-darwin-x64": "1.0.2",
+    "typeul-linux-arm64": "1.0.2",
+    "typeul-linux-x64": "1.0.2",
+    "@baba9811/typeul-win32-arm64-msvc": "1.0.2",
+    "@baba9811/typeul-win32-x64-msvc": "1.0.2"
   },
   "publishConfig": {
     "access": "public"

@@ -1,6 +1,6 @@
 {
   "name": "@baba9811/typeul-win32-arm64-msvc",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Typeul native binary for the Typeul typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
