@@ -503,7 +503,9 @@ jobs:
           rustup toolchain install 1.88.0 --profile minimal
           rustup default 1.88.0
       - name: Verify Cargo package again
-        run: cargo publish --dry-run --locked
+        run: |
+          cargo package --locked
+          cargo publish --dry-run --locked
       - name: Check for an identical existing Cargo version
         id: cargo-version
         shell: bash

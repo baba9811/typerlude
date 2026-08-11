@@ -129,6 +129,7 @@ test("ignores a branch ref when no release tag is supplied", () => {
 test("release uses Cargo OIDC independently from npm bootstrap", () => {
   const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
   assert.match(workflow, /rust-lang\/crates-io-auth-action@/);
+  assert.match(workflow, /Verify Cargo package again[\s\S]*cargo package --locked[\s\S]*cargo publish --dry-run --locked/);
   assert.doesNotMatch(workflow, /Publish Cargo bootstrap|secrets\.CRATES_TOKEN|TYPEUL_BOOTSTRAP/);
   assert.match(workflow, /TYPEUL_NPM_BOOTSTRAP/);
   assert.match(workflow, /Publish npm bootstrap, native packages first/);
