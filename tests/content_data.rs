@@ -789,7 +789,6 @@ fn third_party_rust_license_report_covers_locked_supported_target_graph() {
             .args([
                 "tree",
                 "--locked",
-                "--offline",
                 "--all-features",
                 &format!("--target={target}"),
                 "--edges=normal,build",
