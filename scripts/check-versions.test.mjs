@@ -23,7 +23,9 @@ function withFixture(change, check) {
   const optionalDependencies = Object.fromEntries(packageNames.map((name) => [name, version]));
   fs.writeFileSync(path.join(root, "Cargo.toml"), `[package]\nversion = "${version}"\n`);
   fs.writeFileSync(path.join(root, "Cargo.lock"), `[[package]]\nname = "typeul"\nversion = "${version}"\n`);
-  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({ version, optionalDependencies }));
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
+    name: "@baba9811/typeul", version, optionalDependencies,
+  }));
   fs.mkdirSync(path.join(root, "npm"));
   for (const [directory, name] of nativePackages) {
     fs.mkdirSync(path.join(root, "npm", directory));
@@ -52,6 +54,12 @@ test("reads one complete synchronized fixture", () => {
 
 test("rejects invalid fixture layouts", () => {
   for (const [name, change, message] of [
+    ["wrong root package name", (root) => {
+      const file = path.join(root, "package.json");
+      const pkg = JSON.parse(fs.readFileSync(file));
+      pkg.name = "typeul";
+      fs.writeFileSync(file, JSON.stringify(pkg));
+    }, /root npm package/],
     ["missing manifest", (root) => fs.rmSync(path.join(root, "npm", packageDirectories[0]), { recursive: true }), /Native manifests/],
     ["extra manifest", (root) => fs.mkdirSync(path.join(root, "npm", "unrelated-package")), /Native manifests/],
     ["missing optional dependency", (root) => {
@@ -194,6 +202,7 @@ function releaseFailureFixture(failure) {
   fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\nname = \"typeul\"\nversion = \"1.0.0\"\n");
   fs.writeFileSync(path.join(root, "Cargo.lock"), "version = 3\n");
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
+    name: "@baba9811/typeul",
     version: "1.0.0",
     optionalDependencies: Object.fromEntries(packageNames.map((name) => [name, "1.0.0"])),
   }, null, 2));

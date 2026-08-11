@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 
 const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
 const versionPattern = /^\d+\.\d+\.\d+$/;
+const rootPackageName = "@baba9811/typeul";
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -36,6 +37,9 @@ export function readVersions(root) {
   const expectedDirectories = nativePackages.map(({ directory }) => directory).sort();
   const expectedNames = nativePackages.map(({ name }) => name).sort();
 
+  if (rootPackage.name !== rootPackageName) {
+    throw new Error(`root npm package must be ${rootPackageName}`);
+  }
   if (manifestNames.join("\n") !== expectedDirectories.join("\n")) {
     throw new Error(`Native manifests must be exactly: ${expectedDirectories.join(", ")}`);
   }

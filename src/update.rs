@@ -70,7 +70,7 @@ pub enum InstallMethod {
 impl InstallMethod {
     pub const fn instructions(self) -> &'static str {
         match self {
-            Self::Npm => "npm install -g typeul@latest · npx typeul@latest",
+            Self::Npm => "npm install -g @baba9811/typeul@latest · npx @baba9811/typeul@latest",
             Self::Cargo => "cargo install --force typeul",
             Self::Standalone => "https://github.com/baba9811/typeul/releases",
         }

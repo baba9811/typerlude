@@ -147,7 +147,10 @@ fn practice_queues_a_notice_home_and_result_render_it_and_skip_persists() {
     app.open(Screen::Result);
     let result = screen_text(&app);
     assert!(result.contains("Update available"), "{result}");
-    assert!(result.contains("npm install -g typeul@latest"), "{result}");
+    assert!(
+        result.contains("npm install -g @baba9811/typeul@latest"),
+        "{result}"
+    );
     app.handle_event(
         Event::Key(KeyEvent::from(KeyCode::Char('s'))),
         Instant::now(),

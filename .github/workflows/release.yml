@@ -321,7 +321,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          version="$(node scripts/check-versions.mjs)"
           npm pack --ignore-scripts --pack-destination dist .
+          mv "dist/baba9811-typeul-$version.tgz" "dist/typeul-$version.tgz"
       - name: Verify exact release payload
         shell: bash
         run: |

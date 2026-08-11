@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/baba9811/typeul/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/baba9811/typeul/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/typeul?logo=rust)](https://crates.io/crates/typeul)
-[![npm](https://img.shields.io/npm/v/typeul?logo=npm)](https://www.npmjs.com/package/typeul)
+[![npm](https://img.shields.io/npm/v/%40baba9811%2Ftypeul?logo=npm)](https://www.npmjs.com/package/@baba9811/typeul)
 [![License: MIT](https://img.shields.io/badge/license-MIT-14B8A6)](LICENSE)
 
 타자 연습할 때, 혹은 바이브 코딩하다 심심할 때 터미널에서 잠깐 머리를 식혀 보세요.
@@ -19,7 +19,7 @@ Typeul(타이플)은 오프라인 우선 한국어·영어 터미널 타자 연�
 위 두 레지스트리 배지에 모두 배포 버전이 표시되면 다음처럼 설치하세요.
 
 ```bash
-npm install -g typeul
+npm install -g @baba9811/typeul
 typeul
 ```
 

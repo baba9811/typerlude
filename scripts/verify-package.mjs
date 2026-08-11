@@ -11,6 +11,7 @@ const { nativePackages, packageFor } = createRequire(import.meta.url)("../bin/ty
 const sourceRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const supportedPairs = nativePackages.map(({ platform, arch }) => [platform, arch]);
 const legalRoots = ["LICENSE", "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md"];
+const rootPackageName = "@baba9811/typeul";
 const rootManifestFiles = [
   "bin/typeul.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
   "THIRD_PARTY_LICENSES.html", "assets/licenses",
@@ -388,7 +389,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   ], { cwd: install });
 
   const licenseNames = sourceLicenseNames();
-  const rootPackageDir = path.join(install, "node_modules", "typeul");
+  const rootPackageDir = path.join(install, "node_modules", ...rootPackageName.split("/"));
   validateInstalledPackageTree(rootPackageDir, [
     "package.json", "bin/typeul.js", "LICENSE", "README.md", "README.ko.md",
     "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md",
@@ -402,7 +403,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
 
   const rootManifest = readJson(path.join(rootPackageDir, "package.json"), "installed root manifest");
   validatePackedManifest(rootManifest, {
-    name: "typeul", version: expectedVersion, files: rootManifestFiles,
+    name: rootPackageName, version: expectedVersion, files: rootManifestFiles,
     bin: { typeul: "bin/typeul.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
@@ -433,7 +434,10 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   const fake = path.join(temporary, "fake-npm");
   fakeNpm(fake);
   const update = installed(["update"], install, home, prependPath(process.env, fake));
-  for (const text of ["latest: 99.0.0", "update: npm install -g typeul@latest · npx typeul@latest"]) {
+  for (const text of [
+    "latest: 99.0.0",
+    "update: npm install -g @baba9811/typeul@latest · npx @baba9811/typeul@latest",
+  ]) {
     if (!update.includes(text)) throw new Error(`installed update omitted ${text}`);
   }
 }
@@ -446,7 +450,7 @@ function main() {
   const platformDir = path.join(root, "npm", platformDirectory);
   const rootManifest = readJson(path.join(root, "package.json"), "root manifest");
   validatePackedManifest(rootManifest, {
-    name: "typeul", version: expectedVersion, files: rootManifestFiles,
+    name: rootPackageName, version: expectedVersion, files: rootManifestFiles,
     bin: { typeul: "bin/typeul.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
@@ -477,7 +481,9 @@ function main() {
       ...licenseFiles(root, "assets/licenses").map((name) => [name, 0o644]),
     ]);
     const platformTgz = pack(staged, temporary, { name: platformName, version: expectedVersion, files: platformFiles });
-    const rootTgz = pack(root, temporary, { name: "typeul", version: expectedVersion, files: rootFiles });
+    const rootTgz = pack(root, temporary, {
+      name: rootPackageName, version: expectedVersion, files: rootFiles,
+    });
     verifyTarballs(rootTgz, platformTgz, expectedVersion);
     console.log(`verified root tarball: ${rootTgz}`);
     console.log(`verified platform tarball: ${platformTgz}`);

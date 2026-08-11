@@ -155,7 +155,7 @@ jobs:
           fi
           test -f "$platform_tgz"
           npm pack --ignore-scripts --pack-destination "$packs" .
-          root_tgz="$packs/typeul-$version.tgz"
+          root_tgz="$packs/baba9811-typeul-$version.tgz"
           test -f "$root_tgz"
 
           install="$temporary/install"
@@ -236,7 +236,7 @@ jobs:
               throw "native npm tarball is missing: $platformTgz"
             }
             npm.cmd pack --ignore-scripts --pack-destination $packs .
-            $rootTgz = Join-Path $packs "typeul-$version.tgz"
+            $rootTgz = Join-Path $packs "baba9811-typeul-$version.tgz"
             if (-not (Test-Path -LiteralPath $rootTgz -PathType Leaf)) {
               throw "root npm tarball is missing: $rootTgz"
             }

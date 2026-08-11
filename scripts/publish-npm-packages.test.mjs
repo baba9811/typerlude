@@ -12,7 +12,7 @@ const expectedPackages = [
   ["typeul-linux-x64", "typeul-linux-x64"],
   ["@baba9811/typeul-win32-arm64-msvc", "typeul-win32-arm64-msvc"],
   ["@baba9811/typeul-win32-x64-msvc", "typeul-win32-x64-msvc"],
-  ["typeul", "typeul"],
+  ["@baba9811/typeul", "typeul"],
 ];
 const registry = "https://registry.npmjs.org/";
 

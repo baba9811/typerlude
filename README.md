@@ -5,7 +5,7 @@
 
 [![CI](https://github.com/baba9811/typeul/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/baba9811/typeul/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/typeul?logo=rust)](https://crates.io/crates/typeul)
-[![npm](https://img.shields.io/npm/v/typeul?logo=npm)](https://www.npmjs.com/package/typeul)
+[![npm](https://img.shields.io/npm/v/%40baba9811%2Ftypeul?logo=npm)](https://www.npmjs.com/package/@baba9811/typeul)
 [![License: MIT](https://img.shields.io/badge/license-MIT-14B8A6)](LICENSE)
 
 Practice typing—or take a quick terminal break when vibe coding gets dull.
@@ -19,7 +19,7 @@ account, telemetry, or cloud storage.
 When both registry badges above show a published version:
 
 ```bash
-npm install -g typeul
+npm install -g @baba9811/typeul
 typeul
 ```
 

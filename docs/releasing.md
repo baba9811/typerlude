@@ -151,7 +151,7 @@ For **each of the seven npm packages**, configure one GitHub Actions Trusted Pub
 
 The seven npm settings pages are:
 
-- <https://www.npmjs.com/package/typeul/access>
+- <https://www.npmjs.com/package/@baba9811/typeul/access>
 - <https://www.npmjs.com/package/typeul-darwin-arm64/access>
 - <https://www.npmjs.com/package/typeul-darwin-x64/access>
 - <https://www.npmjs.com/package/typeul-linux-arm64/access>
