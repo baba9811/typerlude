@@ -238,7 +238,7 @@ function releaseFailureFixture(failure) {
   const result = spawnSync("bash", ["scripts/release.sh", "1.0.1"], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` },
+    env: { ...process.env, VERSION: "", PATH: `${fakeBin}${path.delimiter}${process.env.PATH}` },
   });
   try {
     assert.notEqual(result.status, 0, "the injected failure must stop the release");
