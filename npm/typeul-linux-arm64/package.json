@@ -1,6 +1,6 @@
 {
   "name": "typeul-linux-arm64",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Typeul native binary for the Typeul typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
