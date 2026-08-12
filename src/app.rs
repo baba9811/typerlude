@@ -1,9 +1,8 @@
 use crate::{
-    cli::disable_user_pack,
     config::Settings,
     content::{
-        ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem, SourceMeta, parse_pack,
-        read_pack_bytes, validate_pack,
+        ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem, SourceMeta,
+        disable_user_pack, parse_pack, read_pack_bytes, validate_pack,
     },
     diagnostic::format_content_error,
     i18n::{TextKey, text},
