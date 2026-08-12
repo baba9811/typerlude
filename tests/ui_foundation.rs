@@ -64,6 +64,11 @@ fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
     for &key in TextKey::ALL {
         let korean = text(Language::Ko, key);
         let english = text(Language::En, key);
+        if key == TextKey::AppTitle {
+            assert_eq!(korean, "Typerlude");
+            assert_eq!(english, "Typerlude");
+            continue;
+        }
         assert!(!korean.trim().is_empty(), "Korean {key:?}");
         assert!(!english.trim().is_empty(), "English {key:?}");
         assert_ne!(korean, english, "{key:?}");
