@@ -207,12 +207,19 @@ pub(crate) fn intended_key_counts(
     counts
 }
 
+pub(crate) fn has_key_attempts(counts: &BTreeMap<char, [u64; 2]>, min_attempts: u64) -> bool {
+    counts.values().any(|[correct, errors]| {
+        let attempts = u128::from(*correct) + u128::from(*errors);
+        attempts > 0 && attempts >= u128::from(min_attempts)
+    })
+}
+
 pub fn weak_keys(counts: &BTreeMap<char, [u64; 2]>, min_attempts: u64) -> Vec<KeyAccuracy> {
     let mut keys = counts
         .iter()
         .filter_map(|(&key, &[correct, errors])| {
             let attempts = u128::from(correct) + u128::from(errors);
-            (attempts >= u128::from(min_attempts)).then_some(KeyAccuracy {
+            (errors != 0 && attempts >= u128::from(min_attempts)).then_some(KeyAccuracy {
                 key,
                 correct,
                 errors,
@@ -294,8 +301,8 @@ pub fn adaptive_candidates<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        Range, adaptive_candidates, history, intended_key_counts, progress, streak, summarize,
-        weak_keys,
+        Range, adaptive_candidates, has_key_attempts, history, intended_key_counts, progress,
+        streak, summarize, weak_keys,
     };
     use crate::{
         content::{ContentCatalog, ContentKind},
@@ -563,10 +570,17 @@ mod tests {
 
     #[test]
     fn weak_keys_require_attempts_and_sort_accuracy_then_key() {
-        let counts = BTreeMap::from([('q', [1, 1]), ('x', [8, 2]), ('y', [4, 1]), ('z', [2, 8])]);
+        let counts = BTreeMap::from([
+            ('p', [10, 0]),
+            ('q', [1, 1]),
+            ('x', [8, 2]),
+            ('y', [4, 1]),
+            ('z', [2, 8]),
+        ]);
 
         let weak = weak_keys(&counts, 5);
 
+        assert!(has_key_attempts(&counts, 5));
         assert_eq!(
             weak.iter().map(|value| value.key).collect::<Vec<_>>(),
             ['z', 'x', 'y']
@@ -576,9 +590,7 @@ mod tests {
             (2, 8, 20.0)
         );
 
-        let zero = weak_keys(&BTreeMap::from([('0', [0, 0])]), 0);
-        assert_eq!(zero[0].accuracy, 0.0);
-        assert!(zero[0].accuracy.is_finite());
+        assert!(weak_keys(&BTreeMap::from([('0', [0, 0])]), 0).is_empty());
     }
 
     #[test]

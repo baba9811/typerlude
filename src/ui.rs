@@ -7,7 +7,10 @@ use crate::{
     content::ContentKind,
     i18n::{TextKey, result_actions, text},
     model::{Difficulty, Language, PracticeKind},
-    stats::{adaptive_candidates, history, intended_key_counts, streak, summarize, weak_keys},
+    stats::{
+        adaptive_candidates, has_key_attempts, history, intended_key_counts, streak, summarize,
+        weak_keys,
+    },
     theme::ThemeStyles,
 };
 use ratatui::{
@@ -1232,6 +1235,12 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
                 .take(usize::from(body.height).saturating_sub(lines.len()))
                 .map(|key| Line::from(format!("{}: {:.1}%", key.key, key.accuracy))),
         );
+    } else if has_key_attempts(&session.intended_keys, 1) && lines.len() < usize::from(body.height)
+    {
+        lines.push(Line::from(Span::styled(
+            text(language, TextKey::WeakKeysPerfect),
+            styles.accent,
+        )));
     }
     frame.render_widget(Paragraph::new(lines).style(styles.base), body);
 }
@@ -1604,7 +1613,14 @@ fn render_weak_keys(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeS
     let counts = intended_key_counts(&app.sessions, app.stats_language());
     let keys = weak_keys(&counts, 10);
     if keys.is_empty() {
-        frame.render_widget(no_data(language, styles), inner);
+        if has_key_attempts(&counts, 10) {
+            frame.render_widget(
+                Paragraph::new(text(language, TextKey::WeakKeysPerfect)).style(styles.accent),
+                inner,
+            );
+        } else {
+            frame.render_widget(no_data(language, styles), inner);
+        }
         return;
     }
     let suggestions = adaptive_candidates(&app.content, &app.sessions, app.stats_language(), 0)

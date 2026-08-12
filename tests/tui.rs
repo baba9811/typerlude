@@ -1486,6 +1486,29 @@ fn populated_result_renders_stored_goal_and_weak_key_outcomes() {
 }
 
 #[test]
+fn perfect_keys_are_not_labeled_weak() {
+    let (_root, mut app) = fixture_app();
+    let mut result = result_view("perfect-result");
+    result.session.intended_keys = BTreeMap::from([('a', [10, 0])]);
+    app.result = Some(result);
+    app.open(Screen::Result);
+
+    let english = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(
+        english.contains("No weak keys · All analyzed keys are 100% accurate"),
+        "{english}"
+    );
+    assert!(!english.contains("a: 100.0%"), "{english}");
+
+    app.settings.ui_language = Language::Ko;
+    let korean = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(
+        korean.contains("약한 키 없음 · 분석된 모든 키 정확도 100%"),
+        "{korean}"
+    );
+}
+
+#[test]
 fn result_reserves_space_for_save_failure_before_bounded_weak_rows() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
@@ -1604,6 +1627,35 @@ fn weak_keys_renders_derived_attempts_and_accuracy() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("a: 80.0% (10)"), "{output}");
+}
+
+#[test]
+fn weak_key_screen_distinguishes_perfect_from_insufficient_data() {
+    let (_root, mut perfect) = fixture_app();
+    let mut session = result_view("perfect-key-session").session;
+    session.intended_keys = BTreeMap::from([('a', [10, 0])]);
+    perfect.sessions.push(session);
+    perfect.open(Screen::WeakKeys);
+
+    let output = buffer_text(&draw(&perfect, 80, 24).buffer);
+    assert!(
+        output.contains("No weak keys · All analyzed keys are 100% accurate"),
+        "{output}"
+    );
+    assert!(!output.contains("a: 100.0%"), "{output}");
+
+    let (_root, mut insufficient) = fixture_app();
+    let mut session = result_view("insufficient-key-session").session;
+    session.intended_keys = BTreeMap::from([('a', [9, 0])]);
+    insufficient.sessions.push(session);
+    insufficient.open(Screen::WeakKeys);
+
+    let output = buffer_text(&draw(&insufficient, 80, 24).buffer);
+    assert!(output.contains("No data"), "{output}");
+    assert!(
+        !output.contains("All analyzed keys are 100% accurate"),
+        "{output}"
+    );
 }
 
 #[test]
