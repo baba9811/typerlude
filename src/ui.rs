@@ -50,7 +50,6 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     let main = regions[0];
     match app.screen() {
         Screen::Home => render_home(frame, app, main, styles),
-        Screen::ModeSelect => render_mode_select(frame, app, main, styles),
         Screen::ModeOptions => render_mode_options(frame, app, main, styles),
         Screen::Practice => render_practice(frame, app, main, styles),
         Screen::Result => render_result(frame, app, main, styles),
@@ -211,46 +210,6 @@ fn render_home(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
     });
     frame.render_widget(List::new(items).style(styles.base), regions[0]);
     render_update_notice(frame, app, regions[1], styles);
-}
-
-fn render_mode_select(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
-    let language = app.settings.ui_language;
-    let actions = [
-        TextKey::HomeQuick,
-        TextKey::HomeKeys,
-        TextKey::HomeWords,
-        TextKey::HomeSentence,
-        TextKey::HomeLong,
-        TextKey::HomeTest,
-    ];
-    let title = actions
-        .get(app.focus())
-        .copied()
-        .unwrap_or(TextKey::HomeQuick);
-    let block = titled(text(language, title), styles);
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-    let regions = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(inner);
-    frame.render_widget(
-        List::new(actions.into_iter().enumerate().map(|(index, key)| {
-            let marker = if index == app.focus() { "> " } else { "  " };
-            ListItem::new(Line::from(vec![
-                Span::styled(marker, styles.accent),
-                Span::styled(text(language, key), styles.base),
-            ]))
-        }))
-        .style(styles.base),
-        regions[0],
-    );
-    frame.render_widget(
-        Paragraph::new(format!(
-            "Tab / ↑↓ · Enter {} · Esc {}",
-            text(language, TextKey::Confirm),
-            text(language, TextKey::Back)
-        ))
-        .style(styles.dim),
-        regions[1],
-    );
 }
 
 fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {

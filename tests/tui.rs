@@ -90,9 +90,6 @@ fn open_mode_options(app: &mut App, index: usize, now: Instant) {
         app.handle_event(key(KeyCode::Tab), now).unwrap();
     }
     app.handle_event(key(KeyCode::Enter), now).unwrap();
-    assert_eq!(app.screen(), Screen::ModeSelect);
-    assert_eq!(app.focus(), index);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
     assert_eq!(app.screen(), Screen::ModeOptions);
     assert_eq!(app.focus(), 0);
 }
@@ -473,8 +470,6 @@ fn required_label(screen: Screen, language: Language) -> &'static str {
     match (screen, language) {
         (Screen::Home, Language::Ko) => "Typerlude",
         (Screen::Home, Language::En) => "Typerlude",
-        (Screen::ModeSelect, Language::Ko) => "빠른 연습",
-        (Screen::ModeSelect, Language::En) => "Quick practice",
         (Screen::ModeOptions, Language::Ko) => "빠른 연습",
         (Screen::ModeOptions, Language::En) => "Quick practice",
         (Screen::Practice, Language::Ko) => "진행",
@@ -594,29 +589,13 @@ fn every_home_practice_action_opens_its_matching_mode_options() {
         }
 
         app.handle_event(key(KeyCode::Enter), now).unwrap();
-        assert_eq!(app.screen(), Screen::ModeSelect, "{kind:?}");
-        assert_eq!(app.focus(), index, "{kind:?}");
-        let selection = buffer_text(&draw(&app, 80, 24).buffer);
-        assert!(selection.contains(&format!("> {label}")), "{selection}");
-
-        app.handle_event(key(KeyCode::Enter), now).unwrap();
         assert_eq!(app.screen(), Screen::ModeOptions, "{kind:?}");
+        assert_eq!(app.mode_options().kind, kind, "{kind:?}");
+        assert_eq!(app.focus(), 0, "{kind:?}");
         assert!(app.active_practice().is_none(), "{kind:?}");
+        let options = buffer_text(&draw(&app, 80, 24).buffer);
+        assert!(options.contains(label), "{options}");
     }
-}
-
-#[test]
-fn mode_select_focus_moves_across_all_six_practice_modes() {
-    let (_root, mut app) = fixture_app();
-    let now = Instant::now();
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
-
-    app.handle_event(key(KeyCode::Tab), now).unwrap();
-    assert_eq!(app.focus(), 1);
-    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("> Key practice"));
-
-    app.handle_event(key(KeyCode::BackTab), now).unwrap();
-    assert_eq!(app.focus(), 0);
 }
 
 #[test]
@@ -756,7 +735,7 @@ fn mode_options_reach_every_documented_quick_key_word_and_test_choice() {
     press(&mut quick, KeyCode::Tab, 1, now);
     assert_eq!(quick.focus(), 0);
     quick.handle_event(key(KeyCode::Esc), now).unwrap();
-    assert_eq!(quick.screen(), Screen::ModeSelect);
+    assert_eq!(quick.screen(), Screen::Home);
 
     let (_root, mut key_app) = fixture_app();
     open_mode_options(&mut key_app, 1, now);
@@ -2056,14 +2035,12 @@ fn unknown_saved_theme_falls_back_to_validated_default_styles() {
 }
 
 #[test]
-fn mode_select_and_help_render_keyboard_guidance() {
-    for screen in [Screen::ModeSelect, Screen::Help] {
-        let (_root, mut app) = fixture_app();
-        app.open(screen);
-        let output = buffer_text(&draw(&app, 80, 24).buffer);
-        for key_name in ["Tab", "Enter", "Esc"] {
-            assert!(output.contains(key_name), "{screen:?} {key_name}: {output}");
-        }
+fn help_renders_keyboard_guidance() {
+    let (_root, mut app) = fixture_app();
+    app.open(Screen::Help);
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for key_name in ["Tab", "Enter", "Esc"] {
+        assert!(output.contains(key_name), "{key_name}: {output}");
     }
 }
 
@@ -2104,7 +2081,6 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
         Screen::ALL,
         [
             Screen::Home,
-            Screen::ModeSelect,
             Screen::ModeOptions,
             Screen::Practice,
             Screen::Result,
@@ -2119,7 +2095,7 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
             Screen::Help,
         ]
     );
-    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 14);
+    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 13);
 
     let (_root, app) = fixture_app();
     assert_eq!(app.screen(), Screen::Home);

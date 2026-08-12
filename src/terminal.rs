@@ -220,6 +220,6 @@ mod tests {
             now,
         )
         .unwrap();
-        assert_eq!(supported.screen(), Screen::ModeSelect);
+        assert_eq!(supported.screen(), Screen::ModeOptions);
     }
 }

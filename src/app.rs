@@ -31,7 +31,6 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Screen {
     Home,
-    ModeSelect,
     ModeOptions,
     Practice,
     Result,
@@ -47,9 +46,8 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 13] = [
         Self::Home,
-        Self::ModeSelect,
         Self::ModeOptions,
         Self::Practice,
         Self::Result,
@@ -235,8 +233,8 @@ pub(crate) const QUICK_COUNT_PRESETS: &[usize] = &[10, 25, 50, 100];
 pub(crate) const TEST_DURATION_PRESETS: &[u64] = &[60, 180, 300, 600];
 
 #[derive(Clone, Debug)]
-pub(crate) struct ModeOptions {
-    pub(crate) kind: PracticeKind,
+pub struct ModeOptions {
+    pub kind: PracticeKind,
     pub(crate) language: Language,
     pub(crate) quick_source: QuickSource,
     pub(crate) quick_items: bool,
@@ -633,7 +631,7 @@ impl App {
         self.focus
     }
 
-    pub(crate) const fn mode_options(&self) -> &ModeOptions {
+    pub const fn mode_options(&self) -> &ModeOptions {
         &self.mode_options
     }
 
@@ -1848,12 +1846,6 @@ impl App {
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
-            Screen::ModeOptions => {
-                self.screen = Screen::ModeSelect;
-                self.parent = Screen::Home;
-                self.parent_before_help = None;
-                self.focus = 0;
-            }
             Screen::Help => {
                 let destination = self.parent;
                 let restored_parent = self.parent_before_help.take().unwrap_or(Screen::Home);
@@ -1888,7 +1880,6 @@ impl App {
     fn focus_count(&self) -> usize {
         match self.screen {
             Screen::Home => 10,
-            Screen::ModeSelect => 6,
             Screen::ModeOptions => match self.mode_options.kind {
                 PracticeKind::Quick | PracticeKind::Key => 5,
                 PracticeKind::Words | PracticeKind::Test => 3,
@@ -2034,36 +2025,26 @@ impl App {
     fn enter(&mut self, now: Instant) -> Result<()> {
         match self.screen {
             Screen::Home => {
-                let focus = self.focus;
-                if focus <= 5 {
-                    self.open(Screen::ModeSelect);
-                    self.focus = focus;
-                } else {
-                    let screen = match focus {
-                        6 => Screen::Stats,
-                        7 => Screen::Goals,
-                        8 => Screen::Content,
-                        9 => Screen::Settings,
-                        _ => return Ok(()),
-                    };
-                    self.open(screen);
-                }
-            }
-            Screen::ModeSelect => {
-                let Some(kind) = [
+                let kinds = [
                     PracticeKind::Quick,
                     PracticeKind::Key,
                     PracticeKind::Words,
                     PracticeKind::Sentence,
                     PracticeKind::Long,
                     PracticeKind::Test,
-                ]
-                .get(self.focus)
-                .copied() else {
-                    return Ok(());
-                };
-                self.mode_options = ModeOptions::new(kind, self.settings.language);
-                self.open(Screen::ModeOptions);
+                ];
+                match self.focus {
+                    0..=5 => {
+                        self.mode_options =
+                            ModeOptions::new(kinds[self.focus], self.settings.language);
+                        self.open(Screen::ModeOptions);
+                    }
+                    6 => self.open(Screen::Stats),
+                    7 => self.open(Screen::Goals),
+                    8 => self.open(Screen::Content),
+                    9 => self.open(Screen::Settings),
+                    _ => {}
+                }
             }
             Screen::ModeOptions => {
                 let options = self.mode_options.clone();
