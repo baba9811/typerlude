@@ -147,8 +147,6 @@ function assertSteadyStateReleaseDocumentation(markdown) {
   assert.match(markdown, /`make release`/);
   assert.match(markdown, /signed annotated tag/i);
   assert.match(markdown, /OIDC-only/i);
-  assert.match(markdown, /old npm .*`@baba9811\/typeul`.*retired/is);
-  assert.match(markdown, /old crates\.io crate `typeul`.*retired/is);
   assert.match(markdown, /immutable releases.*only.*after.*enabled/is);
   for (const name of ["typerlude", ...packageNames]) {
     assert.ok(markdown.includes(`\`${name}\``), `missing trusted npm package: ${name}`);

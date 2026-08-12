@@ -100,13 +100,6 @@ an existing version only when the local tarball SHA-512 SRI matches `dist.integr
 query or integrity error stops publication. Do not bump the version or publish tarballs manually
 to repair a partial run.
 
-## Retired names / 폐기된 이름
-
-The old npm family rooted at `@baba9811/typeul` is retired, including
-`typeul-darwin-arm64`, `typeul-darwin-x64`, `typeul-linux-arm64`, `typeul-linux-x64`,
-`@baba9811/typeul-win32-arm64-msvc`, and `@baba9811/typeul-win32-x64-msvc`.
-The old crates.io crate `typeul` is also retired. Do not restore or depend on these names.
-
 Primary references: [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/),
 [crates.io Trusted Publishing](https://crates.io/docs/trusted-publishing),
 [GitHub environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments),
