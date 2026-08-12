@@ -3,8 +3,8 @@ use crate::{
         ActivePractice, App, CustomTextSource, Grade, PracticeMode, QUICK_COUNT_PRESETS,
         QUICK_TIME_PRESETS, Screen, StopRule, TEST_DURATION_PRESETS, key_stages,
     },
-    cli::terminal_safe,
     content::ContentKind,
+    diagnostic::terminal_safe,
     i18n::{TextKey, result_actions, text},
     model::{Difficulty, Language, PracticeKind},
     stats::{
