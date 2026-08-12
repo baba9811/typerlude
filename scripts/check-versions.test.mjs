@@ -39,6 +39,77 @@ function withFixture(change, check) {
   }
 }
 
+function namedWorkflowStep(workflow, name) {
+  const marker = `      - name: ${name}\n`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `missing workflow step: ${name}`);
+  const rest = workflow.slice(start + marker.length);
+  const boundary = rest.search(/\n(?:      - |  [a-z][a-z0-9-]*:)/);
+  const end = boundary === -1 ? workflow.length : start + marker.length + boundary;
+  return { start, end, text: workflow.slice(start, end) };
+}
+
+function replaceWorkflowStep(workflow, name, transform) {
+  const { start, end, text } = namedWorkflowStep(workflow, name);
+  return workflow.slice(0, start) + transform(text) + workflow.slice(end);
+}
+
+function moveWorkflowStepAfter(workflow, name, destination) {
+  const source = namedWorkflowStep(workflow, name);
+  const withoutSource = workflow.slice(0, source.start) + workflow.slice(source.end);
+  const target = namedWorkflowStep(withoutSource, destination);
+  return withoutSource.slice(0, target.end) + `\n${source.text}` + withoutSource.slice(target.end);
+}
+
+function assertStepCondition(step, name, condition) {
+  assert.equal(
+    step.text.match(/^ {8}if: (.+)$/m)?.[1],
+    condition,
+    `${name} must use its exact registry condition`,
+  );
+}
+
+function assertNoLongLivedRegistrySecret(step, name) {
+  assert.doesNotMatch(
+    step.text,
+    /secrets\.(?:CRATES_TOKEN|NPM_TOKEN)/,
+    `${name} must not reference long-lived registry secrets`,
+  );
+}
+
+function assertRegistryReleasePolicy(workflow) {
+  const bootstrap = "vars.TYPERLUDE_REGISTRY_BOOTSTRAP";
+  const cargoCondition = `steps.cargo-version.outputs.publish == 'true' && ${bootstrap}`;
+  const preflight = namedWorkflowStep(workflow, "Preflight registry bootstrap credentials");
+  const cargoBootstrap = namedWorkflowStep(workflow, "Publish Cargo bootstrap");
+
+  assertStepCondition(preflight, "Preflight registry bootstrap credentials", `${bootstrap} == '1'`);
+  assert.match(preflight.text, /^ {10}CARGO_REGISTRY_TOKEN: \$\{\{ secrets\.CRATES_TOKEN \}\}$/m);
+  assert.match(preflight.text, /^ {10}NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}$/m);
+  assert.match(
+    preflight.text,
+    /^ {10}test -n "\$CARGO_REGISTRY_TOKEN" \|\| \{ echo "CRATES_TOKEN is required for bootstrap" >&2; exit 1; \}$/m,
+    "preflight must require CARGO_REGISTRY_TOKEN",
+  );
+  assert.match(
+    preflight.text,
+    /^ {10}test -n "\$NODE_AUTH_TOKEN" \|\| \{ echo "NPM_TOKEN is required for bootstrap" >&2; exit 1; \}$/m,
+    "preflight must require NODE_AUTH_TOKEN",
+  );
+  assert.ok(preflight.start < cargoBootstrap.start, "preflight must precede Cargo bootstrap publication");
+  assertStepCondition(cargoBootstrap, "Publish Cargo bootstrap", `${cargoCondition} == '1'`);
+
+  for (const name of ["Authenticate with crates.io", "Require OIDC credential", "Publish Cargo with OIDC"]) {
+    const step = namedWorkflowStep(workflow, name);
+    assertStepCondition(step, name, `${cargoCondition} != '1'`);
+    assertNoLongLivedRegistrySecret(step, name);
+  }
+
+  const npmOidc = namedWorkflowStep(workflow, "Publish npm with OIDC, native packages first");
+  assertStepCondition(npmOidc, "Publish npm with OIDC, native packages first", `${bootstrap} != '1'`);
+  assertNoLongLivedRegistrySecret(npmOidc, "Publish npm with OIDC, native packages first");
+}
+
 test("reports every mismatched package path", () => {
   assert.throws(() => validateVersions([
     ["Cargo.toml", "1.2.3"], ["package.json", "1.2.4"],
@@ -150,20 +221,56 @@ test("one registry bootstrap switch gates both token paths before ordered public
   assert.deepEqual([...new Set(bootstrapSwitches)], ["TYPERLUDE_REGISTRY_BOOTSTRAP"]);
   assert.match(workflow, /TYPERLUDE_REGISTRY_BOOTSTRAP must be empty or 1/);
   assert.doesNotMatch(workflow, /TYPEUL_(?:NPM_)?BOOTSTRAP/);
-  assert.match(workflow, /CARGO_REGISTRY_TOKEN: \$\{\{ secrets\.CRATES_TOKEN \}\}/);
-  assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
-  assert.match(workflow, /Publish Cargo bootstrap[\s\S]*if: steps\.cargo-version\.outputs\.publish == 'true' && vars\.TYPERLUDE_REGISTRY_BOOTSTRAP == '1'[\s\S]*cargo publish --locked/);
+  assertRegistryReleasePolicy(workflow);
   assert.match(workflow, /Publish npm bootstrap, native packages first[\s\S]*publish-npm-packages\.mjs "\$version" --provenance/);
   assert.match(workflow, /publish-npm:\n\s+needs: publish-cargo/);
 });
 
 test("normal registry publication remains OIDC-only", () => {
   const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
-  assert.match(workflow, /rust-lang\/crates-io-auth-action@/);
+  const cargoAuth = namedWorkflowStep(workflow, "Authenticate with crates.io");
+  assert.match(cargoAuth.text, /rust-lang\/crates-io-auth-action@/);
   assert.match(workflow, /Verify Cargo package again[\s\S]*cargo package --locked[\s\S]*cargo publish --dry-run --locked/);
-  assert.match(workflow, /Authenticate with crates\.io[\s\S]*if: vars\.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'/);
-  assert.match(workflow, /Publish Cargo with OIDC[\s\S]*if: vars\.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'/);
-  assert.match(workflow, /Publish npm with OIDC, native packages first[\s\S]*if: vars\.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'/);
+  assertRegistryReleasePolicy(workflow);
+});
+
+test("registry security assertions reject unsafe workflow mutations", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  const mutations = [
+    [
+      "missing Cargo credential preflight",
+      replaceWorkflowStep(workflow, "Preflight registry bootstrap credentials", (step) =>
+        step.replace(/^\s+test -n "\$CARGO_REGISTRY_TOKEN".*$/m, "")),
+      /preflight must require CARGO_REGISTRY_TOKEN/,
+    ],
+    [
+      "missing npm credential preflight",
+      replaceWorkflowStep(workflow, "Preflight registry bootstrap credentials", (step) =>
+        step.replace(/^\s+test -n "\$NODE_AUTH_TOKEN".*$/m, "")),
+      /preflight must require NODE_AUTH_TOKEN/,
+    ],
+    [
+      "preflight after Cargo publication",
+      moveWorkflowStepAfter(workflow, "Preflight registry bootstrap credentials", "Publish Cargo bootstrap"),
+      /preflight must precede Cargo bootstrap publication/,
+    ],
+    [
+      "long-lived Cargo secret in OIDC publication",
+      replaceWorkflowStep(workflow, "Publish Cargo with OIDC", (step) =>
+        step.replace("steps.crates-auth.outputs.token", "secrets.CRATES_TOKEN")),
+      /Publish Cargo with OIDC must not reference long-lived registry secrets/,
+    ],
+    [
+      "long-lived npm secret in OIDC publication",
+      replaceWorkflowStep(workflow, "Publish npm with OIDC, native packages first", (step) =>
+        step.replace("        shell: bash\n", "        env:\n          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n        shell: bash\n")),
+      /Publish npm with OIDC, native packages first must not reference long-lived registry secrets/,
+    ],
+  ];
+
+  for (const [name, mutated, message] of mutations) {
+    assert.throws(() => assertRegistryReleasePolicy(mutated), message, name);
+  }
 });
 
 test("release requires a verified signed tag", () => {
