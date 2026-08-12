@@ -594,7 +594,6 @@ fn every_home_practice_action_opens_its_matching_mode_options() {
 
         app.handle_event(key(KeyCode::Enter), now).unwrap();
         assert_eq!(app.screen(), Screen::ModeOptions, "{kind:?}");
-        assert_eq!(app.mode_options().kind, kind, "{kind:?}");
         assert_eq!(app.focus(), 0, "{kind:?}");
         assert!(app.active_practice().is_none(), "{kind:?}");
         let options = buffer_text(&draw(&app, 80, 24).buffer);
@@ -1290,6 +1289,22 @@ fn stats_uses_the_selected_language_and_30_days_from_local_today() {
 }
 
 #[test]
+fn korean_stats_goal_uses_localized_kpm_terminology() {
+    let (_root, mut app) = fixture_app();
+    app.settings.ui_language = Language::Ko;
+    app.settings.target_kpm = 450;
+    app.set_stats_language(Language::Ko);
+    let mut session = result_view("korean-stats-goal").session;
+    session.language = Language::Ko;
+    session.kpm = 321.0;
+    app.sessions.push(session);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("목표: 타수 321/450 타/분"), "{output}");
+}
+
+#[test]
 fn stats_trends_are_chronological_regardless_of_storage_order() {
     let (_first_root, mut first) = fixture_app();
     let (_second_root, mut second) = fixture_app();
@@ -1391,11 +1406,12 @@ fn korean_data_screens_do_not_fall_back_to_english_prose() {
 #[test]
 fn history_renders_newest_session_first_without_mutating_storage_order() {
     let (_root, mut app) = fixture_app();
-    let mut newer = result_view("newer-session").session;
+    let mut newer = result_view("1786029600000000000-12345-1").session;
     newer.started_at_unix_ms = 2;
+    newer.mode = PracticeKind::Long;
     newer.kpm = 200.0;
     newer.wpm = 40.0;
-    let mut older = result_view("older-session").session;
+    let mut older = result_view("1786029600000000000-12345-0").session;
     older.started_at_unix_ms = 1;
     app.sessions.extend([newer, older]);
     let stored = app.sessions.clone();
@@ -1403,13 +1419,21 @@ fn history_renders_newest_session_first_without_mutating_storage_order() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     let newer = output
-        .find("newer-session")
+        .find("KPM 200.0 · WPM 40.0")
         .expect("newer session is visible");
     let older = output
-        .find("older-session")
+        .find("KPM 60.0 · WPM 12.0")
         .expect("older session is visible");
     assert!(newer < older, "{output}");
-    assert!(output.contains("KPM 200.0 · WPM 40.0"), "{output}");
+    let newer_row = output
+        .lines()
+        .find(|line| line.contains("KPM 200.0 · WPM 40.0"))
+        .expect("both newer speeds are visible on one row");
+    let id = newer_row
+        .find("178602960000")
+        .expect("production-length session ID prefix is visible");
+    let speeds = newer_row.find("KPM 200.0 · WPM 40.0").unwrap();
+    assert!(speeds < id, "{newer_row}");
     assert_eq!(app.sessions, stored);
 }
 

@@ -1417,9 +1417,17 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
     let kpm_best = finite_nonnegative(overview.kpm.best);
     let wpm_average = finite_nonnegative(overview.wpm.average);
     let wpm_best = finite_nonnegative(overview.wpm.best);
-    let (unit, average, speed_goal) = match app.stats_language() {
-        Language::Ko => ("KPM", kpm_average, app.settings.target_kpm),
-        Language::En => ("WPM", wpm_average, app.settings.target_wpm),
+    let stats_language = app.stats_language();
+    let (average, speed_goal) = match stats_language {
+        Language::Ko => (kpm_average, app.settings.target_kpm),
+        Language::En => (wpm_average, app.settings.target_wpm),
+    };
+    let goal_speed = match (language, stats_language) {
+        (Language::Ko, Language::Ko) => {
+            format!("타수 {average:.0}/{speed_goal} 타/분")
+        }
+        (Language::En, Language::Ko) => format!("KPM {average:.0}/{speed_goal}"),
+        (_, Language::En) => format!("WPM {average:.0}/{speed_goal}"),
     };
     let practice_streak = streak(app.sessions.iter().map(|session| session.local_date), today);
     let points = app.stats_points();
@@ -1460,7 +1468,7 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
                 text(language, TextKey::Streak)
             )),
             Line::from(format!(
-                "{goal_label}: {unit} {average:.0}/{speed_goal} · {:.1}/{:.1}% · {minutes}/{} {minute_unit}",
+                "{goal_label}: {goal_speed} · {:.1}/{:.1}% · {minutes}/{} {minute_unit}",
                 accuracy, app.settings.target_accuracy, app.settings.daily_minutes,
             )),
         ])
@@ -1572,8 +1580,7 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSty
     }
     let items = items.map(|session| {
         ListItem::new(format!(
-            "{} {} {} {} {} {:.1}%",
-            session.id,
+            "{} {} {} {} {:.1}% {}",
             session.local_date,
             practice_name(language, session.mode),
             language_name(session.language),
@@ -1582,7 +1589,8 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSty
                 finite_nonnegative(session.kpm),
                 finite_nonnegative(session.wpm),
             ),
-            session.accuracy
+            session.accuracy,
+            session.id,
         ))
     });
     frame.render_widget(List::new(items).style(styles.base), data);
@@ -2014,7 +2022,6 @@ fn speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
     }
 }
 
-#[allow(dead_code)] // Task 6 consumes this shared formatter.
 fn signed_speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
     match ui_language {
         Language::Ko => format!("타수 {kpm:+.1} 타/분 · WPM {wpm:+.1}"),

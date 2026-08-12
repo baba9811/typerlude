@@ -239,8 +239,8 @@ pub(crate) const QUICK_COUNT_PRESETS: &[usize] = &[10, 25, 50, 100];
 pub(crate) const TEST_DURATION_PRESETS: &[u64] = &[60, 180, 300, 600];
 
 #[derive(Clone, Debug)]
-pub struct ModeOptions {
-    pub kind: PracticeKind,
+pub(crate) struct ModeOptions {
+    pub(crate) kind: PracticeKind,
     pub(crate) language: Language,
     pub(crate) quick_source: QuickSource,
     pub(crate) quick_items: bool,
@@ -642,7 +642,7 @@ impl App {
         self.focus
     }
 
-    pub const fn mode_options(&self) -> &ModeOptions {
+    pub(crate) const fn mode_options(&self) -> &ModeOptions {
         &self.mode_options
     }
 
