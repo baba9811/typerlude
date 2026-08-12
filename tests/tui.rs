@@ -273,7 +273,8 @@ fn mode_for(kind: PracticeKind) -> PracticeMode {
                 correct_units: 7,
                 attempted_units: 8,
                 errors: 1,
-                speed: 72.5,
+                kpm: 72.5,
+                wpm: 14.5,
                 accuracy: 87.5,
             }),
         },
@@ -3658,21 +3659,21 @@ fn practice_renderer_uses_stored_live_and_item_fields() {
     app.start_mode(
         ModeRequest {
             kind: PracticeKind::Words,
-            language: Language::En,
-            target: "one two".into(),
+            language: Language::Ko,
+            target: "한글".into(),
             mode: PracticeMode::Words {
                 difficulty: Difficulty::Easy,
                 completed: 0,
                 streak: 0,
             },
             stop: StopRule::TargetEnd,
-            item_ends: vec![4, 7],
-            content_ids: vec!["one".into(), "two".into()],
+            item_ends: vec![2],
+            content_ids: vec!["한글".into()],
         },
         start,
     )
     .unwrap();
-    type_text(&mut app, "one", start + Duration::from_secs(1));
+    type_text(&mut app, "한", start);
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     for field in ["Speed", "Accuracy", "Errors", "Streak", "Progress"] {
         assert!(output.contains(field), "missing {field}: {output}");
@@ -3688,27 +3689,11 @@ fn practice_renderer_uses_stored_live_and_item_fields() {
             .correct_units,
         3
     );
-    app.handle_event(key(KeyCode::Backspace), start + Duration::from_secs(1))
-        .unwrap();
-    assert_eq!(
-        app.active_practice()
-            .unwrap()
-            .current_item_delta()
-            .unwrap()
-            .correct_units,
-        2
-    );
-    app.tick(start + Duration::from_secs(61)).unwrap();
-    assert!(
-        (app.active_practice()
-            .unwrap()
-            .current_item_delta()
-            .unwrap()
-            .speed
-            - 0.4)
-            .abs()
-            < f64::EPSILON * 4.0
-    );
+    app.tick(start + Duration::from_secs(60)).unwrap();
+    let delta = app.active_practice().unwrap().current_item_delta().unwrap();
+    assert_eq!(delta.correct_units, 3);
+    assert!((delta.kpm - 3.0).abs() < f64::EPSILON * 4.0);
+    assert!((delta.wpm - 0.2).abs() < f64::EPSILON * 4.0);
 }
 
 #[test]
@@ -4247,7 +4232,8 @@ fn custom_long_text_is_memory_only_and_uses_safe_content_ids() {
     let long = result.long.unwrap();
     assert_eq!(long.completed_graphemes, 31);
     assert!(long.total_graphemes > long.completed_graphemes);
-    assert!((long.best_rolling_speed - 12.0).abs() < f64::EPSILON * 8.0);
+    assert!((long.best_rolling_kpm - 60.0).abs() < f64::EPSILON * 8.0);
+    assert!((long.best_rolling_wpm - 12.0).abs() < f64::EPSILON * 8.0);
     assert!((1..100).contains(&long.percent));
     app.settings.ui_language = Language::Ko;
     let korean_result = buffer_text(&draw(&app, 80, 24).buffer);

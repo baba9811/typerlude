@@ -696,7 +696,13 @@ fn practice_live_lines(
         PracticeMode::Words {
             completed, streak, ..
         } => {
-            let current = active.current_item_delta().map_or(0.0, |delta| delta.speed);
+            let current =
+                active
+                    .current_item_delta()
+                    .map_or(0.0, |delta| match active.engine.language() {
+                        Language::Ko => delta.kpm,
+                        Language::En => delta.wpm,
+                    });
             let (current_label, average_label) = current_average(language);
             let mut fields = Vec::new();
             if show_speed {
@@ -724,7 +730,10 @@ fn practice_live_lines(
                     fields.push(format!(
                         "{}: {:.1}",
                         text(language, TextKey::Speed),
-                        delta.speed
+                        match active.engine.language() {
+                            Language::Ko => delta.kpm,
+                            Language::En => delta.wpm,
+                        }
                     ));
                 }
                 if show_accuracy {
@@ -1161,10 +1170,11 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             Language::Ko => ("최고 30초 속도", "글자"),
             Language::En => ("Best rolling 30s", "Graphemes"),
         };
-        lines.push(Line::from(format!(
-            "{rolling}: {:.1} {unit}",
-            long.best_rolling_speed
-        )));
+        let rolling_speed = match session.language {
+            Language::Ko => long.best_rolling_kpm,
+            Language::En => long.best_rolling_wpm,
+        };
+        lines.push(Line::from(format!("{rolling}: {rolling_speed:.1} {unit}")));
         lines.push(Line::from(format!(
             "{graphemes}: {}/{}",
             long.completed_graphemes, long.total_graphemes

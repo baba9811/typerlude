@@ -89,7 +89,8 @@ pub struct ItemDelta {
     pub correct_units: u64,
     pub attempted_units: u64,
     pub errors: u64,
-    pub speed: f64,
+    pub kpm: f64,
+    pub wpm: f64,
     pub accuracy: f64,
 }
 
@@ -162,7 +163,8 @@ pub struct LongScroll {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LongOutcome {
-    pub best_rolling_speed: f64,
+    pub best_rolling_kpm: f64,
+    pub best_rolling_wpm: f64,
     pub completed_graphemes: usize,
     pub total_graphemes: usize,
     pub percent: usize,
@@ -1502,11 +1504,8 @@ impl App {
                         .unwrap_or(0);
                     if active.engine.cursor() > floor && active.engine.backspace() {
                         active.live_metrics = active.engine.metrics(now);
-                        active.current_item_delta = Some(item_delta(
-                            &active.item_metrics,
-                            &active.live_metrics,
-                            active.engine.language(),
-                        ));
+                        active.current_item_delta =
+                            Some(item_delta(&active.item_metrics, &active.live_metrics));
                     }
                 }
             }
@@ -1543,11 +1542,8 @@ impl App {
         }
         active.live_metrics = active.engine.metrics(now);
         if active.engine.attempted_units() > attempted_before {
-            active.current_item_delta = Some(item_delta(
-                &active.item_metrics,
-                &active.live_metrics,
-                active.engine.language(),
-            ));
+            active.current_item_delta =
+                Some(item_delta(&active.item_metrics, &active.live_metrics));
         }
         if active.live_metrics.errors > errors_before
             && let PracticeMode::Words { streak, .. } = &mut active.mode
@@ -1571,11 +1567,7 @@ impl App {
                     break;
                 }
 
-                let delta = item_delta(
-                    &active.item_metrics,
-                    &active.live_metrics,
-                    active.engine.language(),
-                );
+                let delta = item_delta(&active.item_metrics, &active.live_metrics);
                 active.item_metrics = active.live_metrics.clone();
                 active.next_item += 1;
                 active.current_item_delta = Some(delta.clone());
@@ -1686,11 +1678,8 @@ impl App {
                 .copied()
                 .unwrap_or(0);
             if active.engine.cursor() > item_start {
-                active.current_item_delta = Some(item_delta(
-                    &active.item_metrics,
-                    &active.live_metrics,
-                    active.engine.language(),
-                ));
+                active.current_item_delta =
+                    Some(item_delta(&active.item_metrics, &active.live_metrics));
             }
             if active
                 .status
@@ -1743,8 +1732,10 @@ impl App {
         let long = (kind == PracticeKind::Long).then(|| {
             let completed_graphemes = active.engine.cursor();
             let total_graphemes = active.engine.target_len();
+            let (best_rolling_kpm, best_rolling_wpm) = active.engine.best_rolling_speeds();
             LongOutcome {
-                best_rolling_speed: active.engine.best_rolling_speed(),
+                best_rolling_kpm,
+                best_rolling_wpm,
                 completed_graphemes,
                 total_graphemes,
                 percent: completed_graphemes.saturating_mul(100) / total_graphemes,
@@ -2503,12 +2494,13 @@ fn catalog_target(items: &[&ResolvedItem], separator: &str) -> (String, Vec<usiz
     (target, item_ends, content_ids)
 }
 
-fn item_delta(before: &Metrics, after: &Metrics, language: Language) -> ItemDelta {
+fn item_delta(before: &Metrics, after: &Metrics) -> ItemDelta {
     let correct_units = after.correct_units.saturating_sub(before.correct_units);
+    let correct_cells = after.correct_cells.saturating_sub(before.correct_cells);
     let attempted_units = after.attempted_units.saturating_sub(before.attempted_units);
     let correct_attempts = correct_attempts(after).saturating_sub(correct_attempts(before));
     let minutes = after.active.saturating_sub(before.active).as_secs_f64() / 60.0;
-    let units_per_minute = if minutes > 0.0 {
+    let kpm = if minutes > 0.0 {
         correct_units as f64 / minutes
     } else {
         0.0
@@ -2517,9 +2509,11 @@ fn item_delta(before: &Metrics, after: &Metrics, language: Language) -> ItemDelt
         correct_units,
         attempted_units,
         errors: after.errors.saturating_sub(before.errors),
-        speed: match language {
-            Language::Ko => units_per_minute,
-            Language::En => units_per_minute / 5.0,
+        kpm,
+        wpm: if minutes > 0.0 {
+            correct_cells as f64 / minutes / 5.0
+        } else {
+            0.0
         },
         accuracy: if attempted_units == 0 {
             100.0
