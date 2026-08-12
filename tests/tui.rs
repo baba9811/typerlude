@@ -26,7 +26,7 @@ use typerlude::{
     stats::{KeyAccuracy, Range, adaptive_candidates, summarize},
     storage::{AppPaths, SessionRecord},
     theme::ThemeCatalog,
-    ui::{practice_cursor, render},
+    tui::{practice_cursor, render},
 };
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;

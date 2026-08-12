@@ -10,8 +10,8 @@ pub mod stats;
 pub mod storage;
 pub mod terminal;
 pub mod theme;
+pub mod tui;
 pub mod typing;
-pub mod ui;
 pub mod update;
 mod user_error;
 

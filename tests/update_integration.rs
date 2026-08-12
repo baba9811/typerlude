@@ -13,7 +13,7 @@ use typerlude::{
     content::ContentCatalog,
     storage::AppPaths,
     theme::ThemeCatalog,
-    ui::render,
+    tui::render,
     update::{InstallMethod, StableVersion, UpdateCache, UpdateNotice, notice, should_check},
 };
 use unicode_width::UnicodeWidthStr;

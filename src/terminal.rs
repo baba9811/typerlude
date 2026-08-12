@@ -1,6 +1,6 @@
 use crate::{
     app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers as AppKeyModifiers},
-    ui,
+    tui,
 };
 use anyhow::{Context, Result, bail};
 use crossterm::{
@@ -116,7 +116,7 @@ pub fn run(mut app: App) -> Result<()> {
     let mut terminal = Terminal::new(backend).context("failed to initialize terminal drawing")?;
     let result = (|| -> Result<()> {
         terminal
-            .draw(|frame| ui::render(frame, &app))
+            .draw(|frame| tui::render(frame, &app))
             .context("failed to draw terminal UI")?;
         while !app.should_quit() {
             if event::poll(Duration::from_millis(50)).context("failed to poll terminal input")? {
@@ -127,7 +127,7 @@ pub fn run(mut app: App) -> Result<()> {
                 app.tick(Instant::now())?;
             }
             terminal
-                .draw(|frame| ui::render(frame, &app))
+                .draw(|frame| tui::render(frame, &app))
                 .context("failed to draw terminal UI")?;
         }
         Ok(())
@@ -145,7 +145,7 @@ fn handle_event_at_size(app: &mut App, event: Event, size: Size, now: Instant) -
         InputEvent::Key(key)
             if matches!(key.key, Key::Char('c' | 'C')) && key.modifiers.control
     );
-    if ui::supports_size(size.width, size.height) || resized || global_quit {
+    if tui::supports_size(size.width, size.height) || resized || global_quit {
         return app.handle_event(event, now);
     }
     if matches!(
