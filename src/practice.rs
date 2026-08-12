@@ -5,12 +5,17 @@ use crate::{
 use anyhow::{Result, bail};
 use std::{
     collections::{BTreeMap, VecDeque},
+    ops::Range,
     time::{Duration, Instant},
 };
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
+const LOGICAL_LINE_WIDTH: usize = 72;
 
 #[derive(Clone, Debug)]
 struct Cell {
+    entered: String,
     correct: bool,
 }
 
@@ -33,6 +38,8 @@ pub struct PracticeEngine {
     kind: PracticeKind,
     target: String,
     target_ends: Vec<u32>,
+    line_ends: Vec<u32>,
+    active_line: usize,
     input: Vec<Cell>,
     started_at: Option<Instant>,
     finalized_at: Option<Instant>,
@@ -66,16 +73,46 @@ impl PracticeEngine {
         limit: Option<Duration>,
     ) -> Result<Self> {
         let target = normalize_nfc(target);
+        let item_end = UnicodeSegmentation::graphemes(target.as_str(), true).count();
+        Self::from_target(language, kind, target, &[item_end], limit)
+    }
+
+    pub fn new_for_items(
+        language: Language,
+        kind: PracticeKind,
+        target: &str,
+        item_ends: &[usize],
+        limit: Option<Duration>,
+    ) -> Result<Self> {
+        Self::from_target(language, kind, normalize_nfc(target), item_ends, limit)
+    }
+
+    fn from_target(
+        language: Language,
+        kind: PracticeKind,
+        target: String,
+        item_ends: &[usize],
+        limit: Option<Duration>,
+    ) -> Result<Self> {
         let target_ends = grapheme_ends(&target, 0)?;
         if target_ends.is_empty() {
             bail!("practice target cannot be empty");
         }
+        if item_ends.last().copied() != Some(target_ends.len())
+            || item_ends.first().copied() == Some(0)
+            || item_ends.windows(2).any(|ends| ends[0] >= ends[1])
+        {
+            bail!("practice item boundaries must be ordered and cover the target");
+        }
+        let line_ends = logical_line_ends(kind, &target, &target_ends, item_ends)?;
 
         Ok(Self {
             language,
             kind,
             target,
             target_ends,
+            line_ends,
+            active_line: 0,
             input: Vec::new(),
             started_at: None,
             finalized_at: None,
@@ -125,7 +162,10 @@ impl PracticeEngine {
             for unit in intended {
                 self.intended.entry(unit).or_default()[usize::from(!correct)] += 1;
             }
-            self.input.push(Cell { correct });
+            self.input.push(Cell {
+                entered: grapheme.into(),
+                correct,
+            });
 
             if self.target_complete() {
                 outcome = InputOutcome::Finished;
@@ -243,6 +283,36 @@ impl PracticeEngine {
         })
     }
 
+    pub fn input_cells(&self) -> impl Iterator<Item = (&str, Option<&str>, Option<bool>)> {
+        self.target_ends.iter().enumerate().map(|(index, &end)| {
+            let start = index
+                .checked_sub(1)
+                .map_or(0, |previous| self.target_ends[previous] as usize);
+            let cell = self.input.get(index);
+            (
+                &self.target[start..end as usize],
+                cell.and_then(|cell| (!cell.entered.is_empty()).then_some(cell.entered.as_str())),
+                cell.map(|cell| cell.correct),
+            )
+        })
+    }
+
+    pub fn line_ranges(&self) -> impl Iterator<Item = Range<usize>> + '_ {
+        self.line_ends.iter().scan(0, |start, &end| {
+            let range = *start..end as usize;
+            *start = end as usize;
+            Some(range)
+        })
+    }
+
+    pub const fn current_line_index(&self) -> usize {
+        self.active_line
+    }
+
+    pub fn current_line_range(&self) -> Option<Range<usize>> {
+        self.line_ranges().nth(self.active_line)
+    }
+
     pub const fn best_rolling_speeds(&self) -> (f64, f64) {
         (self.best_rolling_kpm, self.best_rolling_wpm)
     }
@@ -257,8 +327,27 @@ impl PracticeEngine {
         }
         let extension = format!("{}{target}", normalize_nfc(separator));
         let ends = grapheme_ends(&extension, self.target.len())?;
+        let extension_len = ends.len();
+        let extension_byte_ends = grapheme_ends(&extension, 0)?;
+        let extension_lines = logical_line_ends(
+            self.kind,
+            &extension,
+            &extension_byte_ends,
+            &[extension_len],
+        )?;
+        let offset = self.target_ends.len();
         self.target.push_str(&extension);
         self.target_ends.extend(ends);
+        if self.kind == PracticeKind::Key {
+            self.line_ends = vec![u32::try_from(self.target_ends.len())?];
+        } else {
+            self.line_ends.extend(
+                extension_lines
+                    .into_iter()
+                    .map(|end| u32::try_from(offset.saturating_add(end as usize)))
+                    .collect::<std::result::Result<Vec<_>, _>>()?,
+            );
+        }
         Ok(())
     }
 
@@ -299,11 +388,7 @@ impl PracticeEngine {
     }
 
     fn target_grapheme(&self, index: usize) -> Option<&str> {
-        let end = *self.target_ends.get(index)? as usize;
-        let start = index
-            .checked_sub(1)
-            .map_or(0, |previous| self.target_ends[previous] as usize);
-        self.target.get(start..end)
+        indexed_grapheme(&self.target, &self.target_ends, index)
     }
 
     fn record_rolling_sample(&mut self, now: Instant) {
@@ -340,6 +425,124 @@ impl PracticeEngine {
     }
 }
 
+fn logical_line_ends(
+    kind: PracticeKind,
+    target: &str,
+    target_ends: &[u32],
+    item_ends: &[usize],
+) -> Result<Vec<u32>> {
+    if kind == PracticeKind::Key {
+        return Ok(vec![u32::try_from(target_ends.len())?]);
+    }
+
+    let mut lines = Vec::new();
+    let mut item_start = 0;
+    for &item_end in item_ends {
+        let mut line_start = item_start;
+        let mut line_width = 0;
+        let mut segment_start = item_start;
+        for index in item_start..item_end {
+            let grapheme = indexed_grapheme(target, target_ends, index)
+                .ok_or_else(|| anyhow::anyhow!("practice item boundary exceeds target"))?;
+            if grapheme == "\n" {
+                append_line_segment(
+                    target,
+                    target_ends,
+                    segment_start..index,
+                    &mut line_start,
+                    &mut line_width,
+                    &mut lines,
+                )?;
+                push_line_end(&mut lines, index + 1)?;
+                line_start = index + 1;
+                line_width = 0;
+                segment_start = index + 1;
+            } else if grapheme.chars().all(char::is_whitespace) {
+                append_line_segment(
+                    target,
+                    target_ends,
+                    segment_start..index + 1,
+                    &mut line_start,
+                    &mut line_width,
+                    &mut lines,
+                )?;
+                segment_start = index + 1;
+            }
+        }
+        append_line_segment(
+            target,
+            target_ends,
+            segment_start..item_end,
+            &mut line_start,
+            &mut line_width,
+            &mut lines,
+        )?;
+        if line_start < item_end {
+            push_line_end(&mut lines, item_end)?;
+        }
+        item_start = item_end;
+    }
+    Ok(lines)
+}
+
+fn append_line_segment(
+    target: &str,
+    target_ends: &[u32],
+    segment: Range<usize>,
+    line_start: &mut usize,
+    line_width: &mut usize,
+    lines: &mut Vec<u32>,
+) -> Result<()> {
+    if segment.is_empty() {
+        return Ok(());
+    }
+    let segment_width = segment.clone().try_fold(0_usize, |width, index| {
+        indexed_grapheme(target, target_ends, index)
+            .map(|grapheme| width.saturating_add(UnicodeWidthStr::width(grapheme)))
+            .ok_or_else(|| anyhow::anyhow!("practice line segment exceeds target"))
+    })?;
+    if *line_start < segment.start && line_width.saturating_add(segment_width) > LOGICAL_LINE_WIDTH
+    {
+        push_line_end(lines, segment.start)?;
+        *line_start = segment.start;
+        *line_width = 0;
+    }
+    if segment_width <= LOGICAL_LINE_WIDTH {
+        *line_width = line_width.saturating_add(segment_width);
+        return Ok(());
+    }
+
+    for index in segment {
+        let width = UnicodeWidthStr::width(
+            indexed_grapheme(target, target_ends, index)
+                .ok_or_else(|| anyhow::anyhow!("practice line segment exceeds target"))?,
+        );
+        if *line_start < index && line_width.saturating_add(width) > LOGICAL_LINE_WIDTH {
+            push_line_end(lines, index)?;
+            *line_start = index;
+            *line_width = 0;
+        }
+        *line_width = line_width.saturating_add(width);
+    }
+    Ok(())
+}
+
+fn push_line_end(lines: &mut Vec<u32>, end: usize) -> Result<()> {
+    let end = u32::try_from(end)?;
+    if lines.last().copied() != Some(end) {
+        lines.push(end);
+    }
+    Ok(())
+}
+
+fn indexed_grapheme<'a>(target: &'a str, target_ends: &[u32], index: usize) -> Option<&'a str> {
+    let end = *target_ends.get(index)? as usize;
+    let start = index
+        .checked_sub(1)
+        .map_or(0, |previous| target_ends[previous] as usize);
+    target.get(start..end)
+}
+
 fn grapheme_ends(text: &str, offset: usize) -> Result<Vec<u32>> {
     let mut ends = Vec::new();
     for (start, grapheme) in UnicodeSegmentation::grapheme_indices(text, true) {
@@ -359,6 +562,65 @@ mod tests {
     use super::{InputOutcome, PracticeEngine};
     use crate::model::{Language, PracticeKind};
     use std::time::{Duration, Instant};
+    use unicode_segmentation::UnicodeSegmentation;
+
+    fn line_texts(engine: &PracticeEngine) -> Vec<String> {
+        let graphemes = engine
+            .target_cells()
+            .map(|(grapheme, _)| grapheme)
+            .collect::<Vec<_>>();
+        engine
+            .line_ranges()
+            .map(|range| graphemes[range].concat())
+            .collect()
+    }
+
+    #[test]
+    fn logical_lines_keep_english_words_and_korean_eojeol_whole() {
+        let english = format!("{} world", "a".repeat(68));
+        let engine = PracticeEngine::new_for_items(
+            Language::En,
+            PracticeKind::Long,
+            &english,
+            &[english.graphemes(true).count()],
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            line_texts(&engine),
+            [format!("{} ", "a".repeat(68)), "world".into()]
+        );
+
+        let korean = format!("{} 세계", "가".repeat(34));
+        let engine = PracticeEngine::new_for_items(
+            Language::Ko,
+            PracticeKind::Long,
+            &korean,
+            &[korean.graphemes(true).count()],
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            line_texts(&engine),
+            [format!("{} ", "가".repeat(34)), "세계".into()]
+        );
+    }
+
+    #[test]
+    fn a_single_oversized_token_splits_only_at_grapheme_boundaries() {
+        let target = "x".repeat(73);
+        let engine =
+            PracticeEngine::new_for_items(Language::En, PracticeKind::Long, &target, &[73], None)
+                .unwrap();
+
+        assert_eq!(
+            line_texts(&engine)
+                .iter()
+                .map(String::len)
+                .collect::<Vec<_>>(),
+            [72, 1]
+        );
+    }
 
     #[test]
     fn correction_does_not_erase_an_accuracy_error_or_inflate_speed() {
