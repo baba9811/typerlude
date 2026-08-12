@@ -729,7 +729,7 @@ fn mode_options_reach_every_documented_quick_key_word_and_test_choice() {
         } else {
             Language::En
         };
-        launch_mode_options(&mut app, 5, language, &[(1, (preset + 2) % 4)], 2, now);
+        launch_mode_options(&mut app, 5, language, &[(1, (preset + 2) % 4)], 3, now);
 
         let active = app.active_practice().unwrap();
         assert_eq!(active.kind(), PracticeKind::Test);
@@ -2938,7 +2938,8 @@ fn result_next_is_unavailable_for_key_and_test_but_retry_is_exact() {
     assert_result_next_unavailable_and_retry_exact(&mut keys, start);
 
     let (_test_root, mut test) = fixture_app();
-    test.start_test(Language::Ko, Some(60), 13, start).unwrap();
+    test.start_test(Language::Ko, Some(60), None, 13, start)
+        .unwrap();
     assert_result_next_unavailable_and_retry_exact(&mut test, start);
 }
 
@@ -4696,11 +4697,94 @@ fn custom_long_text_is_memory_only_and_uses_safe_content_ids() {
 }
 
 #[test]
-fn typing_test_uses_allowed_durations_sentence_extension_and_relative_grade() {
+fn typing_test_uses_long_texts_and_exposes_random_or_selected_content() {
+    let start = Instant::now();
+    let (_root, mut options) = fixture_app();
+    let selected = options.long_items(Language::En, None)[0];
+    let selected_id = selected.id.clone();
+    let selected_title = selected.title.clone().unwrap();
+    open_mode_options(&mut options, 5, start);
+    let random_options = buffer_text(&draw(&options, 80, 24).buffer);
+    assert!(random_options.contains("Text: Random"), "{random_options}");
+    press(&mut options, KeyCode::Tab, 2, start);
+    press(&mut options, KeyCode::Right, 1, start);
+    let selected_options = buffer_text(&draw(&options, 80, 24).buffer);
+    assert!(
+        selected_options.contains(&selected_title),
+        "{selected_options}"
+    );
+    press(&mut options, KeyCode::Tab, 1, start);
+    options.handle_event(key(KeyCode::Enter), start).unwrap();
+    let active = options.active_practice().unwrap();
+    assert_eq!(active.content_ids, [selected_id]);
+    assert_eq!(
+        active.stop,
+        StopRule::TargetOrActiveTime(Duration::from_secs(300))
+    );
+
+    let (_root, mut random) = fixture_app();
+    random
+        .start_test(Language::En, Some(60), None, 7, start)
+        .unwrap();
+    let active = random.active_practice().unwrap();
+    assert_eq!(active.content_ids.len(), 1);
+    assert!(random.content.items().any(|item| {
+        item.id == active.content_ids[0]
+            && item.language == Language::En
+            && item.kind == ContentKind::Text
+    }));
+}
+
+#[test]
+fn selected_test_finishes_when_its_text_ends_before_the_timer() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    let item = app.long_items(Language::En, None)[0];
+    let id = item.id.clone();
+    let target = item.text.clone();
+    app.start_test(Language::En, Some(300), Some(&id), 7, start)
+        .unwrap();
+
+    type_text(&mut app, &target, start);
+
+    assert_eq!(app.screen(), Screen::Result);
+    assert_eq!(app.result.as_ref().unwrap().session.content_id, id);
+    assert!(app.result.as_ref().unwrap().session.duration_ms < 300_000);
+}
+
+#[test]
+fn random_test_continues_with_a_different_long_text_until_time_expires() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_test(Language::En, Some(60), None, 11, start)
+        .unwrap();
+    let first_id = app.active_practice().unwrap().content_ids[0].clone();
+    let first_end = app.active_practice().unwrap().item_ends[0];
+    let first = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .take(first_end)
+        .map(|(target, _)| target)
+        .collect::<String>();
+
+    type_text(&mut app, &first, start);
+
+    let active = app.active_practice().unwrap();
+    assert_eq!(app.screen(), Screen::Practice);
+    assert!(active.content_ids.len() >= 2);
+    assert_ne!(active.content_ids[1], first_id);
+    app.tick(start + Duration::from_secs(60)).unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+}
+
+#[test]
+fn typing_test_uses_allowed_durations_long_text_extension_and_relative_grade() {
     let start = Instant::now();
     for seconds in [60, 180, 300, 600] {
         let (_root, mut app) = fixture_app();
-        app.start_test(Language::En, Some(seconds), 7, start)
+        app.start_test(Language::En, Some(seconds), None, 7, start)
             .unwrap();
         assert_eq!(
             app.active_practice().unwrap().stop,
@@ -4710,25 +4794,23 @@ fn typing_test_uses_allowed_durations_sentence_extension_and_relative_grade() {
     let (_invalid_root, mut invalid) = fixture_app();
     assert!(
         invalid
-            .start_test(Language::En, Some(120), 7, start)
+            .start_test(Language::En, Some(120), None, 7, start)
             .is_err()
     );
     assert_eq!(invalid.screen(), Screen::Home);
 
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
-    app.start_test(Language::En, None, 11, start).unwrap();
+    app.start_test(Language::En, None, None, 11, start).unwrap();
     let active = app.active_practice().unwrap();
     assert_eq!(active.stop, StopRule::ActiveTime(Duration::from_secs(300)));
-    assert_eq!(active.content_ids.len(), 10);
+    assert_eq!(active.content_ids.len(), 1);
     assert!(
         active
             .content_ids
             .iter()
             .all(|id| app.content.items().any(|item| {
-                item.id == *id
-                    && item.language == Language::En
-                    && matches!(item.kind, ContentKind::Sentence | ContentKind::Quote)
+                item.id == *id && item.language == Language::En && item.kind == ContentKind::Text
             }))
     );
     assert!(!buffer_text(&draw(&app, 80, 24).buffer).contains("Pause:"));
@@ -4752,7 +4834,7 @@ fn typing_test_uses_allowed_durations_sentence_extension_and_relative_grade() {
         .collect::<String>();
     type_text(&mut app, &first, start);
     assert!(app.active_practice().unwrap().engine.target_len() > initial_len);
-    assert!(app.active_practice().unwrap().content_ids.len() > 10);
+    assert!(app.active_practice().unwrap().content_ids.len() > 1);
 
     app.tick(start + Duration::from_secs(299)).unwrap();
     assert_eq!(app.screen(), Screen::Practice);

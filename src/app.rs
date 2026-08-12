@@ -222,6 +222,7 @@ pub enum StopRule {
     TargetEnd,
     Items(usize),
     ActiveTime(Duration),
+    TargetOrActiveTime(Duration),
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -253,6 +254,7 @@ pub(crate) struct ModeOptions {
     pub(crate) key_weak_repeat: bool,
     pub(crate) word_difficulty: Difficulty,
     pub(crate) test_preset: usize,
+    pub(crate) test_selection: usize,
     pub(crate) long_selection: usize,
 }
 
@@ -269,6 +271,7 @@ impl ModeOptions {
             key_weak_repeat: false,
             word_difficulty: Difficulty::Mixed,
             test_preset: 2,
+            test_selection: 0,
             long_selection: 0,
         }
     }
@@ -291,7 +294,7 @@ impl QuickOptions {
                 .map(Duration::from_secs)
                 .any(|allowed| duration == allowed),
             StopRule::Items(items) => QUICK_COUNT_PRESETS.contains(&items),
-            StopRule::TargetEnd => false,
+            StopRule::TargetEnd | StopRule::TargetOrActiveTime(_) => false,
         };
         if !valid {
             bail!("invalid Quick stop rule");
@@ -823,7 +826,9 @@ impl App {
             bail!("practice mode does not match requested kind");
         }
         let limit = match request.stop {
-            StopRule::ActiveTime(duration) => Some(duration),
+            StopRule::ActiveTime(duration) | StopRule::TargetOrActiveTime(duration) => {
+                Some(duration)
+            }
             StopRule::TargetEnd | StopRule::Items(_) => None,
         };
         let engine = PracticeEngine::new_for_items(
@@ -896,7 +901,7 @@ impl App {
                     .ok_or_else(|| anyhow!("no long-text content for {language:?}"))?;
                 self.start_long(&item_id, now)
             }
-            PracticeKind::Test => self.start_test(language, seconds, seed, now),
+            PracticeKind::Test => self.start_test(language, seconds, None, seed, now),
         }
     }
 
@@ -909,7 +914,9 @@ impl App {
         let count = match options.stop {
             StopRule::Items(items) => items,
             StopRule::ActiveTime(_) => STREAM_BATCH_ITEMS,
-            StopRule::TargetEnd => bail!("invalid Quick stop rule"),
+            StopRule::TargetEnd | StopRule::TargetOrActiveTime(_) => {
+                bail!("invalid Quick stop rule")
+            }
         };
         let stream = CatalogStream {
             language: options.language,
@@ -1107,6 +1114,7 @@ impl App {
         &mut self,
         language: Language,
         seconds: Option<u64>,
+        item_id: Option<&str>,
         seed: u64,
         now: Instant,
     ) -> Result<()> {
@@ -1114,11 +1122,38 @@ impl App {
         if !TEST_DURATION_PRESETS.contains(&seconds) {
             bail!("invalid typing-test duration");
         }
+        if let Some(item_id) = item_id {
+            let Some(item) = self
+                .content
+                .items()
+                .find(|item| {
+                    item.id == item_id
+                        && item.language == language
+                        && item.kind == ContentKind::Text
+                })
+                .cloned()
+            else {
+                bail!("unknown typing-test text");
+            };
+            let item_ends = paragraph_ends(&item.text);
+            return self.start_mode(
+                ModeRequest {
+                    kind: PracticeKind::Test,
+                    language,
+                    target: item.text,
+                    mode: PracticeMode::Test { grade: None },
+                    stop: StopRule::TargetOrActiveTime(Duration::from_secs(seconds)),
+                    item_ends,
+                    content_ids: vec![item.id],
+                },
+                now,
+            );
+        }
         let stream = CatalogStream {
             language,
-            kinds: SENTENCE_KINDS,
+            kinds: TEXT_KINDS,
             difficulty: Difficulty::Mixed,
-            separator: "\n",
+            separator: "",
             next_seed: seed.wrapping_add(1),
             adaptive: false,
         };
@@ -1126,7 +1161,7 @@ impl App {
             PracticeMode::Test { grade: None },
             StopRule::ActiveTime(Duration::from_secs(seconds)),
             &stream,
-            SENTENCE_BATCH_ITEMS,
+            1,
             seed,
         )?;
         self.start_mode(request, now)?;
@@ -1194,7 +1229,7 @@ impl App {
         count: usize,
         seed: u64,
     ) -> Result<ModeRequest> {
-        let items = select_catalog_items(&self.content, &self.sessions, stream, count, seed)?;
+        let items = select_catalog_items(&self.content, &self.sessions, stream, count, seed, None)?;
         let (target, item_ends, content_ids) = catalog_target(&items, stream.separator);
         let kind = mode.kind();
         Ok(ModeRequest {
@@ -1256,7 +1291,7 @@ impl App {
                 let count = match request.stop {
                     StopRule::Items(items) => items,
                     StopRule::ActiveTime(_) => STREAM_BATCH_ITEMS,
-                    StopRule::TargetEnd => return Ok(()),
+                    StopRule::TargetEnd | StopRule::TargetOrActiveTime(_) => return Ok(()),
                 };
                 (PracticeMode::Quick { completed: 0 }, count)
             }
@@ -1573,7 +1608,14 @@ impl App {
         {
             *streak = 0;
         }
-        self.advance_item_boundaries(now)
+        self.advance_item_boundaries(now)?;
+        if self.practice.as_ref().is_some_and(|active| {
+            matches!(active.stop, StopRule::TargetOrActiveTime(_))
+                && active.engine.target_complete()
+        }) {
+            self.finish_practice(now)?;
+        }
+        Ok(())
     }
 
     fn advance_item_boundaries(&mut self, now: Instant) -> Result<()> {
@@ -1626,20 +1668,32 @@ impl App {
     }
 
     fn extend_catalog_stream(&mut self) -> Result<()> {
-        let Some(stream) = self.practice.as_ref().and_then(|active| {
+        let Some((stream, excluded_id)) = self.practice.as_ref().and_then(|active| {
             let remaining = active.item_ends.len().saturating_sub(active.next_item);
             (matches!(active.stop, StopRule::ActiveTime(_)) && remaining < 10)
                 .then(|| active.stream.clone())
                 .flatten()
+                .map(|stream| {
+                    let excluded_id = (stream.kinds == TEXT_KINDS)
+                        .then(|| active.content_ids.last().cloned())
+                        .flatten();
+                    (stream, excluded_id)
+                })
         }) else {
             return Ok(());
+        };
+        let count = if stream.kinds == TEXT_KINDS {
+            1
+        } else {
+            STREAM_BATCH_ITEMS
         };
         let items = select_catalog_items(
             &self.content,
             &self.sessions,
             &stream,
-            STREAM_BATCH_ITEMS,
+            count,
             stream.next_seed,
+            excluded_id.as_deref(),
         )?;
         let (target, relative_ends, content_ids) = catalog_target(&items, stream.separator);
         let Some(active) = self.practice.as_mut() else {
@@ -1724,6 +1778,9 @@ impl App {
                 .is_some_and(|active| match active.stop {
                     StopRule::TargetEnd | StopRule::Items(_) => active.engine.target_complete(),
                     StopRule::ActiveTime(_) => active.engine.time_limit_reached(now),
+                    StopRule::TargetOrActiveTime(_) => {
+                        active.engine.target_complete() || active.engine.time_limit_reached(now)
+                    }
                 });
         if finished {
             self.finish_practice(now)?;
@@ -1929,8 +1986,9 @@ impl App {
             Screen::Home => 10,
             Screen::ModeOptions => match self.mode_options.kind {
                 PracticeKind::Quick | PracticeKind::Key => 5,
-                PracticeKind::Words | PracticeKind::Test => 3,
+                PracticeKind::Words => 3,
                 PracticeKind::Sentence => 2,
+                PracticeKind::Test => 4,
                 PracticeKind::Long => self
                     .long_items(self.mode_options.language, None)
                     .len()
@@ -2018,6 +2076,12 @@ impl App {
                         .min(item_count.saturating_sub(1));
                     self.focus = self.focus.min(item_count);
                 }
+                PracticeKind::Test => {
+                    self.mode_options.test_selection = self
+                        .mode_options
+                        .test_selection
+                        .min(self.long_items(self.mode_options.language, None).len());
+                }
                 _ => {}
             }
             return;
@@ -2061,6 +2125,13 @@ impl App {
                 self.mode_options.test_preset = cycle_index(
                     self.mode_options.test_preset,
                     TEST_DURATION_PRESETS.len(),
+                    delta,
+                );
+            }
+            (PracticeKind::Test, 2) => {
+                self.mode_options.test_selection = cycle_index(
+                    self.mode_options.test_selection,
+                    self.long_items(self.mode_options.language, None).len() + 1,
                     delta,
                 );
             }
@@ -2130,12 +2201,21 @@ impl App {
                             self.start_long(&item_id, now)?;
                         }
                     }
-                    (PracticeKind::Test, 2) => self.start_test(
-                        options.language,
-                        Some(TEST_DURATION_PRESETS[options.test_preset]),
-                        fastrand::u64(..),
-                        now,
-                    )?,
+                    (PracticeKind::Test, 3) => {
+                        let items = self.long_items(options.language, None);
+                        let item_id = options
+                            .test_selection
+                            .checked_sub(1)
+                            .and_then(|index| items.get(index))
+                            .map(|item| item.id.clone());
+                        self.start_test(
+                            options.language,
+                            Some(TEST_DURATION_PRESETS[options.test_preset]),
+                            item_id.as_deref(),
+                            fastrand::u64(..),
+                            now,
+                        )?;
+                    }
                     _ => self.adjust(1),
                 }
             }
@@ -2463,6 +2543,7 @@ fn cycle_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {
 const WORD_KINDS: &[ContentKind] = &[ContentKind::Word];
 const QUOTE_KINDS: &[ContentKind] = &[ContentKind::Quote];
 const SENTENCE_KINDS: &[ContentKind] = &[ContentKind::Sentence, ContentKind::Quote];
+const TEXT_KINDS: &[ContentKind] = &[ContentKind::Text];
 const STREAM_BATCH_ITEMS: usize = 20;
 const WORD_BATCH_ITEMS: usize = 25;
 const SENTENCE_BATCH_ITEMS: usize = 10;
@@ -2492,6 +2573,7 @@ fn select_catalog_items<'a>(
     stream: &CatalogStream,
     count: usize,
     seed: u64,
+    excluded_id: Option<&str>,
 ) -> Result<Vec<&'a ResolvedItem>> {
     let mut selected = Vec::with_capacity(count);
     let mut cycle_seed = seed;
@@ -2520,6 +2602,11 @@ fn select_catalog_items<'a>(
                 .into_iter()
                 .filter(|item| seen.insert(item.id.as_str())),
         );
+        if let Some(excluded_id) = excluded_id
+            && cycle.iter().any(|item| item.id != excluded_id)
+        {
+            cycle.retain(|item| item.id != excluded_id);
+        }
         if cycle.is_empty() {
             bail!("no matching practice content");
         }

@@ -394,19 +394,31 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
             }
             lines
         }
-        PracticeKind::Test => vec![
-            row(
-                0,
-                text(language, TextKey::Language),
-                language_name(options.language).into(),
-            ),
-            row(
-                1,
-                text(language, TextKey::Duration),
-                format!("{}s", TEST_DURATION_PRESETS[options.test_preset]),
-            ),
-            start(2),
-        ],
+        PracticeKind::Test => {
+            let items = app.long_items(options.language, None);
+            let selection = options
+                .test_selection
+                .checked_sub(1)
+                .and_then(|index| items.get(index))
+                .map_or_else(
+                    || text(language, TextKey::Random).into(),
+                    |item| item.title.as_deref().unwrap_or(&item.id).into(),
+                );
+            vec![
+                row(
+                    0,
+                    text(language, TextKey::Language),
+                    language_name(options.language).into(),
+                ),
+                row(
+                    1,
+                    text(language, TextKey::Duration),
+                    format!("{}s", TEST_DURATION_PRESETS[options.test_preset]),
+                ),
+                row(2, text(language, TextKey::Text), selection),
+                start(3),
+            ]
+        }
     };
     let instruction = format!(
         "←→ / Enter {} · Esc {}",
@@ -722,7 +734,7 @@ fn practice_live_lines(
                     format!("{}s", limit.saturating_sub(metrics.active).as_secs())
                 }
                 StopRule::Items(total) => total.saturating_sub(*completed).to_string(),
-                StopRule::TargetEnd => "0".into(),
+                StopRule::TargetEnd | StopRule::TargetOrActiveTime(_) => "0".into(),
             };
             format!(
                 "{}: {completed} · {}: {remaining}",
@@ -783,7 +795,7 @@ fn practice_live_lines(
             fields.join(" · ")
         }
         PracticeMode::Test { .. } => match active.stop {
-            StopRule::ActiveTime(limit) => format!(
+            StopRule::ActiveTime(limit) | StopRule::TargetOrActiveTime(limit) => format!(
                 "{}: {}s · {}: {}%",
                 text(language, TextKey::Remaining),
                 limit.saturating_sub(metrics.active).as_secs(),
