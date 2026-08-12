@@ -14,6 +14,7 @@ use crate::{
     },
     storage::{AppPaths, SessionRecord, save_session},
     theme::ThemeCatalog,
+    typing::input_language,
     update::UpdateNotice,
 };
 use anyhow::{Result, anyhow, bail};
@@ -495,6 +496,7 @@ pub struct ActivePractice {
     pub item_ends: Vec<usize>,
     pub content_ids: Vec<String>,
     pub status: Option<(String, Instant)>,
+    observed_input_language: Option<Language>,
     started_at_utc: Option<OffsetDateTime>,
     live_metrics: Metrics,
     item_metrics: Metrics,
@@ -521,6 +523,10 @@ impl ActivePractice {
 
     pub const fn leave_confirmation(&self) -> bool {
         self.leave_confirmation
+    }
+
+    pub const fn observed_input_language(&self) -> Option<Language> {
+        self.observed_input_language
     }
 
     pub fn long_metadata(&self) -> Option<&LongMetadata> {
@@ -817,6 +823,7 @@ impl App {
             item_ends: request.item_ends,
             content_ids: request.content_ids,
             status: None,
+            observed_input_language: None,
             started_at_utc: None,
             live_metrics: metrics.clone(),
             item_metrics: metrics,
@@ -1524,6 +1531,9 @@ impl App {
         let Some(active) = self.practice.as_mut() else {
             return Ok(());
         };
+        if let Some(language) = input_language(text) {
+            active.observed_input_language = Some(language);
+        }
         let wall_now = OffsetDateTime::now_utc();
         let attempted_before = active.engine.attempted_units();
         let errors_before = active.live_metrics.errors;

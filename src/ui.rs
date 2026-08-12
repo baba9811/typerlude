@@ -417,13 +417,47 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
 
 fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
     let language = app.settings.ui_language;
-    let block = titled(text(language, TextKey::Progress), styles);
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
     let Some(active) = app.active_practice() else {
+        let block = titled(text(language, TextKey::Progress), styles);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
         frame.render_widget(no_data(language, styles), inner);
         return;
     };
+    let practice = match active.engine.language() {
+        Language::Ko => "KO",
+        Language::En => "EN",
+    };
+    let observed = match (language, active.observed_input_language()) {
+        (_, None) => "—",
+        (Language::En, Some(Language::Ko)) => "KO",
+        (Language::En, Some(Language::En)) => "EN",
+        (Language::Ko, Some(Language::Ko)) => "한글",
+        (Language::Ko, Some(Language::En)) => "영문",
+    };
+    let mismatch = active
+        .observed_input_language()
+        .is_some_and(|observed| observed != active.engine.language());
+    let status = match language {
+        Language::Ko => format!(
+            "연습 {practice} · 입력 {observed}{}",
+            if mismatch { " ⚠" } else { "" }
+        ),
+        Language::En => format!(
+            "Practice {practice} · Input {observed}{}",
+            if mismatch { " ⚠" } else { "" }
+        ),
+    };
+    let block = titled(text(language, TextKey::Progress), styles).title_bottom(Span::styled(
+        status,
+        if mismatch {
+            styles.error
+        } else {
+            styles.accent
+        },
+    ));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
     let key_mode = active.kind() == PracticeKind::Key;
     let long_mode = active.kind() == PracticeKind::Long;
     let keyboard_height = u16::from(key_mode && app.settings.show_keyboard) * 4;

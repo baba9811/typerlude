@@ -61,6 +61,10 @@ const FINAL: [&[char]; 28] = [
     &['ㅎ'],
 ];
 
+pub(super) fn is_supported(ch: char) -> bool {
+    syllable_units(ch).is_some() || compatibility_units(ch).is_some()
+}
+
 pub fn syllable_units(ch: char) -> Option<Vec<char>> {
     let index = (ch as u32).checked_sub(S_BASE)?;
     if index >= S_COUNT {

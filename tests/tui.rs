@@ -2381,8 +2381,13 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
         StopRule::ActiveTime(Duration::from_secs(5)),
     );
     app.start_mode(requested.clone(), start).unwrap();
-    let active = app.active_practice_mut().unwrap();
-    assert_eq!(active.engine.input("a", start), InputOutcome::Accepted);
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        None
+    );
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.observed_input_language(), Some(Language::En));
     assert!(!active.engine.is_finished(start + Duration::from_secs(4)));
     assert!(active.engine.is_finished(start + Duration::from_secs(5)));
 
@@ -2400,7 +2405,79 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
     assert_eq!(retried.item_ends, requested.item_ends);
     assert_eq!(retried.content_ids, requested.content_ids);
     assert_eq!(retried.engine.metrics(start).attempted_units, 0);
+    assert_eq!(retried.observed_input_language(), None);
     assert_eq!(retried.engine.input("ab", start), InputOutcome::Finished);
+}
+
+#[test]
+fn practice_shows_observed_input_language_and_preserves_scoring() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Words,
+            Language::En,
+            "abc",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        None
+    );
+    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("Practice EN · Input —"));
+
+    app.handle_event(key(KeyCode::Char('한')), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        Some(Language::Ko)
+    );
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("Practice EN · Input KO ⚠"), "{output}");
+    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let warning = drawn
+        .buffer
+        .content
+        .iter()
+        .find(|cell| cell.symbol() == "⚠")
+        .unwrap();
+    assert_role_style(warning, styles.error);
+
+    let attempted = app.active_practice().unwrap().engine.attempted_units();
+    app.handle_event(key(KeyCode::Char('!')), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        Some(Language::Ko)
+    );
+    assert!(app.active_practice().unwrap().engine.attempted_units() > attempted);
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        Some(Language::En)
+    );
+
+    let (_root, mut korean) = fixture_app();
+    korean.settings.ui_language = Language::Ko;
+    korean
+        .start_mode(
+            request(
+                PracticeKind::Words,
+                Language::En,
+                "abc",
+                StopRule::TargetEnd,
+            ),
+            start,
+        )
+        .unwrap();
+    korean
+        .handle_event(key(KeyCode::Char('한')), start)
+        .unwrap();
+    let output = buffer_text(&draw(&korean, 80, 24).buffer);
+    assert!(output.contains("연습 EN · 입력 한글 ⚠"), "{output}");
 }
 
 #[test]
