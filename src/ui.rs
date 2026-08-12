@@ -482,12 +482,33 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         Constraint::Length(2),
     ])
     .split(inner);
-    let scroll = practice_scroll(regions[0], active);
-    let target = target_lines(active, regions[0].width, scroll, regions[0].height, styles);
-    frame.render_widget(
-        Paragraph::new(Text::from(target)).style(styles.base),
-        regions[0],
-    );
+    let input_cursor_area = if key_mode {
+        let scroll = practice_scroll(regions[0], active);
+        let target = target_lines(active, regions[0].width, scroll, regions[0].height, styles);
+        frame.render_widget(
+            Paragraph::new(Text::from(target)).style(styles.base),
+            regions[0],
+        );
+        None
+    } else {
+        let typing =
+            Layout::vertical([Constraint::Length(3), Constraint::Min(3)]).split(regions[0]);
+        let input_block = titled(text(language, TextKey::Input), styles);
+        let input_inner = input_block.inner(typing[0]);
+        frame.render_widget(input_block, typing[0]);
+        frame.render_widget(
+            Paragraph::new(input_line(active, styles)).style(styles.base),
+            input_inner,
+        );
+        let prompt_block = titled(text(language, TextKey::Prompt), styles);
+        let prompt_inner = prompt_block.inner(typing[1]);
+        frame.render_widget(prompt_block, typing[1]);
+        frame.render_widget(
+            Paragraph::new(prompt_lines(active, styles)).style(styles.base),
+            prompt_inner,
+        );
+        Some(input_inner)
+    };
     if let Some(progress) = active.long_scroll() {
         let live =
             Layout::vertical([Constraint::Length(4), Constraint::Length(1)]).split(regions[1]);
@@ -568,10 +589,15 @@ fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSt
         }
     }
     frame.render_widget(Paragraph::new(footer).style(styles.dim), regions[4]);
-    if !active.engine.is_paused()
-        && let Some(cursor) = practice_cursor(regions[0], active)
-    {
-        frame.set_cursor_position(cursor);
+    if !active.engine.is_paused() {
+        let cursor = if let Some(area) = input_cursor_area {
+            input_cursor(area, active)
+        } else {
+            practice_cursor(regions[0], active)
+        };
+        if let Some(cursor) = cursor {
+            frame.set_cursor_position(cursor);
+        }
     }
 }
 
@@ -1034,6 +1060,87 @@ const fn test_leave_confirmation(language: Language) -> &'static str {
         Language::Ko => "Q: 확인 · Esc: 취소",
         Language::En => "Q: Confirm · Esc: Cancel",
     }
+}
+
+fn input_line<'a>(active: &'a ActivePractice, styles: ThemeStyles) -> Line<'a> {
+    let Some(range) = active.engine.current_line_range() else {
+        return Line::default();
+    };
+    let spans = active
+        .engine
+        .input_cells()
+        .skip(range.start)
+        .take(range.len())
+        .filter_map(|(_, entered, correct)| {
+            let correct = correct?;
+            let symbol = entered.map_or("·", |entered| if entered == "\n" { "↵" } else { entered });
+            Some(Span::styled(
+                symbol,
+                if correct {
+                    styles.correct
+                } else {
+                    styles.error
+                },
+            ))
+        })
+        .collect::<Vec<_>>();
+    Line::from(spans)
+}
+
+fn prompt_lines<'a>(active: &'a ActivePractice, styles: ThemeStyles) -> Vec<Line<'a>> {
+    let ranges = active.engine.line_ranges().collect::<Vec<_>>();
+    if ranges.is_empty() {
+        return Vec::new();
+    }
+    let current = active.engine.current_line_index().min(ranges.len() - 1);
+    let start = current.saturating_sub(1);
+    let end = current.saturating_add(2).min(ranges.len());
+    let cells = active.engine.target_cells().collect::<Vec<_>>();
+    let cursor = active.engine.cursor();
+    ranges[start..end]
+        .iter()
+        .map(|range| {
+            Line::from(
+                range
+                    .clone()
+                    .map(|index| {
+                        let (grapheme, entered) = cells[index];
+                        Span::styled(
+                            if grapheme == "\n" { "↵" } else { grapheme },
+                            match entered {
+                                Some(true) => styles.correct,
+                                Some(false) => styles.error,
+                                None if index == cursor => styles.cursor,
+                                None => styles.dim,
+                            },
+                        )
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect()
+}
+
+fn input_cursor(area: Rect, active: &ActivePractice) -> Option<(u16, u16)> {
+    if area.width == 0 || area.height == 0 {
+        return None;
+    }
+    let range = active.engine.current_line_range()?;
+    let entered = active.engine.cursor().saturating_sub(range.start);
+    let width = active
+        .engine
+        .input_cells()
+        .skip(range.start)
+        .take(entered.min(range.len()))
+        .fold(0_usize, |width, (_, entered, correct)| {
+            if correct.is_none() || entered.is_none_or(|entered| entered == "\n") {
+                width.saturating_add(1)
+            } else {
+                width.saturating_add(UnicodeWidthStr::width(entered.unwrap_or_default()))
+            }
+        })
+        .min(usize::from(area.width - 1)) as u16;
+    Some((area.x.saturating_add(width), area.y))
 }
 
 fn target_lines<'a>(

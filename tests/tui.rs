@@ -962,35 +962,108 @@ fn tiny_terminals_return_before_layout_and_hide_the_cursor() {
 }
 
 #[test]
-fn practice_uses_role_styles_and_places_the_unicode_newline_cursor() {
+fn practice_uses_role_styles_and_places_the_unicode_input_cursor() {
     let (_root, mut app) = fixture_app();
     let start = Instant::now();
     app.start_mode(
-        request(
-            PracticeKind::Sentence,
-            Language::Ko,
-            "한x\n🙂e\u{301}Z",
-            StopRule::TargetEnd,
-        ),
+        ModeRequest {
+            kind: PracticeKind::Sentence,
+            language: Language::Ko,
+            target: "한x🙂e\u{301}Z".into(),
+            mode: PracticeMode::Sentence {
+                completed: 0,
+                last_item: None,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![5],
+            content_ids: vec!["unicode".into()],
+        },
         start,
     )
     .unwrap();
     app.active_practice_mut()
         .unwrap()
         .engine
-        .input("한q\n", start);
+        .input("한q", start);
 
     let drawn = draw(&app, 80, 24);
     let styles = app.themes.get("default").unwrap().styles().unwrap();
-    assert_eq!(drawn.cursor, Some((1, 2)));
-    assert_eq!(drawn.buffer[(1, 1)].symbol(), "한");
-    assert_role_style(&drawn.buffer[(1, 1)], styles.correct);
-    assert_eq!(drawn.buffer[(3, 1)].symbol(), "x");
-    assert_role_style(&drawn.buffer[(3, 1)], styles.error);
-    assert_eq!(drawn.buffer[(1, 2)].symbol(), "🙂");
-    assert_role_style(&drawn.buffer[(1, 2)], styles.cursor);
-    assert_eq!(drawn.buffer[(3, 2)].symbol(), "é");
-    assert_role_style(&drawn.buffer[(3, 2)], styles.dim);
+    assert_eq!(drawn.cursor, Some((5, 2)));
+    assert_eq!(drawn.buffer[(2, 2)].symbol(), "한");
+    assert_role_style(&drawn.buffer[(2, 2)], styles.correct);
+    assert_eq!(drawn.buffer[(4, 2)].symbol(), "q");
+    assert_role_style(&drawn.buffer[(4, 2)], styles.error);
+    assert_eq!(drawn.buffer[(5, 5)].symbol(), "🙂");
+    assert_role_style(&drawn.buffer[(5, 5)], styles.cursor);
+    assert_eq!(drawn.buffer[(7, 5)].symbol(), "é");
+    assert_role_style(&drawn.buffer[(7, 5)], styles.dim);
+}
+
+#[test]
+fn non_key_practice_separates_actual_input_from_prompt() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Sentence,
+            language: Language::En,
+            target: "hello world".into(),
+            mode: PracticeMode::Sentence {
+                completed: 0,
+                last_item: None,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![11],
+            content_ids: vec!["hello-world".into()],
+        },
+        start,
+    )
+    .unwrap();
+    type_text(&mut app, "hex", start);
+
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("Input"), "{output}");
+    assert!(output.contains("Prompt"), "{output}");
+    assert!(output.contains("hex"), "{output}");
+    assert!(output.contains("hello world"), "{output}");
+    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let actual_error = drawn
+        .buffer
+        .content
+        .iter()
+        .find(|cell| cell.symbol() == "x")
+        .unwrap();
+    assert_role_style(actual_error, styles.error);
+    assert_eq!(drawn.cursor, Some((5, 2)));
+}
+
+#[test]
+fn key_practice_keeps_its_existing_target_layout() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Key,
+            language: Language::En,
+            target: "fj".into(),
+            mode: PracticeMode::Key {
+                stage: 1,
+                random: false,
+                weak_repeat: false,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![2],
+            content_ids: Vec::new(),
+        },
+        start,
+    )
+    .unwrap();
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert_eq!(output.matches("Input").count(), 1, "{output}");
+    assert!(!output.contains("Prompt"), "{output}");
+    assert!(output.contains("[F]"), "{output}");
 }
 
 #[test]
@@ -1040,7 +1113,7 @@ fn practice_cursor_matches_the_rendered_row_for_an_oversized_grapheme() {
 }
 
 #[test]
-fn practice_scrolls_the_target_and_cursor_to_the_current_line() {
+fn practice_prompt_shows_only_nearby_logical_lines() {
     let (_root, mut app) = fixture_app();
     let start = Instant::now();
     let target = (0..30)
@@ -1067,10 +1140,11 @@ fn practice_scrolls_the_target_and_cursor_to_the_current_line() {
 
     let drawn = draw(&app, 80, 24);
     let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("item19"), "{output}");
     assert!(output.contains("item20"), "{output}");
+    assert!(output.contains("item21"), "{output}");
     assert!(!output.contains("item00"), "{output}");
-    let cursor = drawn.cursor.unwrap();
-    assert_eq!(drawn.buffer[cursor].symbol(), "i");
+    assert_eq!(drawn.cursor, Some((2, 2)));
 }
 
 #[test]
@@ -3035,7 +3109,7 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
     assert_eq!(app.practice_status(), Some("Paste ignored"));
     let pasted = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(pasted.contains("Paste ignored"));
-    assert!(pasted.contains("aBc"));
+    assert!(pasted.contains("Bc"));
 
     app.tick(paste_at + Duration::from_millis(2_999)).unwrap();
     assert_eq!(app.practice_status(), Some("Paste ignored"));
@@ -3110,6 +3184,10 @@ fn errors_do_not_block_item_progress_and_backspace_reopens_the_previous_line() {
 
     app.handle_event(key(KeyCode::Backspace), start).unwrap();
     assert_eq!(app.active_practice().unwrap().engine.cursor(), 3);
+    let reopened = draw(&app, 80, 24);
+    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    assert_eq!(reopened.buffer[(4, 2)].symbol(), "·");
+    assert_role_style(&reopened.buffer[(4, 2)], styles.error);
     app.handle_event(key(KeyCode::Backspace), start).unwrap();
     let active = app.active_practice().unwrap();
     assert_eq!(active.engine.cursor(), 2);
@@ -4493,11 +4571,7 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
     ] {
         assert!(output.contains(marker), "missing {marker}: {output}");
     }
-    let (_, cursor_y) = drawn.cursor.unwrap();
-    assert!(
-        (8..=22).contains(&cursor_y),
-        "cursor not centered: {cursor_y}"
-    );
+    assert_eq!(drawn.cursor.unwrap().1, 2);
     app.handle_event(key(KeyCode::Esc), start).unwrap();
     app.handle_event(key(KeyCode::Char('q')), start).unwrap();
     app.handle_event(key(KeyCode::Char('q')), start).unwrap();
@@ -4525,8 +4599,7 @@ fn long_viewport_reaches_valid_custom_text_beyond_u16_rows() {
     let drawn = draw(&app, 80, 24);
     let output = buffer_text(&drawn.buffer);
     assert!(output.contains("CURRENT-PARAGRAPH"), "{output}");
-    let cursor = drawn.cursor.unwrap();
-    assert_eq!(drawn.buffer[cursor].symbol(), "C");
+    assert_eq!(drawn.cursor, Some((2, 2)));
 }
 
 #[test]

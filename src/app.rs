@@ -1513,12 +1513,12 @@ impl App {
             KeyCode::Backspace
                 if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
             {
-                if let Some(active) = self.practice.as_mut() {
-                    if active.engine.backspace() {
-                        active.live_metrics = active.engine.metrics(now);
-                        active.current_item_delta =
-                            Some(item_delta(&active.item_metrics, &active.live_metrics));
-                    }
+                if let Some(active) = self.practice.as_mut()
+                    && active.engine.backspace()
+                {
+                    active.live_metrics = active.engine.metrics(now);
+                    active.current_item_delta =
+                        Some(item_delta(&active.item_metrics, &active.live_metrics));
                 }
             }
             KeyCode::Char(character)
