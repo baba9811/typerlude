@@ -1975,8 +1975,7 @@ impl App {
                 let _ = self.set_target_wpm(value);
             }
             (Screen::Goals, 2) => {
-                let value =
-                    (self.settings.target_accuracy + delta.signum() as f64 * 0.5).clamp(1.0, 100.0);
+                let value = adjusted_decimal(self.settings.target_accuracy, delta, 0.5, 1.0, 100.0);
                 let _ = self.set_target_accuracy(value);
             }
             (Screen::Goals, 3) => {
@@ -2407,11 +2406,31 @@ fn cycle_index(index: usize, len: usize, delta: isize) -> usize {
 }
 
 fn adjusted(value: u32, delta: isize, step: u32, minimum: u32, maximum: u32) -> u32 {
-    if delta < 0 {
-        value.saturating_sub(step).max(minimum)
+    let value = value.clamp(minimum, maximum);
+    let next = if delta < 0 {
+        if value.is_multiple_of(step) {
+            value.saturating_sub(step)
+        } else {
+            value / step * step
+        }
+    } else if delta > 0 {
+        (value / step * step).saturating_add(step)
     } else {
-        value.saturating_add(step).min(maximum)
-    }
+        value
+    };
+    next.clamp(minimum, maximum)
+}
+
+fn adjusted_decimal(value: f64, delta: isize, step: f64, minimum: f64, maximum: f64) -> f64 {
+    let units = value / step;
+    let next = if delta < 0 {
+        units.ceil() - 1.0
+    } else if delta > 0 {
+        units.floor() + 1.0
+    } else {
+        units
+    };
+    (next * step).clamp(minimum, maximum)
 }
 
 fn cycle_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {

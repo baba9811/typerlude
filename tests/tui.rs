@@ -1539,6 +1539,31 @@ fn goals_and_settings_render_the_saved_values_without_edit_state() {
 }
 
 #[test]
+fn goal_arrows_snap_minimum_and_off_grid_values_in_the_pressed_direction() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    app.settings.target_kpm = 501;
+    app.settings.target_wpm = 1;
+    app.settings.target_accuracy = 97.3;
+    app.settings.daily_minutes = 6;
+    app.open(Screen::Goals);
+
+    app.handle_event(key(KeyCode::Left), now).unwrap();
+    assert_eq!(app.settings.target_kpm, 500);
+    press(&mut app, KeyCode::Tab, 1, now);
+    app.handle_event(key(KeyCode::Right), now).unwrap();
+    assert_eq!(app.settings.target_wpm, 5);
+    press(&mut app, KeyCode::Tab, 1, now);
+    app.handle_event(key(KeyCode::Right), now).unwrap();
+    assert_eq!(app.settings.target_accuracy, 97.5);
+    press(&mut app, KeyCode::Tab, 1, now);
+    app.handle_event(key(KeyCode::Left), now).unwrap();
+    assert_eq!(app.settings.daily_minutes, 5);
+    app.handle_event(key(KeyCode::Right), now).unwrap();
+    assert_eq!(app.settings.daily_minutes, 10);
+}
+
+#[test]
 fn themes_lists_all_five_validated_builtin_ids() {
     let (_root, mut app) = fixture_app();
     app.open(Screen::Themes);
