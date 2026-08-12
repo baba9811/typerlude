@@ -235,7 +235,7 @@ fn corrupt_and_unsupported_configs_are_preserved_with_a_warning() {
 #[test]
 fn session_from_result_copies_only_aggregate_engine_state() {
     let start = Instant::now();
-    let mut engine = PracticeEngine::new(Language::En, PracticeKind::Words, "a", None).unwrap();
+    let mut engine = PracticeEngine::new(Language::En, PracticeKind::Key, "a", None).unwrap();
     engine.input("private wrong input", start);
     assert!(engine.backspace());
     engine.input("a", start + Duration::from_secs(60));

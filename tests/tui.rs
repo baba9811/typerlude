@@ -837,10 +837,7 @@ fn long_options_render_metadata_and_launch_every_filtered_item() {
     let (english_count, expected) = {
         let english_items = app.long_items(Language::En, None);
         let korean_items = app.long_items(Language::Ko, None);
-        let selection = english_items
-            .len()
-            .saturating_sub(1)
-            .min(korean_items.len().saturating_sub(1));
+        let selection = 0;
         (
             english_items.len(),
             korean_items[selection]
@@ -4518,28 +4515,31 @@ fn key_keyboard_includes_every_supported_punctuation_key() {
 #[test]
 fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
     let (_root, mut app) = fixture_app();
-    let essays = app.long_items(Language::En, Some("essay"));
-    assert_eq!(essays.len(), 2);
-    assert!(essays.iter().all(|item| {
+    let documents = app.long_items(Language::En, Some("public-domain"));
+    assert_eq!(documents.len(), 3);
+    assert!(documents.iter().all(|item| {
         item.language == Language::En
             && item.kind == ContentKind::Text
-            && item.tags.iter().any(|tag| tag == "essay")
+            && item.tags.iter().any(|tag| tag == "public-domain")
     }));
 
     let start = Instant::now();
-    app.start_long("en-text-essay-useful-pause", start).unwrap();
+    app.start_long("en-text-gettysburg-address", start).unwrap();
     let metadata = app.long_metadata().unwrap();
-    assert_eq!(metadata.title, "The Use of a Useful Pause");
-    assert_eq!(metadata.author, "Typerlude contributors");
-    assert_eq!(metadata.license, "CC0-1.0");
-    assert_eq!(metadata.difficulty, Some(2));
-    assert_eq!(metadata.tags, ["essay"]);
-    assert!(metadata.source.ends_with("/assets/content/en-texts.toml"));
+    assert_eq!(metadata.title, "The Gettysburg Address");
+    assert_eq!(metadata.author, "Abraham Lincoln");
+    assert_eq!(metadata.license, "LicenseRef-Public-Domain");
+    assert_eq!(metadata.difficulty, Some(3));
+    assert_eq!(metadata.tags, ["public-domain"]);
+    assert_eq!(
+        metadata.source,
+        "https://www.nps.gov/linc/learn/historyculture/gettysburgaddress.htm"
+    );
     assert_eq!(
         app.long_scroll().unwrap(),
         typerlude::app::LongScroll {
             active_paragraph: 1,
-            total_paragraphs: 3,
+            total_paragraphs: 4,
             percent: 0,
         }
     );
@@ -4557,18 +4557,18 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
 
     let progress = app.long_scroll().unwrap();
     assert_eq!(progress.active_paragraph, 3);
-    assert_eq!(progress.total_paragraphs, 3);
+    assert_eq!(progress.total_paragraphs, 4);
     assert!((1..100).contains(&progress.percent));
     let drawn = draw(&app, 120, 40);
     let output = buffer_text(&drawn.buffer);
     for marker in [
-        "The Use of a Useful Pause",
-        "Typerlude contributors",
-        "CC0-1.0",
-        "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/en-texts.toml",
-        "Difficulty: 2",
-        "essay",
-        "Paragraph 3/3",
+        "The Gettysburg Address",
+        "Abraham Lincoln",
+        "LicenseRef-Public-Domain",
+        "https://www.nps.gov/linc/learn/historyculture/gettysburgaddress.htm",
+        "Difficulty: 3",
+        "public-domain",
+        "Paragraph 3/4",
     ] {
         assert!(output.contains(marker), "missing {marker}: {output}");
     }
@@ -4577,10 +4577,7 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
     app.handle_event(key(KeyCode::Char('q')), start).unwrap();
     app.handle_event(key(KeyCode::Char('q')), start).unwrap();
     app.handle_event(key(KeyCode::Char('r')), start).unwrap();
-    assert_eq!(
-        app.long_metadata().unwrap().title,
-        "The Use of a Useful Pause"
-    );
+    assert_eq!(app.long_metadata().unwrap().title, "The Gettysburg Address");
 }
 
 #[test]

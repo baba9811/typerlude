@@ -783,6 +783,8 @@ fn print_licenses() {
     println!("Typerlude software: MIT");
     println!("Project-authored data: CC0-1.0");
     println!("Tatoeba Korean sentences: CC-BY-2.0-FR (Attribution 2.0 France)");
+    println!("Aegukga lyrics: CC-BY-4.0");
+    println!("Korean Wikisource editions: CC-BY-SA-4.0");
     println!("Other bundled data: see THIRD_PARTY_NOTICES.md below");
     println!("\n===== LICENSE =====\n{}", include_str!("../LICENSE"));
     println!(
@@ -796,6 +798,14 @@ fn print_licenses() {
     println!(
         "\n===== assets/licenses/CC-BY-2.0-FR.txt =====\n{}",
         include_str!("../assets/licenses/CC-BY-2.0-FR.txt")
+    );
+    println!(
+        "\n===== assets/licenses/CC-BY-4.0.txt =====\n{}",
+        include_str!("../assets/licenses/CC-BY-4.0.txt")
+    );
+    println!(
+        "\n===== assets/licenses/CC-BY-SA-4.0.txt =====\n{}",
+        include_str!("../assets/licenses/CC-BY-SA-4.0.txt")
     );
     println!(
         "\n===== assets/licenses/NORD-MIT.txt =====\n{}",

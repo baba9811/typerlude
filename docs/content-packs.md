@@ -45,8 +45,8 @@ Pack and item IDs must be unique. Installable pack IDs use ASCII letters, digits
 Text must be nonblank NFC UTF-8 without terminal control characters; duplicates are checked within
 the same language and content kind.
 
-Supported declared licenses are `CC0-1.0`, `CC-BY-2.0-FR`, `CC-BY-4.0`, `KOGL-0`, `KOGL-1.0`,
-and `LicenseRef-Public-Domain`.
+Supported declared licenses are `CC0-1.0`, `CC-BY-2.0-FR`, `CC-BY-4.0`, `CC-BY-SA-4.0`,
+`KOGL-0`, `KOGL-1.0`, and `LicenseRef-Public-Domain`.
 
 Attribution alone does not grant redistribution rights. Add only material you own, public-domain
 material, or material whose license permits redistribution in npm and crates.io packages, and

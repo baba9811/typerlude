@@ -283,6 +283,8 @@ fn version_help_licenses_and_paths_are_headless() {
         "THIRD_PARTY_NOTICES.md",
         "CC0 1.0 Universal",
         "Attribution 2.0 France",
+        "Attribution 4.0 International",
+        "Attribution-ShareAlike 4.0 International",
         "assets/licenses/NORD-MIT.txt",
         "Sven Greb",
     ] {

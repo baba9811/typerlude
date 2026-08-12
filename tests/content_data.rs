@@ -216,7 +216,7 @@ fn word_packs_have_exact_project_cc0_provenance_and_unique_catalog_keys() {
 }
 
 #[test]
-fn bundled_text_packs_match_the_reviewed_5b2_contract() {
+fn bundled_text_packs_match_the_reviewed_classics_contract() {
     let catalog = ContentCatalog::load_builtins().unwrap();
 
     for (language, pack_id, file_name, expected) in [
@@ -224,33 +224,45 @@ fn bundled_text_packs_match_the_reviewed_5b2_contract() {
             Language::Ko,
             "ko-texts",
             "ko-texts.toml",
-            [
+            &[
                 (
-                    "ko-text-essay-room-to-revise",
-                    "고칠 자리를 남기는 일",
-                    "essay",
+                    "ko-text-classic-buckwheat-season",
+                    "메밀꽃 필 무렵",
+                    "classic",
                 ),
-                ("ko-text-essay-window-routine", "창문을 닦는 순서", "essay"),
+                ("ko-text-classic-camellias", "동백꽃", "classic"),
+                ("ko-text-classic-spring-spring", "봄봄", "classic"),
+                ("ko-text-classic-lucky-day", "운수 좋은 날", "classic"),
                 (
-                    "ko-text-fiction-blue-umbrella",
-                    "파란 우산의 행선지",
-                    "fiction",
+                    "ko-text-classic-b-superintendent-love-letter",
+                    "B사감과 러브레터",
+                    "classic",
                 ),
-                ("ko-text-fiction-last-seed", "마지막 씨앗 봉투", "fiction"),
+                ("ko-text-classic-poor-wife", "빈처", "classic"),
+                ("ko-text-classic-wings", "날개", "classic"),
+                ("ko-text-classic-potatoes", "감자", "classic"),
+                ("ko-text-classic-baettaragi", "배따라기", "classic"),
                 (
-                    "ko-text-aphorism-daily-bearings",
-                    "생활의 작은 방위표",
-                    "aphorism",
+                    "ko-text-classic-readymade-life",
+                    "레디메이드 인생",
+                    "classic",
                 ),
+                ("ko-text-classic-gold-bean-field", "금 따는 콩밭", "classic"),
                 (
-                    "ko-text-retelling-heungbu-nolbu",
-                    "박씨 하나의 몫 — 흥부와 놀부 다시 쓰기",
-                    "retelling",
+                    "ko-text-classic-society-offers-drink",
+                    "술 권하는 사회",
+                    "classic",
                 ),
+                ("ko-text-classic-mad-painter", "광화사", "classic"),
+                ("ko-text-classic-manmubang", "만무방", "classic"),
+                ("ko-text-classic-fiery-sonata", "광염 소나타", "classic"),
+                ("ko-text-poem-counting-stars", "별 헤는 밤", "classic"),
+                ("ko-text-poem-silence-of-beloved", "님의 침묵", "classic"),
+                ("ko-text-poem-when-that-day-comes", "그날이 오면", "classic"),
                 (
-                    "ko-text-retelling-sun-moon-siblings",
-                    "하늘에 남은 두 빛 — 해와 달이 된 오누이 다시 쓰기",
-                    "retelling",
+                    "ko-text-aegukga-verses-1-4",
+                    "애국가 1절부터 4절",
+                    "national",
                 ),
                 (
                     "ko-text-constitution-articles-1-5",
@@ -263,45 +275,101 @@ fn bundled_text_packs_match_the_reviewed_5b2_contract() {
             Language::En,
             "en-texts",
             "en-texts.toml",
-            [
+            &[
                 (
-                    "en-text-essay-useful-pause",
-                    "The Use of a Useful Pause",
-                    "essay",
+                    "en-text-classic-alice-chapter-1",
+                    "Alice's Adventures in Wonderland - Chapter I",
+                    "classic",
                 ),
                 (
-                    "en-text-essay-mending-small-things",
-                    "The Habit of Mending Small Things",
-                    "essay",
+                    "en-text-classic-pride-chapter-1",
+                    "Pride and Prejudice - Chapter I",
+                    "classic",
                 ),
                 (
-                    "en-text-fiction-upper-window",
-                    "The Light in the Upper Window",
-                    "fiction",
+                    "en-text-classic-christmas-carol-stave-1",
+                    "A Christmas Carol - Stave I",
+                    "classic",
                 ),
                 (
-                    "en-text-fiction-paper-bridge",
-                    "The Paper Bridge",
-                    "fiction",
+                    "en-text-classic-scandal-bohemia-part-1",
+                    "A Scandal in Bohemia - Part I",
+                    "classic",
                 ),
                 (
-                    "en-text-aphorism-steady-compass",
-                    "A Steady Compass",
-                    "aphorism",
+                    "en-text-classic-time-machine-chapter-1",
+                    "The Time Machine - Chapter I",
+                    "classic",
                 ),
                 (
-                    "en-text-retelling-tortoise-hare",
-                    "Two Ways to the Finish — The Tortoise and the Hare Retold",
-                    "retelling",
+                    "en-text-classic-frankenstein-chapter-1",
+                    "Frankenstein - Chapter 1",
+                    "classic",
                 ),
                 (
-                    "en-text-retelling-stone-soup",
-                    "The Empty Pot — Stone Soup Retold",
-                    "retelling",
+                    "en-text-classic-moby-dick-chapter-1",
+                    "Moby-Dick - Chapter 1",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-treasure-island-chapter-1",
+                    "Treasure Island - Chapter I",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-little-women-chapter-1",
+                    "Little Women - Chapter One",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-wizard-oz-chapter-1",
+                    "The Wonderful Wizard of Oz - Chapter I",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-secret-garden-chapter-1",
+                    "The Secret Garden - Chapter I",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-sleepy-hollow",
+                    "The Legend of Sleepy Hollow",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-gift-magi",
+                    "The Gift of the Magi",
+                    "classic",
+                ),
+                ("en-text-classic-last-leaf", "The Last Leaf", "classic"),
+                (
+                    "en-text-classic-happy-prince",
+                    "The Happy Prince",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-dracula-chapter-1",
+                    "Dracula - Chapter I",
+                    "classic",
+                ),
+                (
+                    "en-text-classic-jane-eyre-chapter-1",
+                    "Jane Eyre - Chapter I",
+                    "classic",
+                ),
+                (
+                    "en-text-declaration-independence",
+                    "The Declaration of Independence",
+                    "public-domain",
+                ),
+                (
+                    "en-text-gettysburg-address",
+                    "The Gettysburg Address",
+                    "public-domain",
                 ),
                 (
                     "en-text-constitution-article-1-section-2-clauses-1-2",
-                    "U.S. Constitution, Article I, Section 2, Clauses 1–2",
+                    "U.S. Constitution, Article I, Section 2, Clauses 1-2",
                     "public-domain",
                 ),
             ],
@@ -311,38 +379,44 @@ fn bundled_text_packs_match_the_reviewed_5b2_contract() {
             .items()
             .filter(|item| item.language == language && item.pack_id == pack_id)
             .collect();
-        assert_eq!(items.len(), 8, "{pack_id}");
+        assert_eq!(items.len(), expected.len(), "{pack_id}");
         assert!(items.iter().all(|item| item.kind == ContentKind::Text));
 
         let pack = load_pack(file_name);
         assert!(validate_pack(&pack).is_empty(), "{pack_id}");
         assert_eq!(pack.id, pack_id);
         assert_eq!(pack.language, language);
-        assert_eq!(pack.items.len(), 8, "{pack_id}");
+        assert_eq!(pack.items.len(), expected.len(), "{pack_id}");
 
-        for (id, title, tag) in expected {
+        for &(id, title, tag) in expected {
             let item = items.iter().find(|item| item.id == id).unwrap();
             assert_eq!(item.title.as_deref(), Some(title), "{id}");
-            assert!(item.difficulty.is_some(), "{id}");
+            assert_eq!(item.difficulty, Some(3), "{id}");
             assert_eq!(item.tags, [tag], "{id}");
             assert!(item.text.contains("\n\n"), "{id} is not multi-paragraph");
             assert!(
-                item.text
-                    .split("\n\n")
-                    .all(|paragraph| !paragraph.trim().is_empty()),
-                "{id}"
+                item.text.graphemes(true).count() >= 200,
+                "{id} is too short"
             );
-            let graphemes = item.text.graphemes(true).count();
-            assert!(graphemes >= 200, "{id} has only {graphemes} graphemes");
+
+            for value in [title, item.text.as_str()] {
+                assert!(
+                    value.chars().all(|character| {
+                        character == '\n'
+                            || character == ' '
+                            || character.is_ascii_graphic()
+                            || (language == Language::Ko && ('가'..='힣').contains(&character))
+                    }),
+                    "{id} contains a character that is not directly typable: {value:?}"
+                );
+            }
         }
 
-        for (tag, count) in [
-            ("essay", 2),
-            ("fiction", 2),
-            ("aphorism", 1),
-            ("retelling", 2),
-            ("public-domain", 1),
-        ] {
+        let expected_tags = match language {
+            Language::Ko => [("classic", 18), ("national", 1), ("public-domain", 1)],
+            Language::En => [("classic", 17), ("national", 0), ("public-domain", 3)],
+        };
+        for (tag, count) in expected_tags {
             assert_eq!(
                 items.iter().filter(|item| item.tags == [tag]).count(),
                 count,
@@ -354,40 +428,7 @@ fn bundled_text_packs_match_the_reviewed_5b2_contract() {
 
 #[test]
 fn text_packs_have_exact_item_level_provenance() {
-    let cases = [
-        (
-            "ko-texts.toml",
-            "ko-texts",
-            "ko-text-constitution-articles-1-5",
-            "대한민국",
-            "rok-constitution:articles-1-5",
-            "https://www.law.go.kr/법령/대한민국헌법",
-            "https://www.law.go.kr/법령/저작권법/제7조",
-            "제1조 (1) 대한민국은 민주공화국이다.\n\n(2) 대한민국의 주권은 국민에게 있고, 모든 권력은 국민으로부터 나온다.\n\n제2조 (1) 대한민국의 국민이 되는 요건은 법률로 정한다.\n\n(2) 국가는 법률이 정하는 바에 의하여 재외국민을 보호할 의무를 진다.\n\n제3조 대한민국의 영토는 한반도와 그 부속도서로 한다.\n\n제4조 대한민국은 통일을 지향하며, 자유민주적 기본질서에 입각한 평화적 통일정책을 수립하고 이를 추진한다.\n\n제5조 (1) 대한민국은 국제평화의 유지에 노력하고 침략적 전쟁을 부인한다.\n\n(2) 국군은 국가의 안전보장과 국토방위의 신성한 의무를 수행함을 사명으로 하며, 그 정치적 중립성은 준수된다.",
-        ),
-        (
-            "en-texts.toml",
-            "en-texts",
-            "en-text-constitution-article-1-section-2-clauses-1-2",
-            "Constitutional Convention of 1787",
-            "us-constitution:article-1-section-2-clauses-1-2",
-            "https://constitution.congress.gov/constitution/article-1/",
-            "https://copyright.gov/what-is-copyright/",
-            "The House of Representatives shall be composed of Members chosen every second Year by the People of the several States, and the Electors in each State shall have the Qualifications requisite for Electors of the most numerous Branch of the State Legislature.\n\nNo Person shall be a Representative who shall not have attained to the Age of twenty five Years, and been seven Years a Citizen of the United States, and who shall not, when elected, be an Inhabitant of that State in which he shall be chosen.",
-        ),
-    ];
-
-    for (
-        file_name,
-        pack_id,
-        constitution_id,
-        constitution_author,
-        constitution_source_id,
-        constitution_source_url,
-        constitution_license_url,
-        constitution_text,
-    ) in cases
-    {
+    for (file_name, pack_id) in [("ko-texts.toml", "ko-texts"), ("en-texts.toml", "en-texts")] {
         let pack = load_pack(file_name);
         let repository_url =
             format!("https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/{file_name}");
@@ -404,35 +445,137 @@ fn text_packs_have_exact_item_level_provenance() {
         assert!(pack.items.iter().all(|item| item.source.is_some()));
 
         for item in pack.resolve_items().unwrap() {
-            assert_eq!(
-                item.source.modified,
-                pack_id == "ko-texts" && item.id == constitution_id,
-                "{}",
-                item.id
-            );
-            assert_eq!(item.source.retrieved_at, "2026-08-07", "{}", item.id);
-            if item.id == constitution_id {
-                assert_eq!(item.source.author, constitution_author);
-                assert_eq!(item.source.source_id, constitution_source_id);
-                assert_eq!(item.source.source_url, constitution_source_url);
-                assert_eq!(item.source.license, "LicenseRef-Public-Domain");
-                assert_eq!(item.source.license_url, constitution_license_url);
-                assert_eq!(item.text, constitution_text);
-            } else {
-                assert_eq!(item.source.author, "Typerlude contributors", "{}", item.id);
-                assert_eq!(
-                    item.source.source_id,
-                    format!("typerlude:{}:v1.0.0", item.id),
-                    "{}",
-                    item.id
-                );
-                assert_eq!(item.source.source_url, repository_url, "{}", item.id);
-                assert_eq!(item.source.license, "CC0-1.0", "{}", item.id);
-                assert_eq!(
-                    item.source.license_url, "https://creativecommons.org/publicdomain/zero/1.0/",
-                    "{}",
-                    item.id
-                );
+            match item.id.as_str() {
+                id if id.starts_with("ko-text-classic-") => {
+                    assert!(
+                        item.source.author.ends_with("; 한국어 위키문헌 기여자"),
+                        "{id}"
+                    );
+                    assert!(item.source.source_id.starts_with("kowikisource:"), "{id}");
+                    assert!(
+                        item.source
+                            .source_url
+                            .starts_with("https://ko.wikisource.org/w/index.php?title="),
+                        "{id}"
+                    );
+                    assert!(item.source.source_url.contains("&oldid="), "{id}");
+                    assert_eq!(item.source.license, "CC-BY-SA-4.0", "{id}");
+                    assert_eq!(
+                        item.source.license_url, "https://creativecommons.org/licenses/by-sa/4.0/",
+                        "{id}"
+                    );
+                    assert!(item.source.modified, "{id}");
+                    assert_eq!(item.source.retrieved_at, "2026-08-12", "{id}");
+                }
+                id if id.starts_with("ko-text-poem-") => {
+                    assert!(item.source.source_id.starts_with("G905-"), "{id}");
+                    assert!(
+                        item.source
+                            .source_url
+                            .starts_with("https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?"),
+                        "{id}"
+                    );
+                    assert_eq!(item.source.license, "LicenseRef-Public-Domain", "{id}");
+                    assert_eq!(
+                        item.source.license_url,
+                        "https://gongu.copyright.or.kr/gongu/main/contents.do?menuNo=200091",
+                        "{id}"
+                    );
+                    assert!(item.source.modified, "{id}");
+                    assert_eq!(item.source.retrieved_at, "2026-08-12", "{id}");
+                }
+                "ko-text-aegukga-verses-1-4" => {
+                    assert_eq!(item.source.author, "작사자 미상; 기증 안익태");
+                    assert_eq!(item.source.source_id, "G905-13211046");
+                    assert_eq!(
+                        item.source.source_url,
+                        "https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200020&wrtSn=13211046"
+                    );
+                    assert_eq!(item.source.license, "CC-BY-4.0");
+                    assert_eq!(
+                        item.source.license_url,
+                        "https://creativecommons.org/licenses/by/4.0/"
+                    );
+                    assert!(item.source.modified);
+                    assert_eq!(item.source.retrieved_at, "2026-08-12");
+                }
+                "ko-text-constitution-articles-1-5" => {
+                    assert_eq!(item.source.author, "대한민국");
+                    assert_eq!(item.source.source_id, "rok-constitution:articles-1-5");
+                    assert_eq!(
+                        item.source.source_url,
+                        "https://www.law.go.kr/법령/대한민국헌법"
+                    );
+                    assert_eq!(item.source.license, "LicenseRef-Public-Domain");
+                    assert_eq!(
+                        item.source.license_url,
+                        "https://www.law.go.kr/법령/저작권법/제7조"
+                    );
+                    assert!(item.source.modified);
+                    assert_eq!(item.source.retrieved_at, "2026-08-07");
+                }
+                id if id.starts_with("en-text-classic-") => {
+                    assert!(item.source.source_id.starts_with("gutenberg:"), "{id}");
+                    assert!(
+                        item.source
+                            .source_url
+                            .starts_with("https://www.gutenberg.org/ebooks/"),
+                        "{id}"
+                    );
+                    assert_eq!(item.source.license, "LicenseRef-Public-Domain", "{id}");
+                    assert_eq!(
+                        item.source.license_url, "https://www.gutenberg.org/policy/license.html",
+                        "{id}"
+                    );
+                    assert!(item.source.modified, "{id}");
+                    assert_eq!(item.source.retrieved_at, "2026-08-12", "{id}");
+                }
+                "en-text-declaration-independence" => {
+                    assert_eq!(item.source.author, "Second Continental Congress");
+                    assert_eq!(item.source.source_id, "nara:declaration-transcript");
+                    assert_eq!(
+                        item.source.source_url,
+                        "https://www.archives.gov/founding-docs/declaration-transcript"
+                    );
+                    assert_eq!(
+                        item.source.license_url,
+                        "https://www.archives.gov/founding-docs/downloads"
+                    );
+                    assert!(!item.source.modified);
+                    assert_eq!(item.source.retrieved_at, "2026-08-12");
+                }
+                "en-text-gettysburg-address" => {
+                    assert_eq!(item.source.author, "Abraham Lincoln");
+                    assert_eq!(item.source.source_id, "nps:gettysburg-address:bliss-copy");
+                    assert_eq!(
+                        item.source.source_url,
+                        "https://www.nps.gov/linc/learn/historyculture/gettysburgaddress.htm"
+                    );
+                    assert_eq!(
+                        item.source.license_url,
+                        "https://copyright.gov/what-is-copyright/"
+                    );
+                    assert!(item.source.modified);
+                    assert_eq!(item.source.retrieved_at, "2026-08-12");
+                }
+                "en-text-constitution-article-1-section-2-clauses-1-2" => {
+                    assert_eq!(item.source.author, "Constitutional Convention of 1787");
+                    assert_eq!(
+                        item.source.source_id,
+                        "us-constitution:article-1-section-2-clauses-1-2"
+                    );
+                    assert_eq!(
+                        item.source.source_url,
+                        "https://constitution.congress.gov/constitution/article-1/"
+                    );
+                    assert_eq!(
+                        item.source.license_url,
+                        "https://copyright.gov/what-is-copyright/"
+                    );
+                    assert!(!item.source.modified);
+                    assert_eq!(item.source.retrieved_at, "2026-08-07");
+                }
+                id => panic!("unexpected text item: {id}"),
             }
         }
     }
@@ -671,7 +814,7 @@ fn complete_release_catalog_has_exact_counts_unique_nfc_content_and_no_warnings(
                 .count_any(language, &[ContentKind::Sentence, ContentKind::Quote]),
             120
         );
-        assert_eq!(loaded.catalog.count(language, ContentKind::Text), 8);
+        assert_eq!(loaded.catalog.count(language, ContentKind::Text), 20);
     }
 
     let mut ids = HashSet::new();
@@ -695,6 +838,8 @@ fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() 
         used,
         BTreeSet::from([
             "CC-BY-2.0-FR".to_owned(),
+            "CC-BY-4.0".to_owned(),
+            "CC-BY-SA-4.0".to_owned(),
             "CC0-1.0".to_owned(),
             "LicenseRef-Public-Domain".to_owned(),
         ])
@@ -709,6 +854,8 @@ fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() 
         shipped,
         BTreeSet::from([
             "CC-BY-2.0-FR.txt".to_owned(),
+            "CC-BY-4.0.txt".to_owned(),
+            "CC-BY-SA-4.0.txt".to_owned(),
             "CC0-1.0.txt".to_owned(),
             "NORD-MIT.txt".to_owned(),
         ])
@@ -737,16 +884,46 @@ fn effective_release_licenses_have_exact_offline_text_or_public_domain_notice() 
         assert!(cc_by_fr.contains(marker), "missing {marker}");
     }
 
+    let cc_by_path = license_dir.join("CC-BY-4.0.txt");
+    let cc_by = fs::read_to_string(&cc_by_path).unwrap();
+    assert_eq!(cc_by.len(), 18_657);
+    assert_eq!(fnv1a(cc_by.as_bytes()), 0x2e9d23969b17507f);
+    for marker in [
+        "Attribution 4.0 International",
+        "Section 1 -- Definitions.",
+        "Section 3 -- License Conditions.",
+        "Section 6 -- Term and Termination.",
+    ] {
+        assert!(cc_by.contains(marker), "missing {marker}");
+    }
+
+    let cc_by_sa_path = license_dir.join("CC-BY-SA-4.0.txt");
+    let cc_by_sa = fs::read_to_string(&cc_by_sa_path).unwrap();
+    assert_eq!(cc_by_sa.len(), 20_138);
+    assert_eq!(fnv1a(cc_by_sa.as_bytes()), 0x0a1b6bd99ed20b76);
+    for marker in [
+        "Attribution-ShareAlike 4.0 International",
+        "Section 1 -- Definitions.",
+        "Section 3 -- License Conditions.",
+        "Section 6 -- Term and Termination.",
+    ] {
+        assert!(cc_by_sa.contains(marker), "missing {marker}");
+    }
+
     let notice =
         fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("THIRD_PARTY_NOTICES.md"))
             .unwrap();
     assert!(notice.contains("LicenseRef-Public-Domain"));
     assert!(notice.contains("assets/licenses/CC0-1.0.txt"));
     assert!(notice.contains("assets/licenses/CC-BY-2.0-FR.txt"));
+    assert!(notice.contains("assets/licenses/CC-BY-4.0.txt"));
+    assert!(notice.contains("assets/licenses/CC-BY-SA-4.0.txt"));
     for digest in [
         "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
         "af0d7ada8b9be52a6874238f4533512d0b2568595bf7cb3427e41f7c38847b71",
         "94690c30fa9b7650a55ea91f9158e3dab81a5e3a79ec1e07d9b0be8a5212b81a",
+        "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+        "28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5",
     ] {
         assert!(notice.contains(digest));
     }
@@ -865,7 +1042,7 @@ fn third_party_rust_license_report_covers_locked_supported_target_graph() {
 }
 
 #[test]
-fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
+fn notice_matches_every_frozen_content_provenance_fact() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let notice = fs::read_to_string(root.join("THIRD_PARTY_NOTICES.md")).unwrap();
     let collapsed_notice = collapse_whitespace(&notice);
@@ -880,7 +1057,7 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
 
     for required in [
         "Rust and JavaScript software is licensed under the MIT License",
-        "Practice data written by Typerlude contributors is released under CC0 1.0 Universal",
+        "Practice word selections written by Typerlude contributors are released under CC0 1.0 Universal",
         "Third-party material keeps the license or public-domain status stated below",
     ] {
         assert!(collapsed_notice.contains(required));
@@ -968,15 +1145,17 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
         assert!(notice.contains(&item.source.license_url));
         assert!(notice.contains(&item.source.retrieved_at));
     }
-    for item in all_packs()
+    for item in [load_pack("ko-texts.toml"), load_pack("en-texts.toml")]
         .into_iter()
         .flat_map(|pack| pack.resolve_items().unwrap())
-        .filter(|item| item.tags.iter().any(|tag| tag == "retelling"))
     {
-        assert_eq!(item.source.author, "Typerlude contributors");
-        assert_eq!(item.source.license, "CC0-1.0");
         assert!(notice.contains(&item.id));
         assert!(collapsed_notice.contains(&collapse_whitespace(item.title.as_deref().unwrap())));
+        assert!(notice.contains(&item.source.source_id));
+        assert!(notice.contains(&item.source.source_url));
+        assert!(notice.contains(&item.source.license));
+        assert!(notice.contains(&item.source.license_url));
+        assert!(notice.contains(&item.source.retrieved_at));
     }
     for required in [
         "https://www.law.go.kr/lawPetitionForm.do?menuId=13&subMenuId=79",
@@ -994,10 +1173,15 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
         "federal-government material",
         "circled paragraph numerals `①` and",
         "therefore declares `modified = true`",
-        "흥부와 놀부",
-        "해와 달이 된 오누이",
-        "The Tortoise and the Hare",
-        "Stone Soup",
+        "contains no project-authored or AI-authored prose",
+        "complete named chapter, stave, or story",
+        "middle dots, ellipses, and long dashes",
+        "no recording, arrangement, or performance",
+        "https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use",
+        "https://www.gutenberg.org/policy/license.html",
+        "https://gongu.copyright.or.kr/gongu/main/contents.do?menuNo=200091",
+        "https://gongu.copyright.or.kr/gongu/main/contents.do?menuNo=200092",
+        "https://www.nps.gov/linc/learn/historyculture/gettysburgaddress.htm",
     ] {
         assert!(notice.contains(required), "missing notice fact: {required}");
     }

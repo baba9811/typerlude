@@ -1,9 +1,10 @@
 # Third-Party Notices and Data Rights
 
 Typerlude is a composite project. The Rust and JavaScript software is licensed
-under the MIT License in `LICENSE`. Practice data written by Typerlude contributors
-is released under CC0 1.0 Universal. Third-party material keeps the license or
-public-domain status stated below; MIT does not replace those terms.
+under the MIT License in `LICENSE`. Practice word selections written by
+Typerlude contributors are released under CC0 1.0 Universal. Third-party
+material keeps the license or public-domain status stated below; MIT does not
+replace those terms.
 
 Compiled Rust dependencies keep their upstream terms. Their crate names,
 versions, repositories, SPDX expressions, and complete license texts are
@@ -16,24 +17,32 @@ The Typerlude MIT license does not replace or restrict the MPL-2.0 terms.
 The complete offline legal texts are bundled under `assets/licenses/` in the
 source tree, Cargo package, and root npm package, and under `licenses/` in
 native npm packages and native archives. These layouts contain the same
-snapshot bytes for `CC0-1.0.txt`, `CC-BY-2.0-FR.txt`, and `NORD-MIT.txt`.
+snapshot bytes for `CC0-1.0.txt`, `CC-BY-2.0-FR.txt`, `CC-BY-4.0.txt`,
+`CC-BY-SA-4.0.txt`, and `NORD-MIT.txt`.
 The canonical online texts are:
 
 - CC0 1.0 Universal: https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt
 - Creative Commons Attribution 2.0 France (`CC-BY-2.0-FR`):
   https://creativecommons.org/licenses/by/2.0/fr/legalcode.fr
+- Creative Commons Attribution 4.0 International (`CC-BY-4.0`):
+  https://creativecommons.org/licenses/by/4.0/legalcode.txt
+- Creative Commons Attribution-ShareAlike 4.0 International (`CC-BY-SA-4.0`):
+  https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt
 - Nord MIT license: https://github.com/nordtheme/nord/blob/1cef71605416a222e57225b544540ce0fcec18d4/license
 
-License sources were retrieved `2026-08-07`:
+The first two Creative Commons sources were retrieved `2026-08-07`; the 4.0
+sources were retrieved `2026-08-12`:
 
 | Shipped file | Official source | Source bytes / SHA-256 | Shipped bytes / SHA-256 |
 | --- | --- | --- | --- |
 | `assets/licenses/CC0-1.0.txt` | https://creativecommons.org/publicdomain/zero/1.0/legalcode.txt | 7048 / `a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499` | 7048 / `a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499` |
 | `assets/licenses/CC-BY-2.0-FR.txt` | https://creativecommons.org/licenses/by/2.0/fr/legalcode.fr | 39707 / `af0d7ada8b9be52a6874238f4533512d0b2568595bf7cb3427e41f7c38847b71` | 15978 / `94690c30fa9b7650a55ea91f9158e3dab81a5e3a79ec1e07d9b0be8a5212b81a` |
+| `assets/licenses/CC-BY-4.0.txt` | https://creativecommons.org/licenses/by/4.0/legalcode.txt | 18657 / `9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411` | 18657 / `9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411` |
+| `assets/licenses/CC-BY-SA-4.0.txt` | https://creativecommons.org/licenses/by-sa/4.0/legalcode.txt | 20138 / `28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5` | 20138 / `28a9529c7d0bb4dc51f4bf5c116a3d16ef247a052f7591466768ddf563fd1cf5` |
 
-The CC0 file is the official plain-text response byte-for-byte. The French
-license file is a faithful, complete plain-text rendering of only the official
-HTML `plain-text-marker` legal-code container. The official HTML endpoint was
+The CC0 and both 4.0 files are official plain-text responses byte-for-byte.
+The French license file is a faithful, complete plain-text rendering of only
+the official HTML `plain-text-marker` legal-code container. The official HTML endpoint was
 byte-identical to the Creative Commons `cc-legal-tools-data` source at commit
 `56f8f157d9d395f48683cae3695973665f0c9162`:
 https://github.com/creativecommons/cc-legal-tools-data/blob/56f8f157d9d395f48683cae3695973665f0c9162/docs/licenses/by/2.0/fr/legalcode.fr.html.
@@ -121,18 +130,128 @@ individual usernames, so the truthful collective attribution label is
   8033223, 8037983, 8354398, 8354700, 8354702, 9161891, 8356841,
   9193323, 9227170, 8356993, 8357331
 
-## Public-domain Constitution excerpts
+## Korean public-domain literature and Aegukga
 
-Both excerpts use the internal license identifier
-`LicenseRef-Public-Domain`; no Creative Commons license is asserted over the
-underlying constitutional text.
+The Korean long-text pack contains no project-authored or AI-authored prose.
+The 18 literary works below were selected from the Korea Copyright Commission
+Gongu Madang catalog as copyright-expired works. Gongu Madang explains that a
+work whose copyright term has expired may be used without the copyright
+holder's permission:
+https://gongu.copyright.or.kr/gongu/main/contents.do?menuNo=200091.
+
+### Complete Korean stories
+
+The 15 complete stories use Korean Wikisource transcriptions because the
+Gongu Madang TXT/HWP line breaks split words in ways unsuitable for typing.
+The original works remain public domain; the community transcription and this
+modified typing edition are distributed under `CC-BY-SA-4.0`:
+https://creativecommons.org/licenses/by-sa/4.0/. Attribution is supplied by
+the original author, the collective label `한국어 위키문헌 기여자`, and a
+permanent revision URL whose page history identifies contributors, as allowed
+by the Wikimedia Terms of Use:
+https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use.
+
+| Item and original author | Permanent transcription source | Gongu Madang expiration record |
+| --- | --- | --- |
+| `ko-text-classic-buckwheat-season`, 메밀꽃 필 무렵 — 이효석 | `kowikisource:2584:426852`; https://ko.wikisource.org/w/index.php?title=%EB%A9%94%EB%B0%80%EA%BD%83%20%ED%95%84%20%EB%AC%B4%EB%A0%B5&oldid=426852 | G905-9001211; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9001211 |
+| `ko-text-classic-camellias`, 동백꽃 — 김유정 | `kowikisource:1923:247658`; https://ko.wikisource.org/w/index.php?title=%EB%8F%99%EB%B0%B1%EA%BD%83&oldid=247658 | G905-9000397; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000397 |
+| `ko-text-classic-spring-spring`, 봄봄 — 김유정 | `kowikisource:2036:245881`; https://ko.wikisource.org/w/index.php?title=%EB%B4%84%EB%B4%84&oldid=245881 | G905-9000404; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000404 |
+| `ko-text-classic-lucky-day`, 운수 좋은 날 — 현진건 | `kowikisource:2370:457472`; https://ko.wikisource.org/w/index.php?title=%EC%9A%B4%EC%88%98%20%EC%A2%8B%EC%9D%80%20%EB%82%A0&oldid=457472 | G905-9002094; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9002094 |
+| `ko-text-classic-b-superintendent-love-letter`, B사감과 러브레터 — 현진건 | `kowikisource:2369:425616`; https://ko.wikisource.org/w/index.php?title=B%EC%82%AC%EA%B0%90%EA%B3%BC%20%EB%9F%AC%EB%B8%8C%EB%A0%88%ED%84%B0&oldid=425616 | G905-9002100; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9002100 |
+| `ko-text-classic-poor-wife`, 빈처 — 현진건 | `kowikisource:4486:250704`; https://ko.wikisource.org/w/index.php?title=%EB%B9%88%EC%B2%98&oldid=250704 | G905-9002092; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9002092 |
+| `ko-text-classic-wings`, 날개 — 이상 | `kowikisource:1370:221326`; https://ko.wikisource.org/w/index.php?title=%EB%82%A0%EA%B0%9C&oldid=221326 | G905-9000973; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000973 |
+| `ko-text-classic-potatoes`, 감자 — 김동인 | `kowikisource:1884:250692`; https://ko.wikisource.org/w/index.php?title=%EA%B0%90%EC%9E%90&oldid=250692 | G905-9000075; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000075 |
+| `ko-text-classic-baettaragi`, 배따라기 — 김동인 | `kowikisource:1885:250693`; https://ko.wikisource.org/w/index.php?title=%EB%B0%B0%EB%94%B0%EB%9D%BC%EA%B8%B0&oldid=250693 | G905-9000094; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000094 |
+| `ko-text-classic-readymade-life`, 레디메이드 인생 — 채만식 | `kowikisource:17184:223316`; https://ko.wikisource.org/w/index.php?title=%EB%A0%88%EB%94%94%EB%A9%94%EC%9D%B4%EB%93%9C%20%EC%9D%B8%EC%83%9D&oldid=223316 | G905-9001386; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9001386 |
+| `ko-text-classic-gold-bean-field`, 금 따는 콩밭 — 김유정 | `kowikisource:1920:354124`; https://ko.wikisource.org/w/index.php?title=%EA%B8%88%20%EB%94%B0%EB%8A%94%20%EC%BD%A9%EB%B0%AD&oldid=354124 | G905-9000424; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000424 |
+| `ko-text-classic-society-offers-drink`, 술 권하는 사회 — 현진건 | `kowikisource:4002:425047`; https://ko.wikisource.org/w/index.php?title=%EC%88%A0%20%EA%B6%8C%ED%95%98%EB%8A%94%20%EC%82%AC%ED%9A%8C&oldid=425047 | G905-9002096; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9002096 |
+| `ko-text-classic-mad-painter`, 광화사 — 김동인 | `kowikisource:1925:387811`; https://ko.wikisource.org/w/index.php?title=%EA%B4%91%ED%99%94%EC%82%AC&oldid=387811 | G905-9000079; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000079 |
+| `ko-text-classic-manmubang`, 만무방 — 김유정 | `kowikisource:4475:157696`; https://ko.wikisource.org/w/index.php?title=%EB%A7%8C%EB%AC%B4%EB%B0%A9&oldid=157696 | G905-9000403; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000403 |
+| `ko-text-classic-fiery-sonata`, 광염 소나타 — 김동인 | `kowikisource:17174:143125`; https://ko.wikisource.org/w/index.php?title=%EA%B4%91%EC%97%BC%20%EC%86%8C%EB%82%98%ED%83%80&oldid=143125 | G905-9000078; https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9000078 |
+
+Typerlude removed page furniture and parenthetical Hanja, converted curved
+quotes, middle dots, ellipses, and long dashes to ordinary keyboard characters,
+and retained the complete story. Every item declares `modified = true` and was
+retrieved `2026-08-12`. The modified transcription remains under
+`CC-BY-SA-4.0`; the full offline license is
+`assets/licenses/CC-BY-SA-4.0.txt`.
+
+### Korean poems
+
+The following copyright-expired Gongu Madang texts were retrieved
+`2026-08-12`. They use `LicenseRef-Public-Domain`; no Creative Commons license
+is asserted over the underlying poems.
+
+| Item | Author and source ID | Official source |
+| --- | --- | --- |
+| `ko-text-poem-counting-stars`, 별 헤는 밤 | 윤동주; `G905-13313879` | https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=13313879 |
+| `ko-text-poem-silence-of-beloved`, 님의 침묵 | 한용운; `G905-9001830` | https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=9001830 |
+| `ko-text-poem-when-that-day-comes`, 그날이 오면 | 심훈; `G905-13313827` | https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200019&wrtSn=13313827 |
+
+For direct keyboard practice, Hanja was rendered in Hangul, typographic
+punctuation was replaced with ordinary keyboard punctuation, and obvious
+spacing or historical-spelling barriers were normalized. Each poem therefore
+declares `modified = true`.
+
+### Aegukga, verses 1-4
+
+`ko-text-aegukga-verses-1-4`, 애국가 1절부터 4절, contains only the four
+lyric verses; no recording, arrangement, or performance is bundled. Source ID
+`G905-13211046`, attributed as `작사자 미상; 기증 안익태`, was retrieved
+`2026-08-12` from the Korea Copyright Commission:
+https://gongu.copyright.or.kr/gongu/wrt/wrt/view.do?menuNo=200020&wrtSn=13211046.
+The Commission identifies the item as donated and gives the free-use example
+`애국가, 기증 안익태, 공유마당, CC BY 4.0`:
+https://gongu.copyright.or.kr/gongu/main/contents.do?menuNo=200092.
+This item is distributed under `CC-BY-4.0`,
+https://creativecommons.org/licenses/by/4.0/, and declares `modified = true`
+because verse numbers were omitted. The full offline license is
+`assets/licenses/CC-BY-4.0.txt`.
+
+## English public-domain literature
+
+The 17 English literary items are term-expired works by authors who died no
+later than 1946. Their text was obtained from the Project Gutenberg editions
+listed below. Project Gutenberg explains that after its license and trademark
+references are stripped from an unrestricted ebook, the remaining text is
+unrestricted under U.S. intellectual-property law:
+https://www.gutenberg.org/policy/license.html.
+
+| Item | Original author and source ID | Edition landing page |
+| --- | --- | --- |
+| `en-text-classic-alice-chapter-1`, Alice's Adventures in Wonderland - Chapter I | Lewis Carroll; `gutenberg:11:chapter-1` | https://www.gutenberg.org/ebooks/11 |
+| `en-text-classic-pride-chapter-1`, Pride and Prejudice - Chapter I | Jane Austen; `gutenberg:1342:chapter-1` | https://www.gutenberg.org/ebooks/1342 |
+| `en-text-classic-christmas-carol-stave-1`, A Christmas Carol - Stave I | Charles Dickens; `gutenberg:46:stave-1` | https://www.gutenberg.org/ebooks/46 |
+| `en-text-classic-scandal-bohemia-part-1`, A Scandal in Bohemia - Part I | Arthur Conan Doyle; `gutenberg:1661:scandal-in-bohemia-part-1` | https://www.gutenberg.org/ebooks/1661 |
+| `en-text-classic-time-machine-chapter-1`, The Time Machine - Chapter I | H. G. Wells; `gutenberg:35:chapter-1` | https://www.gutenberg.org/ebooks/35 |
+| `en-text-classic-frankenstein-chapter-1`, Frankenstein - Chapter 1 | Mary Shelley; `gutenberg:84:chapter-1` | https://www.gutenberg.org/ebooks/84 |
+| `en-text-classic-moby-dick-chapter-1`, Moby-Dick - Chapter 1 | Herman Melville; `gutenberg:2701:chapter-1` | https://www.gutenberg.org/ebooks/2701 |
+| `en-text-classic-treasure-island-chapter-1`, Treasure Island - Chapter I | Robert Louis Stevenson; `gutenberg:120:chapter-1` | https://www.gutenberg.org/ebooks/120 |
+| `en-text-classic-little-women-chapter-1`, Little Women - Chapter One | Louisa May Alcott; `gutenberg:514:chapter-1` | https://www.gutenberg.org/ebooks/514 |
+| `en-text-classic-wizard-oz-chapter-1`, The Wonderful Wizard of Oz - Chapter I | L. Frank Baum; `gutenberg:55:chapter-1` | https://www.gutenberg.org/ebooks/55 |
+| `en-text-classic-secret-garden-chapter-1`, The Secret Garden - Chapter I | Frances Hodgson Burnett; `gutenberg:17396:chapter-1` | https://www.gutenberg.org/ebooks/17396 |
+| `en-text-classic-sleepy-hollow`, The Legend of Sleepy Hollow | Washington Irving; `gutenberg:41:complete` | https://www.gutenberg.org/ebooks/41 |
+| `en-text-classic-gift-magi`, The Gift of the Magi | O. Henry; `gutenberg:7256:complete` | https://www.gutenberg.org/ebooks/7256 |
+| `en-text-classic-last-leaf`, The Last Leaf | O. Henry; `gutenberg:3707:last-leaf` | https://www.gutenberg.org/ebooks/3707 |
+| `en-text-classic-happy-prince`, The Happy Prince | Oscar Wilde; `gutenberg:902:happy-prince` | https://www.gutenberg.org/ebooks/902 |
+| `en-text-classic-dracula-chapter-1`, Dracula - Chapter I | Bram Stoker; `gutenberg:345:chapter-1` | https://www.gutenberg.org/ebooks/345 |
+| `en-text-classic-jane-eyre-chapter-1`, Jane Eyre - Chapter I | Charlotte Bronte; `gutenberg:1260:chapter-1` | https://www.gutenberg.org/ebooks/1260 |
+
+Only a complete named chapter, stave, or story is bundled; no arbitrary
+mid-work excerpt is used. Project Gutenberg headers, footers, license text,
+illustration captions, and trademark references were removed. Curved quotes,
+long dashes, ellipses, emphasis markers, and non-ASCII letters were converted
+to directly typable ASCII and wrapped source lines were reflowed into
+paragraphs. Every item declares `modified = true`, was retrieved `2026-08-12`,
+and uses `LicenseRef-Public-Domain`.
+
+## Public-domain official documents
 
 ### 대한민국헌법 제1조부터 제5조
 
 `ko-text-constitution-articles-1-5` contains Korean Constitution Articles 1
-through 5, source ID
-`rok-constitution:articles-1-5`, retrieved `2026-08-07` from the official
-National Law Information Center text:
+through 5, source ID `rok-constitution:articles-1-5`, retrieved `2026-08-07`
+from the official National Law Information Center text:
 https://www.law.go.kr/법령/대한민국헌법.
 
 For direct keyboard practice, the official circled paragraph numerals `①` and
@@ -146,10 +265,33 @@ Center's official reuse policy expressly permits unrestricted reuse, including
 commercial reuse, of Article 7 material:
 https://www.law.go.kr/lawPetitionForm.do?menuId=13&subMenuId=79.
 
-### U.S. Constitution, Article I, Section 2, Clauses 1–2
+### The Declaration of Independence
+
+`en-text-declaration-independence`, The Declaration of Independence, contains
+the complete official transcript attributed to the Second Continental
+Congress. Source ID `nara:declaration-transcript`, retrieved `2026-08-12`:
+https://www.archives.gov/founding-docs/declaration-transcript. The National
+Archives download page marks the founding-document images public domain:
+https://www.archives.gov/founding-docs/downloads. The item is unchanged and
+uses `LicenseRef-Public-Domain`.
+
+### The Gettysburg Address
+
+`en-text-gettysburg-address`, The Gettysburg Address, is attributed to Abraham
+Lincoln and follows the standard Bliss-copy wording published by the National
+Park Service. Source ID `nps:gettysburg-address:bliss-copy`, retrieved
+`2026-08-12`:
+https://www.nps.gov/linc/learn/historyculture/gettysburgaddress.htm. Tildes used
+as separators on the web page were rendered as `--`, so the item declares
+`modified = true`. Its 1863 publication is term-expired; the U.S. Copyright
+Office explains copyright expiration and the public domain at
+https://copyright.gov/what-is-copyright/. The item uses
+`LicenseRef-Public-Domain`.
+
+### U.S. Constitution, Article I, Section 2, Clauses 1-2
 
 `en-text-constitution-article-1-section-2-clauses-1-2` contains exactly Article
-I, Section 2, Clauses 1–2, source ID
+I, Section 2, Clauses 1-2, source ID
 `us-constitution:article-1-section-2-clauses-1-2`, attributed to the
 Constitutional Convention of 1787 and retrieved `2026-08-07` from the official
 Congress Constitution Annotated text:
@@ -167,23 +309,6 @@ https://www.archives.gov/founding-docs/downloads.
 This basis is term expiration, not 17 U.S.C. § 105. Section 105 concerns U.S.
 federal-government material such as the federal page or transcription; it is
 not a claim that the federal government authored the 1787 Constitution.
-
-## Typerlude-authored practice data and traditional-story retellings
-
-All Typerlude-authored word selections, essays, fiction, aphorisms, and retellings
-are new Typerlude expression released by Typerlude contributors under CC0 1.0
-Universal. In particular, the four retellings use only the named traditional or
-public-domain plot bases below; no wording from a modern edition, translation,
-or adaptation was copied.
-
-- `ko-text-retelling-heungbu-nolbu`, “박씨 하나의 몫 — 흥부와 놀부 다시 쓰기”:
-  the anonymous traditional Korean narrative 흥부와 놀부.
-- `ko-text-retelling-sun-moon-siblings`, “하늘에 남은 두 빛 — 해와 달이 된 오누이 다시 쓰기”:
-  the anonymous traditional Korean narrative 해와 달이 된 오누이.
-- `en-text-retelling-tortoise-hare`, “Two Ways to the Finish — The Tortoise and
-  the Hare Retold”: the ancient Aesopic fable The Tortoise and the Hare.
-- `en-text-retelling-stone-soup`, “The Empty Pot — Stone Soup Retold”: the
-  traditional European folktale Stone Soup.
 
 ## Nord theme palette
 

@@ -96,6 +96,7 @@ const ALLOWED_LICENSES: &[&str] = &[
     "CC0-1.0",
     "CC-BY-2.0-FR",
     "CC-BY-4.0",
+    "CC-BY-SA-4.0",
     "KOGL-0",
     "KOGL-1.0",
     "LicenseRef-Public-Domain",
@@ -738,6 +739,7 @@ difficulty = 2
             "CC0-1.0",
             "CC-BY-2.0-FR",
             "CC-BY-4.0",
+            "CC-BY-SA-4.0",
             "KOGL-0",
             "KOGL-1.0",
             "LicenseRef-Public-Domain",
@@ -1037,7 +1039,14 @@ retrieved_at = "2026-08-06"
         pack.items[0].text = "한글과 ASCII 123!?\n다음 줄".into();
         assert!(validate_builtin_typeability(&pack).is_empty());
 
-        for text in ["①항목", "곡선 ‘따옴표’", "한자 漢"] {
+        for text in [
+            "①항목",
+            "봄·봄",
+            "말줄임표…",
+            "긴—대시",
+            "곡선 ‘따옴표’",
+            "한자 漢",
+        ] {
             pack.items[0].text = text.into();
             let error = validate_builtin_typeability(&pack).remove(0);
             assert_eq!(error.item_id.as_deref(), Some("fixture-1"));
