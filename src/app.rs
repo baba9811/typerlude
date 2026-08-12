@@ -20,7 +20,7 @@ use crate::{
 use anyhow::{Result, anyhow, bail};
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
     path::Path,
     sync::mpsc::{Receiver, TryRecvError},
@@ -566,6 +566,7 @@ pub struct App {
     parent: Screen,
     parent_before_help: Option<Screen>,
     focus: usize,
+    focus_memory: HashMap<Screen, usize>,
     mode_options: ModeOptions,
     quit: bool,
     retry_request: Option<ModeRequest>,
@@ -606,6 +607,7 @@ impl App {
             parent: Screen::Home,
             parent_before_help: None,
             focus: 0,
+            focus_memory: HashMap::new(),
             mode_options,
             quit: false,
             retry_request: None,
@@ -783,15 +785,17 @@ impl App {
     }
 
     pub fn open(&mut self, screen: Screen) {
-        self.focus = 0;
         if screen == self.screen {
+            self.focus = 0;
             return;
         }
+        self.remember_focus();
 
         if screen == Screen::Help {
             self.parent_before_help = Some(self.parent);
             self.parent = self.screen;
             self.screen = Screen::Help;
+            self.focus = 0;
             return;
         }
 
@@ -803,6 +807,7 @@ impl App {
         self.parent = if prior == screen { Screen::Home } else { prior };
         self.parent_before_help = None;
         self.screen = screen;
+        self.focus = 0;
     }
 
     pub fn start_mode(&mut self, request: ModeRequest, now: Instant) -> Result<()> {
@@ -840,6 +845,7 @@ impl App {
             leave_confirmation: false,
         };
 
+        self.remember_focus();
         self.screen = Screen::Practice;
         self.parent = Screen::Home;
         self.parent_before_help = None;
@@ -1846,6 +1852,7 @@ impl App {
             Err(error) => view.save_error = Some(error.root_cause().to_string()),
         }
 
+        self.remember_focus();
         self.screen = Screen::Result;
         self.parent = Screen::Home;
         self.parent_before_help = None;
@@ -1856,38 +1863,52 @@ impl App {
 
     fn escape(&mut self) {
         self.content_disable_confirmation = false;
+        self.remember_focus();
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
             Screen::Help => {
                 let destination = self.parent;
                 let restored_parent = self.parent_before_help.take().unwrap_or(Screen::Home);
-                self.screen = destination;
                 self.parent = if restored_parent == destination {
                     Screen::Home
                 } else {
                     restored_parent
                 };
-                self.focus = 0;
+                self.restore_focus(destination);
             }
             _ => {
-                self.screen = if self.parent == self.screen {
+                let destination = if self.parent == self.screen {
                     Screen::Home
                 } else {
                     self.parent
                 };
                 self.parent = Screen::Home;
                 self.parent_before_help = None;
-                self.focus = 0;
+                self.restore_focus(destination);
             }
         }
     }
 
     fn return_home(&mut self) {
-        self.screen = Screen::Home;
+        self.remember_focus();
         self.parent = Screen::Home;
         self.parent_before_help = None;
-        self.focus = 0;
+        self.restore_focus(Screen::Home);
+    }
+
+    fn remember_focus(&mut self) {
+        self.focus_memory.insert(self.screen, self.focus);
+    }
+
+    fn restore_focus(&mut self, screen: Screen) {
+        self.screen = screen;
+        self.focus = self
+            .focus_memory
+            .get(&screen)
+            .copied()
+            .unwrap_or(0)
+            .min(self.focus_count().saturating_sub(1));
     }
 
     fn focus_count(&self) -> usize {

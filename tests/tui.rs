@@ -2231,6 +2231,30 @@ fn escape_returns_to_the_parent_and_nested_help_returns_to_its_opener() {
 }
 
 #[test]
+fn escape_restores_the_departure_focus_at_every_nested_level() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+
+    press(&mut app, KeyCode::Tab, 6, now);
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    press(&mut app, KeyCode::Tab, 3, now);
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    assert_eq!((app.screen(), app.focus()), (Screen::Stats, 3));
+    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    assert_eq!((app.screen(), app.focus()), (Screen::Home, 6));
+
+    app.open(Screen::Settings);
+    press(&mut app, KeyCode::Tab, 2, now);
+    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    app.open(Screen::Help);
+    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    assert_eq!((app.screen(), app.focus()), (Screen::Themes, 0));
+    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    assert_eq!((app.screen(), app.focus()), (Screen::Settings, 2));
+}
+
+#[test]
 fn result_escape_always_returns_home() {
     let (_root, mut app) = fixture_app();
     app.open(Screen::Settings);
