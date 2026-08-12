@@ -72,9 +72,11 @@ impl Settings {
             Err(error) if error.kind() == ErrorKind::NotFound => {
                 match fs::symlink_metadata(&paths.config) {
                     Err(metadata_error) if metadata_error.kind() == ErrorKind::NotFound => {
+                        let language = initial_ui_language_os(lc_all, lang);
                         return Ok(ConfigLoad {
                             value: Self {
-                                ui_language: initial_ui_language_os(lc_all, lang),
+                                language,
+                                ui_language: language,
                                 ..Self::default()
                             },
                             warnings: Vec::new(),
@@ -168,13 +170,20 @@ mod locale_tests {
             Some(OsStr::new("en")),
         )
         .unwrap();
+        assert_eq!(missing.value.language, Language::Ko);
         assert_eq!(missing.value.ui_language, Language::Ko);
         assert!(missing.warnings.is_empty());
         assert!(!paths.config.exists());
 
+        let missing_en =
+            Settings::load_with_locale(&paths, Some(OsStr::new("en_US.UTF-8")), None).unwrap();
+        assert_eq!(missing_en.value.language, Language::En);
+        assert_eq!(missing_en.value.ui_language, Language::En);
+
         fs::create_dir_all(&root).unwrap();
         fs::write(&paths.config, b"schema_version = 1\nui_language = \"en\"\n").unwrap();
         let saved = Settings::load_with_locale(&paths, Some(OsStr::new("ko")), None).unwrap();
+        assert_eq!(saved.value.language, Language::En);
         assert_eq!(saved.value.ui_language, Language::En);
         assert!(saved.warnings.is_empty());
 

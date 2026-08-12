@@ -129,12 +129,14 @@ fn missing_and_partial_config_use_defaults_without_eager_writes() {
     let mut expected = Settings::default();
     let lc_all = std::env::var_os("LC_ALL");
     let lang = std::env::var_os("LANG");
-    expected.ui_language = lc_all
+    let locale = lc_all
         .as_deref()
         .or(lang.as_deref())
         .and_then(|locale| locale.to_str())
         .map(|locale| initial_ui_language(Some(locale), None))
         .unwrap_or(Language::En);
+    expected.language = locale;
+    expected.ui_language = locale;
     assert_eq!(missing.value, expected);
     assert!(missing.warnings.is_empty());
     assert!(!paths.config.exists());
