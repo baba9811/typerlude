@@ -5,10 +5,10 @@
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/baba9811/typeul.git"
+    "url": "git+https://github.com/baba9811/typerlude.git"
   },
-  "homepage": "https://github.com/baba9811/typeul#readme",
-  "bugs": "https://github.com/baba9811/typeul/issues",
+  "homepage": "https://github.com/baba9811/typerlude#readme",
+  "bugs": "https://github.com/baba9811/typerlude/issues",
   "type": "commonjs",
   "bin": {
     "typerlude": "bin/typerlude.js"

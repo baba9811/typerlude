@@ -444,7 +444,7 @@ test("license cleanliness rejects tracked changes and all untracked license file
     fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "generated\n");
     fs.writeFileSync(path.join(root, "assets", "licenses", "known.txt"), "known\n");
     git("add", ".");
-    git("-c", "user.name=Typeul Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "fixture");
+    git("-c", "user.name=Typerlude Test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "fixture");
     assertLicenseTreeClean(root);
 
     fs.writeFileSync(path.join(root, "THIRD_PARTY_LICENSES.html"), "stale\n");

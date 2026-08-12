@@ -307,9 +307,9 @@ items = [
 ]
 
 [source]
-author = "Typeul contributors"
-source_id = "typeul-en-words-v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-words.toml"
+author = "Typerlude contributors"
+source_id = "typerlude-en-words-v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/en-words.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false

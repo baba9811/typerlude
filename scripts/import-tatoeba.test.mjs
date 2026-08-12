@@ -238,7 +238,7 @@ function corpusFixture() {
       schema_version: 1,
       reviewed_at: "2026-08-07",
       review: {
-        reviewer: "Typeul corpus review",
+        reviewer: "Typerlude corpus review",
         method:
           "Each selected TSV row was inspected individually for natural language quality, general-audience safety, privacy, and typing value after deterministic eligibility filtering.",
         criteria: ["language_quality", "general_audience_safety", "privacy", "typing_value"],

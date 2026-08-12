@@ -18,12 +18,12 @@ targets = [
 ]
 
 # The workspace package is excluded by about.hbs. This clarification covers
-# only Typeul's MIT-licensed code so the composite LICENSE remains authoritative
+# only Typerlude's MIT-licensed code so the composite LICENSE remains authoritative
 # for project-authored data and external material.
-[typeul.clarify]
+[typerlude.clarify]
 license = "MIT"
 
-[[typeul.clarify.files]]
+[[typerlude.clarify.files]]
 path = "LICENSE"
-checksum = "537731e3c9f0ba9da1079ac96dd24abea3c4fc8d7868a6d574dd7473cf82cb26"
+checksum = "b70a6b236da3df4a1debebb300a0150f3cfe074496414a0bdcb687d6d694956f"
 start = "MIT License"

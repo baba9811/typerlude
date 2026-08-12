@@ -4081,7 +4081,7 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
     app.start_long("en-text-essay-useful-pause", start).unwrap();
     let metadata = app.long_metadata().unwrap();
     assert_eq!(metadata.title, "The Use of a Useful Pause");
-    assert_eq!(metadata.author, "Typeul contributors");
+    assert_eq!(metadata.author, "Typerlude contributors");
     assert_eq!(metadata.license, "CC0-1.0");
     assert_eq!(metadata.difficulty, Some(2));
     assert_eq!(metadata.tags, ["essay"]);
@@ -4114,9 +4114,9 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
     let output = buffer_text(&drawn.buffer);
     for marker in [
         "The Use of a Useful Pause",
-        "Typeul contributors",
+        "Typerlude contributors",
         "CC0-1.0",
-        "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/en-texts.toml",
+        "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/en-texts.toml",
         "Difficulty: 2",
         "essay",
         "Paragraph 3/3",

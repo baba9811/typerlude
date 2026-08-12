@@ -3,17 +3,17 @@
 [English](content-packs.md) | [한국어](content-packs.ko.md)
 
 검색 가능한 메타데이터와 명확한 출처를 가진 연습 묶음을 재사용하려면 콘텐츠 팩을
-사용하세요. 한 번만 연습할 글은 `typeul FILE`이 더 간단합니다.
+사용하세요. 한 번만 연습할 글은 `typerlude FILE`이 더 간단합니다.
 
 ## 팩 추가
 
-설치 전에 검증하세요. Typeul은 검증과 시작 시점에 같은 스키마, NFC, 중복, 출처,
+설치 전에 검증하세요. Typerlude은 검증과 시작 시점에 같은 스키마, NFC, 중복, 출처,
 라이선스 규칙을 적용하며 기존 팩을 덮어쓰지 않습니다.
 
 ```bash
-typeul content validate my-pack.toml
-typeul content add my-pack.toml
-typeul content list
+typerlude content validate my-pack.toml
+typerlude content add my-pack.toml
+typerlude content list
 ```
 
 최소 예시:
@@ -55,8 +55,8 @@ tags = ["custom"]
 ## 팩 비활성화
 
 ```bash
-typeul content disable my-pack
+typerlude content disable my-pack
 ```
 
-사용자 팩만 비활성화할 수 있습니다. Typeul은 기존 항목을 덮어쓰지 않고 승인된 파일을
-`content/disabled/`로 옮깁니다. 실제 경로는 `typeul paths`로 확인하세요.
+사용자 팩만 비활성화할 수 있습니다. Typerlude은 기존 항목을 덮어쓰지 않고 승인된 파일을
+`content/disabled/`로 옮깁니다. 실제 경로는 `typerlude paths`로 확인하세요.

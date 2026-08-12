@@ -1,11 +1,11 @@
 {
   "name": "typerlude-win32-arm64-msvc",
   "version": "1.0.0",
-  "description": "Typeul native binary for the Typeul typing tutor",
+  "description": "Typerlude native binary for the Typerlude typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/baba9811/typeul.git"
+    "url": "git+https://github.com/baba9811/typerlude.git"
   },
   "os": [
     "win32"
