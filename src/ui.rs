@@ -1128,25 +1128,69 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
         return;
     };
     let session = &result.session;
+    let target = match language {
+        Language::Ko => "목표",
+        Language::En => "goal",
+    };
+    let speed_goal = format!(
+        "{:.0} {}",
+        result.speed_goal,
+        match session.language {
+            Language::Ko => "KPM",
+            Language::En => "WPM",
+        }
+    );
     let mut lines = vec![
-        Line::from(Span::styled(
+        Line::from(format!(
+            "{}: {} / {target} {speed_goal} · {}",
+            text(language, TextKey::Speed),
             speed_values(language, session.kpm, session.wpm),
-            styles.accent,
+            text(
+                language,
+                if result.speed_goal_met {
+                    TextKey::GoalMet
+                } else {
+                    TextKey::GoalMissed
+                }
+            )
         )),
         Line::from(format!(
-            "{}: {:.1}%",
+            "{}: {:.1}% / {target} {:.1}% · {}",
             text(language, TextKey::Accuracy),
-            session.accuracy
+            session.accuracy,
+            result.accuracy_goal,
+            text(
+                language,
+                if result.accuracy_goal_met {
+                    TextKey::GoalMet
+                } else {
+                    TextKey::GoalMissed
+                }
+            )
         )),
         Line::from(format!(
-            "{}: {}",
+            "{}: {} · {}: {}",
             text(language, TextKey::Errors),
-            session.errors
+            session.errors,
+            text(language, TextKey::Duration),
+            format_duration(language, session.duration_ms)
         )),
         Line::from(format!(
-            "{}: {} ms",
-            text(language, TextKey::Duration),
-            session.duration_ms
+            "{}: {target} {} {} · {}",
+            text(language, TextKey::DailyMinutes),
+            result.daily_minutes_goal,
+            match language {
+                Language::Ko => "분",
+                Language::En => "min",
+            },
+            text(
+                language,
+                if result.daily_minutes_met {
+                    TextKey::GoalMet
+                } else {
+                    TextKey::GoalMissed
+                }
+            )
         )),
     ];
     if let (Some(kpm), Some(wpm)) = (result.previous_kpm, result.previous_wpm) {
@@ -1186,31 +1230,11 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             speed_values(language, long.best_rolling_kpm, long.best_rolling_wpm)
         )));
         lines.push(Line::from(format!(
-            "{graphemes}: {}/{}",
-            long.completed_graphemes, long.total_graphemes
-        )));
-        lines.push(Line::from(format!(
-            "{}: {}%",
+            "{graphemes}: {}/{} · {}: {}%",
+            long.completed_graphemes,
+            long.total_graphemes,
             text(language, TextKey::Progress),
             long.percent
-        )));
-    }
-    for (label, met) in [
-        (TextKey::Speed, result.speed_goal_met),
-        (TextKey::Accuracy, result.accuracy_goal_met),
-        (TextKey::DailyMinutes, result.daily_minutes_met),
-    ] {
-        lines.push(Line::from(format!(
-            "{}: {}",
-            text(language, label),
-            text(
-                language,
-                if met {
-                    TextKey::GoalMet
-                } else {
-                    TextKey::GoalMissed
-                }
-            )
         )));
     }
     if let Some(error) = &result.save_error {
@@ -1224,17 +1248,20 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
         )));
     }
     if !result.weak_keys.is_empty() && lines.len() < usize::from(body.height) {
+        let keys = result
+            .weak_keys
+            .iter()
+            .take(5)
+            .map(|key| format!("{} {:.1}%", key.key, key.accuracy))
+            .collect::<Vec<_>>()
+            .join(" · ");
         lines.push(Line::from(Span::styled(
-            text(language, TextKey::WeakKeys),
+            terminal_line(
+                &format!("{}: {keys}", text(language, TextKey::WeakKeys)),
+                body.width,
+            ),
             styles.accent,
         )));
-        lines.extend(
-            result
-                .weak_keys
-                .iter()
-                .take(usize::from(body.height).saturating_sub(lines.len()))
-                .map(|key| Line::from(format!("{}: {:.1}%", key.key, key.accuracy))),
-        );
     } else if has_key_attempts(&session.intended_keys, 1) && lines.len() < usize::from(body.height)
     {
         lines.push(Line::from(Span::styled(
@@ -2045,6 +2072,23 @@ fn signed_speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
     }
 }
 
+fn format_duration(language: Language, milliseconds: u64) -> String {
+    let centiseconds = milliseconds.saturating_add(5) / 10;
+    let hours = centiseconds / 360_000;
+    let minutes = centiseconds / 6_000 % 60;
+    let seconds = centiseconds % 6_000;
+    let whole = seconds / 100;
+    let fraction = seconds % 100;
+    match (language, hours, minutes) {
+        (Language::Ko, 0, 0) => format!("{whole}.{fraction:02}초"),
+        (Language::Ko, 0, _) => format!("{minutes}분 {whole}.{fraction:02}초"),
+        (Language::Ko, _, _) => format!("{hours}시간 {minutes}분 {whole}.{fraction:02}초"),
+        (Language::En, 0, 0) => format!("{whole}.{fraction:02} sec"),
+        (Language::En, 0, _) => format!("{minutes} min {whole}.{fraction:02} sec"),
+        (Language::En, _, _) => format!("{hours} hr {minutes} min {whole}.{fraction:02} sec"),
+    }
+}
+
 fn content_kind_name(language: Language, kind: ContentKind) -> &'static str {
     text(
         language,
@@ -2179,6 +2223,17 @@ mod tests {
             signed_speed_values(Language::Ko, 10.0, -2.0),
             "타수 +10.0 타/분 · WPM -2.0"
         );
+    }
+
+    #[test]
+    fn result_duration_rounds_before_splitting_units() {
+        assert_eq!(format_duration(Language::En, 4_444), "4.44 sec");
+        assert_eq!(format_duration(Language::Ko, 2_673_444), "44분 33.44초");
+        assert_eq!(
+            format_duration(Language::En, 3_723_999),
+            "1 hr 2 min 4.00 sec"
+        );
+        assert_eq!(format_duration(Language::Ko, 59_999), "1분 0.00초");
     }
 
     #[test]

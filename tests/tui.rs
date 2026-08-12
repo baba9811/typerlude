@@ -328,6 +328,9 @@ fn result_view(id: &str) -> ResultView {
         best_wpm: Some(12.0),
         kpm_delta: Some(10.0),
         wpm_delta: Some(2.0),
+        speed_goal: 80.0,
+        accuracy_goal: 98.0,
+        daily_minutes_goal: 15,
         speed_goal_met: true,
         accuracy_goal_met: true,
         daily_minutes_met: false,
@@ -1475,14 +1478,51 @@ fn populated_result_renders_stored_goal_and_weak_key_outcomes() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     for value in [
-        "Speed: Goal met",
-        "Accuracy: Goal met",
-        "Daily minutes: Goal missed",
-        "Weak keys",
-        "x: 80.0%",
+        "Speed: KPM 60.0 · WPM 12.0 / goal 80 WPM · Goal met",
+        "Accuracy: 100.0% / goal 98.0% · Goal met",
+        "Daily minutes: goal 15 min · Goal missed",
+        "Weak keys: x 80.0%",
     ] {
         assert!(output.contains(value), "missing {value:?}: {output}");
     }
+}
+
+#[test]
+fn result_shows_snapshot_targets_readable_time_and_compact_weak_keys() {
+    let (_root, mut app) = fixture_app();
+    let mut result = result_view("compact-result");
+    result.session.duration_ms = 2_673_444;
+    result.speed_goal = 80.0;
+    result.accuracy_goal = 98.0;
+    result.daily_minutes_goal = 15;
+    result.weak_keys = vec![
+        KeyAccuracy {
+            key: 'x',
+            correct: 8,
+            errors: 2,
+            accuracy: 80.0,
+        },
+        KeyAccuracy {
+            key: 'y',
+            correct: 9,
+            errors: 1,
+            accuracy: 90.0,
+        },
+    ];
+    app.result = Some(result);
+    app.open(Screen::Result);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for value in [
+        "Speed: KPM 60.0 · WPM 12.0 / goal 80 WPM · Goal met",
+        "Accuracy: 100.0% / goal 98.0% · Goal met",
+        "Errors: 0 · Duration: 44 min 33.44 sec",
+        "Daily minutes: goal 15 min · Goal missed",
+        "Weak keys: x 80.0% · y 90.0%",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
+    }
+    assert!(!output.contains("2673444 ms"), "{output}");
 }
 
 #[test]
@@ -1529,8 +1569,8 @@ fn result_reserves_space_for_save_failure_before_bounded_weak_rows() {
         output.contains("Save failed: preserve this result"),
         "{output}"
     );
-    assert!(output.contains("j: 50.0%"), "{output}");
-    assert!(!output.contains("k: 50.0%"), "{output}");
+    assert!(output.contains("e 50.0%"), "{output}");
+    assert!(!output.contains("f 50.0%"), "{output}");
 }
 
 #[test]
