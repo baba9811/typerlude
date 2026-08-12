@@ -1182,25 +1182,41 @@ fn stats_shows_default_ranges_no_data_and_stored_session_data() {
 }
 
 #[test]
-fn stats_with_multiple_sessions_renders_a_real_speed_chart() {
+fn stats_with_multiple_sessions_renders_two_speed_series() {
     let (_root, mut app) = fixture_app();
     let mut first = result_view("chart-first").session;
-    first.wpm = 12.0;
+    first.kpm = 100.0;
+    first.wpm = 20.0;
     let mut second = result_view("chart-second").session;
-    second.wpm = 24.0;
+    second.kpm = 300.0;
+    second.wpm = 60.0;
     app.sessions.extend([first, second]);
     app.open(Screen::Stats);
 
     let drawn = draw(&app, 80, 24);
     let output = buffer_text(&drawn.buffer);
     assert!(output.contains("Speed trend"), "{output}");
-    assert!(
+    assert!(output.contains("KPM"), "{output}");
+    assert!(output.contains("WPM"), "{output}");
+    let styles = ThemeCatalog::load_builtins()
+        .unwrap()
+        .get("default")
+        .unwrap()
+        .styles()
+        .unwrap();
+    let has_braille = |style: Style| {
         drawn.buffer.content.iter().any(|cell| {
-            cell.symbol()
-                .chars()
-                .any(|character| ('\u{2801}'..='\u{28ff}').contains(&character))
-        }),
-        "chart has no visible Braille data: {output}"
+            cell.style().fg == style.fg
+                && cell
+                    .symbol()
+                    .chars()
+                    .any(|character| ('\u{2801}'..='\u{28ff}').contains(&character))
+        })
+    };
+    assert!(has_braille(styles.accent), "KPM chart is missing: {output}");
+    assert!(
+        has_braille(styles.correct),
+        "WPM chart is missing: {output}"
     );
 }
 
@@ -1235,19 +1251,23 @@ fn stats_uses_the_selected_language_and_30_days_from_local_today() {
     let today = local_today();
     let mut recent = result_view("recent-en").session;
     recent.local_date = today.saturating_sub(time::Duration::days(1));
+    recent.kpm = 100.0;
     recent.wpm = 20.0;
     recent.accuracy = 80.0;
     let mut boundary = result_view("boundary-en").session;
     boundary.local_date = today.saturating_sub(time::Duration::days(29));
-    boundary.wpm = 40.0;
+    boundary.kpm = 300.0;
+    boundary.wpm = 60.0;
     boundary.accuracy = 100.0;
     let mut too_old = result_view("old-en").session;
     too_old.local_date = today.saturating_sub(time::Duration::days(30));
+    too_old.kpm = 999.0;
     too_old.wpm = 999.0;
     let mut latest_other_language = result_view("latest-ko").session;
     latest_other_language.local_date = today;
     latest_other_language.language = Language::Ko;
     latest_other_language.kpm = 777.0;
+    latest_other_language.wpm = 777.0;
     app.sessions
         .extend([recent, boundary, too_old, latest_other_language]);
     app.open(Screen::Stats);
@@ -1255,10 +1275,15 @@ fn stats_uses_the_selected_language_and_30_days_from_local_today() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("Sessions: 2"), "{output}");
     assert!(output.contains("Accuracy: 90.0%"), "{output}");
-    assert!(output.contains("WPM 30.0/40.0"), "{output}");
-    assert!(!output.contains("KPM "), "{output}");
+    assert!(output.contains("KPM 200.0/300.0"), "{output}");
+    assert!(output.contains("WPM 40.0/60.0"), "{output}");
     assert!(!output.contains("999.0"), "{output}");
     assert!(!output.contains("777.0"), "{output}");
+
+    app.settings.ui_language = Language::Ko;
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("타수 200.0/300.0 타/분"), "{output}");
+    assert!(output.contains("WPM 40.0/60.0"), "{output}");
 }
 
 #[test]
@@ -1365,6 +1390,8 @@ fn history_renders_newest_session_first_without_mutating_storage_order() {
     let (_root, mut app) = fixture_app();
     let mut newer = result_view("newer-session").session;
     newer.started_at_unix_ms = 2;
+    newer.kpm = 200.0;
+    newer.wpm = 40.0;
     let mut older = result_view("older-session").session;
     older.started_at_unix_ms = 1;
     app.sessions.extend([newer, older]);
@@ -1379,6 +1406,7 @@ fn history_renders_newest_session_first_without_mutating_storage_order() {
         .find("older-session")
         .expect("older session is visible");
     assert!(newer < older, "{output}");
+    assert!(output.contains("KPM 200.0 · WPM 40.0"), "{output}");
     assert_eq!(app.sessions, stored);
 }
 
@@ -1561,7 +1589,7 @@ fn stats_filters_change_derived_points_without_mutating_sessions() {
     app.set_stats_mode(Some(PracticeKind::Words));
     app.set_stats_range(Range::Days7);
     assert_eq!(app.stats_points().len(), 1);
-    assert_eq!(app.stats_points()[0].speed, 40.0);
+    assert_eq!(app.stats_points()[0].wpm, 40.0);
     app.set_stats_range(Range::All);
     assert_eq!(app.stats_points().len(), 2);
     assert_eq!(app.sessions, stored);

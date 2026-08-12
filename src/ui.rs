@@ -1406,22 +1406,14 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         Language::Ko => ("세션", "총 시간", "목표"),
         Language::En => ("Sessions", "Total time", "Goal"),
     };
-    let (unit, average, best, speed_goal) = match app.stats_language() {
-        Language::Ko => (
-            "KPM",
-            overview.korean.average,
-            overview.korean.best,
-            app.settings.target_kpm,
-        ),
-        Language::En => (
-            "WPM",
-            overview.english.average,
-            overview.english.best,
-            app.settings.target_wpm,
-        ),
+    let kpm_average = finite_nonnegative(overview.kpm.average);
+    let kpm_best = finite_nonnegative(overview.kpm.best);
+    let wpm_average = finite_nonnegative(overview.wpm.average);
+    let wpm_best = finite_nonnegative(overview.wpm.best);
+    let (unit, average, speed_goal) = match app.stats_language() {
+        Language::Ko => ("KPM", kpm_average, app.settings.target_kpm),
+        Language::En => ("WPM", wpm_average, app.settings.target_wpm),
     };
-    let average = finite_nonnegative(average);
-    let best = finite_nonnegative(best);
     let practice_streak = streak(app.sessions.iter().map(|session| session.local_date), today);
     let points = app.stats_points();
     let minutes = app
@@ -1448,7 +1440,14 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
                 text(language, TextKey::Accuracy),
                 accuracy
             )),
-            Line::from(format!("{unit} {average:.1}/{best:.1}")),
+            Line::from(match language {
+                Language::Ko => format!(
+                    "타수 {kpm_average:.1}/{kpm_best:.1} 타/분 · WPM {wpm_average:.1}/{wpm_best:.1}"
+                ),
+                Language::En => format!(
+                    "KPM {kpm_average:.1}/{kpm_best:.1} · WPM {wpm_average:.1}/{wpm_best:.1}"
+                ),
+            }),
             Line::from(format!(
                 "{}: {practice_streak}",
                 text(language, TextKey::Streak)
@@ -1461,16 +1460,15 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         .style(styles.base),
         regions[0],
     );
-    let speed_values = points
+    let kpm_points = points
         .iter()
-        .map(|point| {
-            let speed = point.speed;
-            if speed.is_finite() {
-                speed.max(0.0)
-            } else {
-                0.0
-            }
-        })
+        .enumerate()
+        .map(|(index, point)| (index as f64, finite_nonnegative(point.kpm)))
+        .collect::<Vec<_>>();
+    let wpm_points = points
+        .iter()
+        .enumerate()
+        .map(|(index, point)| (index as f64, finite_nonnegative(point.wpm)))
         .collect::<Vec<_>>();
     let accuracy_values = points
         .iter()
@@ -1500,13 +1498,12 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         regions[2],
         styles,
     );
-    let points = speed_values
+    let y_max = kpm_points
         .iter()
-        .enumerate()
-        .map(|(index, &speed)| (index as f64, speed))
-        .collect::<Vec<_>>();
-    let y_max = speed_values.iter().copied().fold(1.0_f64, f64::max);
-    let x_max = points.len().saturating_sub(1).max(1) as f64;
+        .chain(&wpm_points)
+        .map(|&(_, speed)| speed)
+        .fold(1.0_f64, f64::max);
+    let x_max = kpm_points.len().saturating_sub(1).max(1) as f64;
     let title = match language {
         Language::Ko => "속도 추이",
         Language::En => "Speed trend",
@@ -1514,14 +1511,25 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
     frame.render_widget(
         Chart::new(vec![
             Dataset::default()
-                .data(&points)
+                .name(match language {
+                    Language::Ko => "타수",
+                    Language::En => "KPM",
+                })
+                .data(&kpm_points)
                 .marker(symbols::Marker::Braille)
                 .graph_type(GraphType::Line)
                 .style(styles.accent),
+            Dataset::default()
+                .name("WPM")
+                .data(&wpm_points)
+                .marker(symbols::Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(styles.correct),
         ])
         .block(titled(title, styles))
         .x_axis(Axis::default().bounds([0.0, x_max]))
-        .y_axis(Axis::default().bounds([0.0, y_max])),
+        .y_axis(Axis::default().bounds([0.0, y_max]))
+        .hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0))),
         regions[3],
     );
 }
@@ -1556,17 +1564,17 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSty
         return;
     }
     let items = items.map(|session| {
-        let (speed, unit) = match session.language {
-            Language::Ko => (session.kpm, "KPM"),
-            Language::En => (session.wpm, "WPM"),
-        };
         ListItem::new(format!(
-            "{} {} {} {} {:.1} {unit} {:.1}%",
+            "{} {} {} {} {} {:.1}%",
             session.id,
             session.local_date,
             practice_name(language, session.mode),
             language_name(session.language),
-            finite_nonnegative(speed),
+            speed_values(
+                language,
+                finite_nonnegative(session.kpm),
+                finite_nonnegative(session.wpm),
+            ),
             session.accuracy
         ))
     });
@@ -1988,6 +1996,21 @@ fn practice_name(language: Language, kind: PracticeKind) -> &'static str {
     )
 }
 
+fn speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
+    match ui_language {
+        Language::Ko => format!("타수 {kpm:.1} 타/분 · WPM {wpm:.1}"),
+        Language::En => format!("KPM {kpm:.1} · WPM {wpm:.1}"),
+    }
+}
+
+#[allow(dead_code)] // Task 6 consumes this shared formatter.
+fn signed_speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
+    match ui_language {
+        Language::Ko => format!("타수 {kpm:+.1} 타/분 · WPM {wpm:+.1}"),
+        Language::En => format!("KPM {kpm:+.1} · WPM {wpm:+.1}"),
+    }
+}
+
 fn content_kind_name(language: Language, kind: ContentKind) -> &'static str {
     text(
         language,
@@ -2103,6 +2126,26 @@ fn no_data(language: Language, styles: ThemeStyles) -> Paragraph<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn speed_value_helpers_localize_both_units() {
+        assert_eq!(
+            speed_values(Language::En, 200.0, 40.0),
+            "KPM 200.0 · WPM 40.0"
+        );
+        assert_eq!(
+            speed_values(Language::Ko, 200.0, 40.0),
+            "타수 200.0 타/분 · WPM 40.0"
+        );
+        assert_eq!(
+            signed_speed_values(Language::En, 10.0, -2.0),
+            "KPM +10.0 · WPM -2.0"
+        );
+        assert_eq!(
+            signed_speed_values(Language::Ko, 10.0, -2.0),
+            "타수 +10.0 타/분 · WPM -2.0"
+        );
+    }
 
     #[test]
     fn terminal_line_truncates_wide_graphemes_at_zero_and_tiny_widths() {
