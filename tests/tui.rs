@@ -16,7 +16,7 @@ use std::{
     time::{Duration, Instant},
 };
 use time::{Date, OffsetDateTime, UtcOffset};
-use typeul::{
+use typerlude::{
     app::{
         App, CustomTextSource, Grade, ItemDelta, ModeRequest, PracticeMode, QuickOptions,
         QuickSource, ResultView, Screen, StopRule, grade, key_sequence, key_stages,
@@ -39,7 +39,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-tui-{}-{}",
+            "typerlude-tui-{}-{}",
             std::process::id(),
             NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed)
         ));
@@ -472,7 +472,7 @@ fn buffer_text(buffer: &Buffer) -> String {
 fn required_label(screen: Screen, language: Language) -> &'static str {
     match (screen, language) {
         (Screen::Home, Language::Ko) => "타이플",
-        (Screen::Home, Language::En) => "Typeul",
+        (Screen::Home, Language::En) => "Typerlude",
         (Screen::ModeSelect, Language::Ko) => "빠른 연습",
         (Screen::ModeSelect, Language::En) => "Quick practice",
         (Screen::ModeOptions, Language::Ko) => "빠른 연습",
@@ -1178,7 +1178,7 @@ fn content_detail_keeps_provenance_license_and_status_visible_with_a_warning() {
     for value in [
         "scope: pack",
         "tatoeba-eng_cc0-",
-        "typeul licenses",
+        "typerlude licenses",
         "Built-in packs cannot be disabled",
         "review warning",
     ] {
@@ -1417,7 +1417,7 @@ fn populated_result_renders_only_its_stored_outcome_fields() {
         "Errors: 0",
         "Previous: 10.0",
         "Best: 12.0",
-        "Typeul relative grade: B",
+        "Typerlude relative grade: B",
         "preserve this result",
     ] {
         assert!(output.contains(value), "missing {value:?}: {output}");
@@ -1795,8 +1795,8 @@ fn content_packs_group_provenance_and_disable_only_users_after_confirmation() {
         "CC0-1.0",
         "https://creativecommons.org/publicdomain/zero/1.0/",
         "2026-08-07",
-        "typeul content add PACK.toml",
-        "typeul content validate PACK.toml",
+        "typerlude content add PACK.toml",
+        "typerlude content validate PACK.toml",
         "d: Disable",
     ] {
         assert!(detail.contains(value), "missing {value:?}: {detail}");
@@ -1923,14 +1923,14 @@ fn help_explains_all_keyboard_and_cli_actions_in_both_languages() {
             "{output}"
         );
         for command in [
-            "typeul quick|keys|words|sentence|long|test",
-            "typeul stats|history|themes",
-            "typeul content list",
-            "typeul content add PACK.toml",
-            "typeul content validate [PACK.toml]",
-            "typeul content disable PACK_ID",
-            "typeul paths|licenses|update",
-            "typeul --help|--version|--smoke",
+            "typerlude quick|keys|words|sentence|long|test",
+            "typerlude stats|history|themes",
+            "typerlude content list",
+            "typerlude content add PACK.toml",
+            "typerlude content validate [PACK.toml]",
+            "typerlude content disable PACK_ID",
+            "typerlude paths|licenses|update",
+            "typerlude --help|--version|--smoke",
         ] {
             assert!(output.contains(command), "missing {command:?}: {output}");
         }
@@ -1967,7 +1967,7 @@ fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
             assert!(output.contains(text), "missing {text:?}: {output}");
         }
         assert!(
-            output.contains("typeul FILE | typeul practice FILE"),
+            output.contains("typerlude FILE | typerlude practice FILE"),
             "{output}"
         );
         assert!(output.contains("review warning"), "{output}");
@@ -2052,7 +2052,7 @@ fn unknown_saved_theme_falls_back_to_validated_default_styles() {
     let expected = app.themes.get("default").unwrap().styles().unwrap().base;
 
     assert_role_style(&drawn.buffer[(70, 18)], expected);
-    assert!(buffer_text(&drawn.buffer).contains("Typeul"));
+    assert!(buffer_text(&drawn.buffer).contains("Typerlude"));
 }
 
 #[test]
@@ -4088,7 +4088,7 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
     assert!(metadata.source.ends_with("/assets/content/en-texts.toml"));
     assert_eq!(
         app.long_scroll().unwrap(),
-        typeul::app::LongScroll {
+        typerlude::app::LongScroll {
             active_paragraph: 1,
             total_paragraphs: 3,
             percent: 0,
@@ -4322,5 +4322,5 @@ fn typing_test_uses_allowed_durations_sentence_extension_and_relative_grade() {
         ))
     );
     let output = buffer_text(&draw(&app, 80, 24).buffer);
-    assert!(output.contains("Typeul relative grade"), "{output}");
+    assert!(output.contains("Typerlude relative grade"), "{output}");
 }

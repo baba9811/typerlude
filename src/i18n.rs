@@ -216,7 +216,7 @@ pub const fn text(language: Language, key: TextKey) -> &'static str {
             TextKey::Tags => "태그",
         },
         Language::En => match key {
-            TextKey::AppTitle => "Typeul",
+            TextKey::AppTitle => "Typerlude",
             TextKey::HomeQuick => "Quick practice",
             TextKey::HomeKeys => "Key practice",
             TextKey::HomeWords => "Word practice",

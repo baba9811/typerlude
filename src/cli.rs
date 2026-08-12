@@ -24,18 +24,18 @@ use std::{
 };
 
 const HELP: &str = r#"Usage:
-  typeul
-  typeul quick [--lang ko|en] [--time 15|30|60|120]
-  typeul keys|words|sentence|long [--lang ko|en]
-  typeul test [--lang ko|en] [--time 60|180|300|600]
-  typeul FILE | typeul practice FILE
-  typeul stats | history | themes
-  typeul content list
-  typeul content add PACK.toml
-  typeul content validate [PACK.toml]
-  typeul content disable PACK_ID
-  typeul paths | licenses | update
-  typeul --help | --version | --smoke"#;
+  typerlude
+  typerlude quick [--lang ko|en] [--time 15|30|60|120]
+  typerlude keys|words|sentence|long [--lang ko|en]
+  typerlude test [--lang ko|en] [--time 60|180|300|600]
+  typerlude FILE | typerlude practice FILE
+  typerlude stats | history | themes
+  typerlude content list
+  typerlude content add PACK.toml
+  typerlude content validate [PACK.toml]
+  typerlude content disable PACK_ID
+  typerlude paths | licenses | update
+  typerlude --help | --version | --smoke"#;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Command {
@@ -310,16 +310,16 @@ pub fn run(command: Command) -> Result<Exit> {
                 if latest > current {
                     println!("update: {}", method.instructions());
                 } else {
-                    println!("Typeul is up to date.");
+                    println!("Typerlude is up to date.");
                 }
             } else {
                 println!("latest: see {}", method.instructions());
             }
-            println!("Typeul never installs updates automatically.");
+            println!("Typerlude never installs updates automatically.");
             Ok(Exit::Done)
         }
         Command::Version => {
-            println!("typeul {VERSION}");
+            println!("typerlude {VERSION}");
             Ok(Exit::Done)
         }
         Command::Help => {
@@ -726,7 +726,7 @@ struct ContentLock {
 
 impl ContentLock {
     fn acquire(content: &Path) -> Result<Self> {
-        let path = content.join(".typeul-content.lock");
+        let path = content.join(".typerlude-content.lock");
         let file = match OpenOptions::new()
             .read(true)
             .write(true)
@@ -780,7 +780,7 @@ fn print_paths(paths: &AppPaths) {
 }
 
 fn print_licenses() {
-    println!("Typeul software: MIT");
+    println!("Typerlude software: MIT");
     println!("Project-authored data: CC0-1.0");
     println!("Tatoeba Korean sentences: CC-BY-2.0-FR (Attribution 2.0 France)");
     println!("Other bundled data: see THIRD_PARTY_NOTICES.md below");

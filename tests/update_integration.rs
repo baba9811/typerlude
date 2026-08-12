@@ -7,7 +7,7 @@ use std::{
     sync::mpsc::sync_channel,
     time::Instant,
 };
-use typeul::{
+use typerlude::{
     VERSION,
     app::{App, Screen},
     config::Settings,
@@ -24,7 +24,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-update-{}-{}",
+            "typerlude-update-{}-{}",
             std::process::id(),
             fastrand::u64(..)
         ));
@@ -126,12 +126,12 @@ fn practice_queues_a_notice_home_and_result_render_it_and_skip_persists() {
 
     app.open(Screen::Home);
     assert!(screen_text(&app).contains("Update available"));
-    app.settings.ui_language = typeul::model::Language::Ko;
+    app.settings.ui_language = typerlude::model::Language::Ko;
     let korean = screen_text(&app);
     assert!(korean.contains("업데이트 가능"), "{korean}");
     assert!(korean.contains("나중에"), "{korean}");
     assert!(korean.contains("이번 버전 건너뛰기"), "{korean}");
-    app.settings.ui_language = typeul::model::Language::En;
+    app.settings.ui_language = typerlude::model::Language::En;
     app.handle_event(
         Event::Key(KeyEvent::from(KeyCode::Char('l'))),
         Instant::now(),
@@ -148,7 +148,7 @@ fn practice_queues_a_notice_home_and_result_render_it_and_skip_persists() {
     let result = screen_text(&app);
     assert!(result.contains("Update available"), "{result}");
     assert!(
-        result.contains("npm install -g @baba9811/typeul@latest"),
+        result.contains("npm install -g @baba9811/typerlude@latest"),
         "{result}"
     );
     app.handle_event(
@@ -226,11 +226,10 @@ fn the_event_that_receives_a_notice_cannot_skip_it_before_first_render() {
 fn foreground_standalone_check_is_headless_and_never_installs() {
     let root = TestDir::new();
     let home = root.0.join("home");
-    let output = Command::new(env!("CARGO_BIN_EXE_typeul"))
+    let output = Command::new(env!("CARGO_BIN_EXE_typerlude"))
         .arg("update")
-        .env("TYPEUL_HOME", &home)
-        .env("TYPEUL_TEST", "1")
-        .env_remove("TYPEUL_INSTALL_METHOD")
+        .env("TYPERLUDE_HOME", &home)
+        .env_remove("TYPERLUDE_INSTALL_METHOD")
         .stdin(Stdio::null())
         .output()
         .unwrap();
@@ -239,7 +238,7 @@ fn foreground_standalone_check_is_headless_and_never_installs() {
     assert!(output.status.success(), "{stdout}");
     assert!(stdout.contains(&format!("current: {VERSION}")), "{stdout}");
     assert!(
-        stdout.contains("latest: see https://github.com/baba9811/typeul/releases"),
+        stdout.contains("latest: see https://github.com/baba9811/typerlude/releases"),
         "{stdout}"
     );
     assert!(

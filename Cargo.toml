@@ -1,13 +1,13 @@
 [package]
-name = "typeul"
-version = "1.0.3"
+name = "typerlude"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
-description = "Offline-first Korean and English terminal typing tutor"
+description = "A typing interlude for your terminal."
 readme = "README.md"
 license-file = "LICENSE"
-repository = "https://github.com/baba9811/typeul"
-homepage = "https://github.com/baba9811/typeul"
+repository = "https://github.com/baba9811/typerlude"
+homepage = "https://github.com/baba9811/typerlude"
 keywords = ["typing", "korean", "terminal", "tui", "ratatui"]
 categories = ["command-line-utilities"]
 include = [

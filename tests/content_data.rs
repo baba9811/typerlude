@@ -5,7 +5,7 @@ use std::{
     path::Path,
     process::Command,
 };
-use typeul::{
+use typerlude::{
     content::{ContentCatalog, ContentKind, ContentPack, parse_pack, validate_pack},
     model::Language,
 };

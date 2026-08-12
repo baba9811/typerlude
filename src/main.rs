@@ -1,5 +1,5 @@
 use std::io::IsTerminal;
-use typeul::{
+use typerlude::{
     cli::{Exit, is_input_error, parse_args, prepare_app, run, stdin_command, terminal_safe},
     storage::AppPaths,
     terminal,
@@ -7,7 +7,7 @@ use typeul::{
 
 fn main() {
     if let Err((code, error)) = execute() {
-        eprintln!("typeul: {}", terminal_safe(&format!("{error:#}")));
+        eprintln!("typerlude: {}", terminal_safe(&format!("{error:#}")));
         std::process::exit(code);
     }
 }

@@ -12,7 +12,7 @@ use std::{
     thread,
     time::Instant,
 };
-use typeul::{
+use typerlude::{
     app::{CustomTextSource, Screen, StopRule},
     cli::{PracticeArgs, Startup, prepare_app},
     model::{Language, PracticeKind},
@@ -27,7 +27,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-terminal-{}-{}",
+            "typerlude-terminal-{}-{}",
             std::process::id(),
             NEXT_DIR.fetch_add(1, Ordering::Relaxed)
         ));
@@ -47,10 +47,10 @@ impl Drop for TestDir {
 }
 
 fn command(root: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_typeul"))
+    Command::new(env!("CARGO_BIN_EXE_typerlude"))
         .args(args)
-        .env("TYPEUL_HOME", root)
-        .env("TYPEUL_NO_UPDATE_CHECK", "1")
+        .env("TYPERLUDE_HOME", root)
+        .env("TYPERLUDE_NO_UPDATE_CHECK", "1")
         .stdin(Stdio::null())
         .output()
         .unwrap()
@@ -78,7 +78,7 @@ fn headless_commands_still_work_without_a_terminal() {
     let output = command(root.path(), &["--version"]);
 
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).starts_with("typeul "));
+    assert!(String::from_utf8_lossy(&output.stdout).starts_with("typerlude "));
     assert!(!output.stdout.contains(&0x1b));
     assert!(!output.stderr.contains(&0x1b));
 }
@@ -159,21 +159,21 @@ fn piped_stdin_keeps_reading_events_from_the_controlling_terminal() {
         "/dev/null",
         "/bin/sh",
         "-c",
-        "exec \"$TYPEUL_TEST_BIN\" < \"$TYPEUL_TEST_INPUT\"",
+        "exec \"$TYPERLUDE_TEST_BIN\" < \"$TYPERLUDE_TEST_INPUT\"",
     ]);
     #[cfg(target_os = "linux")]
     command.args([
         "-q",
         "-e",
         "-c",
-        "exec \"$TYPEUL_TEST_BIN\" < \"$TYPEUL_TEST_INPUT\"",
+        "exec \"$TYPERLUDE_TEST_BIN\" < \"$TYPERLUDE_TEST_INPUT\"",
         "/dev/null",
     ]);
     let mut child = command
-        .env("TYPEUL_TEST_BIN", env!("CARGO_BIN_EXE_typeul"))
-        .env("TYPEUL_TEST_INPUT", &input)
-        .env("TYPEUL_HOME", root.path().join("home"))
-        .env("TYPEUL_NO_UPDATE_CHECK", "1")
+        .env("TYPERLUDE_TEST_BIN", env!("CARGO_BIN_EXE_typerlude"))
+        .env("TYPERLUDE_TEST_INPUT", &input)
+        .env("TYPERLUDE_HOME", root.path().join("home"))
+        .env("TYPERLUDE_NO_UPDATE_CHECK", "1")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

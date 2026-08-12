@@ -6,7 +6,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
-use typeul::{
+use typerlude::{
     i18n::{TextKey, initial_ui_language, text},
     model::Language,
     theme::{ThemeCatalog, ThemeSpec, parse_theme},
@@ -19,7 +19,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new(name: &str) -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-ui-foundation-{name}-{}-{}",
+            "typerlude-ui-foundation-{name}-{}-{}",
             std::process::id(),
             NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed)
         ));

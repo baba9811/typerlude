@@ -156,7 +156,7 @@ mod locale_tests {
     #[test]
     fn locale_applies_only_to_a_genuinely_missing_config() {
         let root = std::env::temp_dir().join(format!(
-            "typeul-config-locale-{}-{}",
+            "typerlude-config-locale-{}-{}",
             std::process::id(),
             fastrand::u64(..)
         ));
