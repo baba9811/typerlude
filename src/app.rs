@@ -14,6 +14,7 @@ use crate::{
     },
     storage::{AppPaths, SessionRecord, save_session},
     theme::ThemeCatalog,
+    typing::input_language,
     update::UpdateNotice,
 };
 use anyhow::{Result, anyhow, bail};
@@ -31,7 +32,6 @@ use unicode_segmentation::UnicodeSegmentation;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Screen {
     Home,
-    ModeSelect,
     ModeOptions,
     Practice,
     Result,
@@ -47,9 +47,8 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 13] = [
         Self::Home,
-        Self::ModeSelect,
         Self::ModeOptions,
         Self::Practice,
         Self::Result,
@@ -90,16 +89,20 @@ pub struct ItemDelta {
     pub correct_units: u64,
     pub attempted_units: u64,
     pub errors: u64,
-    pub speed: f64,
+    pub kpm: f64,
+    pub wpm: f64,
     pub accuracy: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResultView {
     pub session: SessionRecord,
-    pub previous_speed: Option<f64>,
-    pub best_speed: Option<f64>,
-    pub speed_delta: Option<f64>,
+    pub previous_kpm: Option<f64>,
+    pub previous_wpm: Option<f64>,
+    pub best_kpm: Option<f64>,
+    pub best_wpm: Option<f64>,
+    pub kpm_delta: Option<f64>,
+    pub wpm_delta: Option<f64>,
     pub speed_goal_met: bool,
     pub accuracy_goal_met: bool,
     pub daily_minutes_met: bool,
@@ -163,7 +166,8 @@ pub struct LongScroll {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LongOutcome {
-    pub best_rolling_speed: f64,
+    pub best_rolling_kpm: f64,
+    pub best_rolling_wpm: f64,
     pub completed_graphemes: usize,
     pub total_graphemes: usize,
     pub percent: usize,
@@ -497,6 +501,7 @@ pub struct ActivePractice {
     pub item_ends: Vec<usize>,
     pub content_ids: Vec<String>,
     pub status: Option<(String, Instant)>,
+    observed_input_language: Option<Language>,
     started_at_utc: Option<OffsetDateTime>,
     live_metrics: Metrics,
     item_metrics: Metrics,
@@ -523,6 +528,10 @@ impl ActivePractice {
 
     pub const fn leave_confirmation(&self) -> bool {
         self.leave_confirmation
+    }
+
+    pub const fn observed_input_language(&self) -> Option<Language> {
+        self.observed_input_language
     }
 
     pub fn long_metadata(&self) -> Option<&LongMetadata> {
@@ -819,6 +828,7 @@ impl App {
             item_ends: request.item_ends,
             content_ids: request.content_ids,
             status: None,
+            observed_input_language: None,
             started_at_utc: None,
             live_metrics: metrics.clone(),
             item_metrics: metrics,
@@ -1497,11 +1507,8 @@ impl App {
                         .unwrap_or(0);
                     if active.engine.cursor() > floor && active.engine.backspace() {
                         active.live_metrics = active.engine.metrics(now);
-                        active.current_item_delta = Some(item_delta(
-                            &active.item_metrics,
-                            &active.live_metrics,
-                            active.engine.language(),
-                        ));
+                        active.current_item_delta =
+                            Some(item_delta(&active.item_metrics, &active.live_metrics));
                     }
                 }
             }
@@ -1526,6 +1533,9 @@ impl App {
         let Some(active) = self.practice.as_mut() else {
             return Ok(());
         };
+        if let Some(language) = input_language(text) {
+            active.observed_input_language = Some(language);
+        }
         let wall_now = OffsetDateTime::now_utc();
         let attempted_before = active.engine.attempted_units();
         let errors_before = active.live_metrics.errors;
@@ -1535,11 +1545,8 @@ impl App {
         }
         active.live_metrics = active.engine.metrics(now);
         if active.engine.attempted_units() > attempted_before {
-            active.current_item_delta = Some(item_delta(
-                &active.item_metrics,
-                &active.live_metrics,
-                active.engine.language(),
-            ));
+            active.current_item_delta =
+                Some(item_delta(&active.item_metrics, &active.live_metrics));
         }
         if active.live_metrics.errors > errors_before
             && let PracticeMode::Words { streak, .. } = &mut active.mode
@@ -1563,11 +1570,7 @@ impl App {
                     break;
                 }
 
-                let delta = item_delta(
-                    &active.item_metrics,
-                    &active.live_metrics,
-                    active.engine.language(),
-                );
+                let delta = item_delta(&active.item_metrics, &active.live_metrics);
                 active.item_metrics = active.live_metrics.clone();
                 active.next_item += 1;
                 active.current_item_delta = Some(delta.clone());
@@ -1678,11 +1681,8 @@ impl App {
                 .copied()
                 .unwrap_or(0);
             if active.engine.cursor() > item_start {
-                active.current_item_delta = Some(item_delta(
-                    &active.item_metrics,
-                    &active.live_metrics,
-                    active.engine.language(),
-                ));
+                active.current_item_delta =
+                    Some(item_delta(&active.item_metrics, &active.live_metrics));
             }
             if active
                 .status
@@ -1735,8 +1735,10 @@ impl App {
         let long = (kind == PracticeKind::Long).then(|| {
             let completed_graphemes = active.engine.cursor();
             let total_graphemes = active.engine.target_len();
+            let (best_rolling_kpm, best_rolling_wpm) = active.engine.best_rolling_speeds();
             LongOutcome {
-                best_rolling_speed: active.engine.best_rolling_speed(),
+                best_rolling_kpm,
+                best_rolling_wpm,
                 completed_graphemes,
                 total_graphemes,
                 percent: completed_graphemes.saturating_mul(100) / total_graphemes,
@@ -1779,19 +1781,25 @@ impl App {
             .iter()
             .filter(|prior| prior.language == language && prior.mode == kind)
             .collect::<Vec<_>>();
-        let previous_speed = comparable
+        let previous = comparable
             .iter()
             .copied()
-            .filter(|prior| session_speed(prior).is_finite())
+            .filter(|prior| prior.kpm.is_finite() && prior.wpm.is_finite())
             .max_by(|left, right| {
                 left.started_at_unix_ms
                     .cmp(&right.started_at_unix_ms)
                     .then_with(|| left.id.cmp(&right.id))
-            })
-            .map(session_speed);
-        let best_speed = comparable
+            });
+        let previous_kpm = previous.map(|prior| prior.kpm);
+        let previous_wpm = previous.map(|prior| prior.wpm);
+        let best_kpm = comparable
             .iter()
-            .map(|prior| session_speed(prior))
+            .map(|prior| prior.kpm)
+            .filter(|speed| speed.is_finite())
+            .max_by(f64::total_cmp);
+        let best_wpm = comparable
+            .iter()
+            .map(|prior| prior.wpm)
             .filter(|speed| speed.is_finite())
             .max_by(f64::total_cmp);
         let speed_goal = match language {
@@ -1815,9 +1823,12 @@ impl App {
             )
         });
         let mut view = ResultView {
-            previous_speed,
-            best_speed,
-            speed_delta: previous_speed.map(|previous| speed - previous),
+            previous_kpm,
+            previous_wpm,
+            best_kpm,
+            best_wpm,
+            kpm_delta: previous_kpm.map(|previous| session.kpm - previous),
+            wpm_delta: previous_wpm.map(|previous| session.wpm - previous),
             speed_goal_met: speed >= speed_goal,
             accuracy_goal_met: session.accuracy >= self.settings.target_accuracy,
             daily_minutes_met: prior_duration.saturating_add(session.duration_ms) >= daily_target,
@@ -1848,12 +1859,6 @@ impl App {
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
-            Screen::ModeOptions => {
-                self.screen = Screen::ModeSelect;
-                self.parent = Screen::Home;
-                self.parent_before_help = None;
-                self.focus = 0;
-            }
             Screen::Help => {
                 let destination = self.parent;
                 let restored_parent = self.parent_before_help.take().unwrap_or(Screen::Home);
@@ -1888,7 +1893,6 @@ impl App {
     fn focus_count(&self) -> usize {
         match self.screen {
             Screen::Home => 10,
-            Screen::ModeSelect => 6,
             Screen::ModeOptions => match self.mode_options.kind {
                 PracticeKind::Quick | PracticeKind::Key => 5,
                 PracticeKind::Words | PracticeKind::Test => 3,
@@ -2034,36 +2038,26 @@ impl App {
     fn enter(&mut self, now: Instant) -> Result<()> {
         match self.screen {
             Screen::Home => {
-                let focus = self.focus;
-                if focus <= 5 {
-                    self.open(Screen::ModeSelect);
-                    self.focus = focus;
-                } else {
-                    let screen = match focus {
-                        6 => Screen::Stats,
-                        7 => Screen::Goals,
-                        8 => Screen::Content,
-                        9 => Screen::Settings,
-                        _ => return Ok(()),
-                    };
-                    self.open(screen);
-                }
-            }
-            Screen::ModeSelect => {
-                let Some(kind) = [
+                let kinds = [
                     PracticeKind::Quick,
                     PracticeKind::Key,
                     PracticeKind::Words,
                     PracticeKind::Sentence,
                     PracticeKind::Long,
                     PracticeKind::Test,
-                ]
-                .get(self.focus)
-                .copied() else {
-                    return Ok(());
-                };
-                self.mode_options = ModeOptions::new(kind, self.settings.language);
-                self.open(Screen::ModeOptions);
+                ];
+                match self.focus {
+                    0..=5 => {
+                        self.mode_options =
+                            ModeOptions::new(kinds[self.focus], self.settings.language);
+                        self.open(Screen::ModeOptions);
+                    }
+                    6 => self.open(Screen::Stats),
+                    7 => self.open(Screen::Goals),
+                    8 => self.open(Screen::Content),
+                    9 => self.open(Screen::Settings),
+                    _ => {}
+                }
             }
             Screen::ModeOptions => {
                 let options = self.mode_options.clone();
@@ -2512,12 +2506,13 @@ fn catalog_target(items: &[&ResolvedItem], separator: &str) -> (String, Vec<usiz
     (target, item_ends, content_ids)
 }
 
-fn item_delta(before: &Metrics, after: &Metrics, language: Language) -> ItemDelta {
+fn item_delta(before: &Metrics, after: &Metrics) -> ItemDelta {
     let correct_units = after.correct_units.saturating_sub(before.correct_units);
+    let correct_cells = after.correct_cells.saturating_sub(before.correct_cells);
     let attempted_units = after.attempted_units.saturating_sub(before.attempted_units);
     let correct_attempts = correct_attempts(after).saturating_sub(correct_attempts(before));
     let minutes = after.active.saturating_sub(before.active).as_secs_f64() / 60.0;
-    let units_per_minute = if minutes > 0.0 {
+    let kpm = if minutes > 0.0 {
         correct_units as f64 / minutes
     } else {
         0.0
@@ -2526,9 +2521,11 @@ fn item_delta(before: &Metrics, after: &Metrics, language: Language) -> ItemDelt
         correct_units,
         attempted_units,
         errors: after.errors.saturating_sub(before.errors),
-        speed: match language {
-            Language::Ko => units_per_minute,
-            Language::En => units_per_minute / 5.0,
+        kpm,
+        wpm: if minutes > 0.0 {
+            correct_cells as f64 / minutes / 5.0
+        } else {
+            0.0
         },
         accuracy: if attempted_units == 0 {
             100.0

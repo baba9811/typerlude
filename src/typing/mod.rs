@@ -8,6 +8,18 @@ pub fn normalize_nfc(text: &str) -> String {
     text.nfc().collect()
 }
 
+pub(crate) fn input_language(text: &str) -> Option<Language> {
+    normalize_nfc(text).chars().rev().find_map(|ch| {
+        if hangul::is_supported(ch) {
+            Some(Language::Ko)
+        } else if ch.is_ascii_alphabetic() {
+            Some(Language::En)
+        } else {
+            None
+        }
+    })
+}
+
 pub fn split_graphemes(text: &str) -> Vec<String> {
     normalize_nfc(text)
         .graphemes(true)
@@ -38,7 +50,7 @@ pub fn unit_count(language: Language, text: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{key_units, normalize_nfc, split_graphemes, unit_count};
+    use super::{input_language, key_units, normalize_nfc, split_graphemes, unit_count};
     use crate::model::Language;
 
     #[test]
@@ -59,6 +71,18 @@ mod tests {
     fn english_units_are_physical_character_keys() {
         assert_eq!(key_units(Language::En, "A !"), vec!['a', ' ', '!']);
         assert_eq!(unit_count(Language::En, "A !"), 3);
+    }
+
+    #[test]
+    fn input_language_recognizes_modern_korean_and_ascii_english_only() {
+        assert_eq!(input_language("한"), Some(Language::Ko));
+        assert_eq!(input_language("ㄱ"), Some(Language::Ko));
+        assert_eq!(input_language("한"), Some(Language::Ko));
+        assert_eq!(input_language("A"), Some(Language::En));
+        assert_eq!(input_language("한A"), Some(Language::En));
+        for neutral in ["1", "!", " ", "🙂", "λ"] {
+            assert_eq!(input_language(neutral), None, "{neutral:?}");
+        }
     }
 
     #[test]

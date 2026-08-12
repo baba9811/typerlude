@@ -50,7 +50,6 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
     let main = regions[0];
     match app.screen() {
         Screen::Home => render_home(frame, app, main, styles),
-        Screen::ModeSelect => render_mode_select(frame, app, main, styles),
         Screen::ModeOptions => render_mode_options(frame, app, main, styles),
         Screen::Practice => render_practice(frame, app, main, styles),
         Screen::Result => render_result(frame, app, main, styles),
@@ -122,9 +121,17 @@ fn practice_scroll(area: Rect, active: &ActivePractice) -> usize {
 }
 
 fn selected_styles(app: &App) -> Option<ThemeStyles> {
-    app.themes
-        .get(&app.settings.theme)
+    let preview = (app.screen() == Screen::Themes)
+        .then(|| app.themes.ids().nth(app.focus()))
+        .flatten();
+    preview
+        .and_then(|id| app.themes.get(id))
         .and_then(|theme| theme.styles().ok())
+        .or_else(|| {
+            app.themes
+                .get(&app.settings.theme)
+                .and_then(|theme| theme.styles().ok())
+        })
         .or_else(|| {
             app.themes
                 .get("default")
@@ -211,46 +218,6 @@ fn render_home(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
     });
     frame.render_widget(List::new(items).style(styles.base), regions[0]);
     render_update_notice(frame, app, regions[1], styles);
-}
-
-fn render_mode_select(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
-    let language = app.settings.ui_language;
-    let actions = [
-        TextKey::HomeQuick,
-        TextKey::HomeKeys,
-        TextKey::HomeWords,
-        TextKey::HomeSentence,
-        TextKey::HomeLong,
-        TextKey::HomeTest,
-    ];
-    let title = actions
-        .get(app.focus())
-        .copied()
-        .unwrap_or(TextKey::HomeQuick);
-    let block = titled(text(language, title), styles);
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
-    let regions = Layout::vertical([Constraint::Min(1), Constraint::Length(2)]).split(inner);
-    frame.render_widget(
-        List::new(actions.into_iter().enumerate().map(|(index, key)| {
-            let marker = if index == app.focus() { "> " } else { "  " };
-            ListItem::new(Line::from(vec![
-                Span::styled(marker, styles.accent),
-                Span::styled(text(language, key), styles.base),
-            ]))
-        }))
-        .style(styles.base),
-        regions[0],
-    );
-    frame.render_widget(
-        Paragraph::new(format!(
-            "Tab / ↑↓ · Enter {} · Esc {}",
-            text(language, TextKey::Confirm),
-            text(language, TextKey::Back)
-        ))
-        .style(styles.dim),
-        regions[1],
-    );
 }
 
 fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
@@ -458,13 +425,47 @@ fn render_mode_options(frame: &mut Frame<'_>, app: &App, area: Rect, styles: The
 
 fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
     let language = app.settings.ui_language;
-    let block = titled(text(language, TextKey::Progress), styles);
-    let inner = block.inner(area);
-    frame.render_widget(block, area);
     let Some(active) = app.active_practice() else {
+        let block = titled(text(language, TextKey::Progress), styles);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
         frame.render_widget(no_data(language, styles), inner);
         return;
     };
+    let practice = match active.engine.language() {
+        Language::Ko => "KO",
+        Language::En => "EN",
+    };
+    let observed = match (language, active.observed_input_language()) {
+        (_, None) => "—",
+        (Language::En, Some(Language::Ko)) => "KO",
+        (Language::En, Some(Language::En)) => "EN",
+        (Language::Ko, Some(Language::Ko)) => "한글",
+        (Language::Ko, Some(Language::En)) => "영문",
+    };
+    let mismatch = active
+        .observed_input_language()
+        .is_some_and(|observed| observed != active.engine.language());
+    let status = match language {
+        Language::Ko => format!(
+            "연습 {practice} · 입력 {observed}{}",
+            if mismatch { " ⚠" } else { "" }
+        ),
+        Language::En => format!(
+            "Practice {practice} · Input {observed}{}",
+            if mismatch { " ⚠" } else { "" }
+        ),
+    };
+    let block = titled(text(language, TextKey::Progress), styles).title_bottom(Span::styled(
+        status,
+        if mismatch {
+            styles.error
+        } else {
+            styles.accent
+        },
+    ));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
     let key_mode = active.kind() == PracticeKind::Key;
     let long_mode = active.kind() == PracticeKind::Long;
     let keyboard_height = u16::from(key_mode && app.settings.show_keyboard) * 4;
@@ -607,13 +608,13 @@ fn practice_live_lines(
             )),
         ];
     }
-    let speed = match active.engine.language() {
-        Language::Ko => metrics.kpm,
-        Language::En => metrics.wpm,
-    };
     let mut summary = Vec::new();
     if show_speed {
-        summary.push(format!("{}: {speed:.1}", text(language, TextKey::Speed)));
+        summary.push(format!(
+            "{}: {}",
+            text(language, TextKey::Speed),
+            speed_values(language, metrics.kpm, metrics.wpm)
+        ));
     }
     if show_accuracy {
         summary.push(format!(
@@ -703,13 +704,21 @@ fn practice_live_lines(
         PracticeMode::Words {
             completed, streak, ..
         } => {
-            let current = active.current_item_delta().map_or(0.0, |delta| delta.speed);
+            let (current_kpm, current_wpm) = active
+                .current_item_delta()
+                .map_or((0.0, 0.0), |delta| (delta.kpm, delta.wpm));
             let (current_label, average_label) = current_average(language);
             let mut fields = Vec::new();
             if show_speed {
                 fields.extend([
-                    format!("{current_label}: {current:.1}"),
-                    format!("{average_label}: {speed:.1}"),
+                    format!(
+                        "{current_label}: {}",
+                        speed_values(language, current_kpm, current_wpm)
+                    ),
+                    format!(
+                        "{average_label}: {}",
+                        speed_values(language, metrics.kpm, metrics.wpm)
+                    ),
                 ]);
             }
             fields.extend([
@@ -729,9 +738,9 @@ fn practice_live_lines(
             if let Some(delta) = last_item {
                 if show_speed {
                     fields.push(format!(
-                        "{}: {:.1}",
+                        "{}: {}",
                         text(language, TextKey::Speed),
-                        delta.speed
+                        speed_values(language, delta.kpm, delta.wpm)
                     ));
                 }
                 if show_accuracy {
@@ -1116,12 +1125,11 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
         return;
     };
     let session = &result.session;
-    let (speed, unit) = match session.language {
-        Language::Ko => (session.kpm, "KPM"),
-        Language::En => (session.wpm, "WPM"),
-    };
     let mut lines = vec![
-        Line::from(Span::styled(format!("{speed:.1} {unit}"), styles.accent)),
+        Line::from(Span::styled(
+            speed_values(language, session.kpm, session.wpm),
+            styles.accent,
+        )),
         Line::from(format!(
             "{}: {:.1}%",
             text(language, TextKey::Accuracy),
@@ -1138,20 +1146,22 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             session.duration_ms
         )),
     ];
-    if let Some(previous) = result.previous_speed {
+    if let (Some(kpm), Some(wpm)) = (result.previous_kpm, result.previous_wpm) {
         lines.push(Line::from(format!(
-            "{}: {previous:.1} {unit}",
-            text(language, TextKey::Previous)
+            "{}: {}",
+            text(language, TextKey::Previous),
+            speed_values(language, kpm, wpm)
         )));
     }
-    if let Some(best) = result.best_speed {
+    if let (Some(kpm), Some(wpm)) = (result.best_kpm, result.best_wpm) {
         lines.push(Line::from(format!(
-            "{}: {best:.1} {unit}",
-            text(language, TextKey::Best)
+            "{}: {}",
+            text(language, TextKey::Best),
+            speed_values(language, kpm, wpm)
         )));
     }
-    if let Some(delta) = result.speed_delta {
-        lines.push(Line::from(format!("{delta:+.1} {unit}")));
+    if let (Some(kpm), Some(wpm)) = (result.kpm_delta, result.wpm_delta) {
+        lines.push(Line::from(signed_speed_values(language, kpm, wpm)));
     }
     if let Some(grade) = result.grade {
         lines.push(Line::from(format!(
@@ -1169,8 +1179,8 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             Language::En => ("Best rolling 30s", "Graphemes"),
         };
         lines.push(Line::from(format!(
-            "{rolling}: {:.1} {unit}",
-            long.best_rolling_speed
+            "{rolling}: {}",
+            speed_values(language, long.best_rolling_kpm, long.best_rolling_wpm)
         )));
         lines.push(Line::from(format!(
             "{graphemes}: {}/{}",
@@ -1403,22 +1413,22 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         Language::Ko => ("세션", "총 시간", "목표"),
         Language::En => ("Sessions", "Total time", "Goal"),
     };
-    let (unit, average, best, speed_goal) = match app.stats_language() {
-        Language::Ko => (
-            "KPM",
-            overview.korean.average,
-            overview.korean.best,
-            app.settings.target_kpm,
-        ),
-        Language::En => (
-            "WPM",
-            overview.english.average,
-            overview.english.best,
-            app.settings.target_wpm,
-        ),
+    let kpm_average = finite_nonnegative(overview.kpm.average);
+    let kpm_best = finite_nonnegative(overview.kpm.best);
+    let wpm_average = finite_nonnegative(overview.wpm.average);
+    let wpm_best = finite_nonnegative(overview.wpm.best);
+    let stats_language = app.stats_language();
+    let (average, speed_goal) = match stats_language {
+        Language::Ko => (kpm_average, app.settings.target_kpm),
+        Language::En => (wpm_average, app.settings.target_wpm),
     };
-    let average = finite_nonnegative(average);
-    let best = finite_nonnegative(best);
+    let goal_speed = match (language, stats_language) {
+        (Language::Ko, Language::Ko) => {
+            format!("타수 {average:.0}/{speed_goal} 타/분")
+        }
+        (Language::En, Language::Ko) => format!("KPM {average:.0}/{speed_goal}"),
+        (_, Language::En) => format!("WPM {average:.0}/{speed_goal}"),
+    };
     let practice_streak = streak(app.sessions.iter().map(|session| session.local_date), today);
     let points = app.stats_points();
     let minutes = app
@@ -1445,29 +1455,35 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
                 text(language, TextKey::Accuracy),
                 accuracy
             )),
-            Line::from(format!("{unit} {average:.1}/{best:.1}")),
+            Line::from(match language {
+                Language::Ko => format!(
+                    "타수 {kpm_average:.1}/{kpm_best:.1} 타/분 · WPM {wpm_average:.1}/{wpm_best:.1}"
+                ),
+                Language::En => format!(
+                    "KPM {kpm_average:.1}/{kpm_best:.1} · WPM {wpm_average:.1}/{wpm_best:.1}"
+                ),
+            }),
             Line::from(format!(
                 "{}: {practice_streak}",
                 text(language, TextKey::Streak)
             )),
             Line::from(format!(
-                "{goal_label}: {unit} {average:.0}/{speed_goal} · {:.1}/{:.1}% · {minutes}/{} {minute_unit}",
+                "{goal_label}: {goal_speed} · {:.1}/{:.1}% · {minutes}/{} {minute_unit}",
                 accuracy, app.settings.target_accuracy, app.settings.daily_minutes,
             )),
         ])
         .style(styles.base),
         regions[0],
     );
-    let speed_values = points
+    let kpm_points = points
         .iter()
-        .map(|point| {
-            let speed = point.speed;
-            if speed.is_finite() {
-                speed.max(0.0)
-            } else {
-                0.0
-            }
-        })
+        .enumerate()
+        .map(|(index, point)| (index as f64, finite_nonnegative(point.kpm)))
+        .collect::<Vec<_>>();
+    let wpm_points = points
+        .iter()
+        .enumerate()
+        .map(|(index, point)| (index as f64, finite_nonnegative(point.wpm)))
         .collect::<Vec<_>>();
     let accuracy_values = points
         .iter()
@@ -1497,13 +1513,12 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
         regions[2],
         styles,
     );
-    let points = speed_values
+    let y_max = kpm_points
         .iter()
-        .enumerate()
-        .map(|(index, &speed)| (index as f64, speed))
-        .collect::<Vec<_>>();
-    let y_max = speed_values.iter().copied().fold(1.0_f64, f64::max);
-    let x_max = points.len().saturating_sub(1).max(1) as f64;
+        .chain(&wpm_points)
+        .map(|&(_, speed)| speed)
+        .fold(1.0_f64, f64::max);
+    let x_max = kpm_points.len().saturating_sub(1).max(1) as f64;
     let title = match language {
         Language::Ko => "속도 추이",
         Language::En => "Speed trend",
@@ -1511,14 +1526,25 @@ fn render_stats(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
     frame.render_widget(
         Chart::new(vec![
             Dataset::default()
-                .data(&points)
+                .name(match language {
+                    Language::Ko => "타수",
+                    Language::En => "KPM",
+                })
+                .data(&kpm_points)
                 .marker(symbols::Marker::Braille)
                 .graph_type(GraphType::Line)
                 .style(styles.accent),
+            Dataset::default()
+                .name("WPM")
+                .data(&wpm_points)
+                .marker(symbols::Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(styles.correct),
         ])
         .block(titled(title, styles))
         .x_axis(Axis::default().bounds([0.0, x_max]))
-        .y_axis(Axis::default().bounds([0.0, y_max])),
+        .y_axis(Axis::default().bounds([0.0, y_max]))
+        .hidden_legend_constraints((Constraint::Min(0), Constraint::Min(0))),
         regions[3],
     );
 }
@@ -1553,18 +1579,18 @@ fn render_history(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeSty
         return;
     }
     let items = items.map(|session| {
-        let (speed, unit) = match session.language {
-            Language::Ko => (session.kpm, "KPM"),
-            Language::En => (session.wpm, "WPM"),
-        };
         ListItem::new(format!(
-            "{} {} {} {} {:.1} {unit} {:.1}%",
-            session.id,
+            "{} {} {} {} {:.1}% {}",
             session.local_date,
             practice_name(language, session.mode),
             language_name(session.language),
-            finite_nonnegative(speed),
-            session.accuracy
+            speed_values(
+                language,
+                finite_nonnegative(session.kpm),
+                finite_nonnegative(session.wpm),
+            ),
+            session.accuracy,
+            session.id,
         ))
     });
     frame.render_widget(List::new(items).style(styles.base), data);
@@ -1640,9 +1666,13 @@ fn render_goals(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(format!(
-                "{}{kpm}: {} KPM",
+                "{}{kpm}: {} {}",
                 focus_marker(app, 0),
-                app.settings.target_kpm
+                app.settings.target_kpm,
+                match language {
+                    Language::Ko => "타/분",
+                    Language::En => "KPM",
+                }
             )),
             Line::from(format!(
                 "{}{wpm}: {} WPM",
@@ -1985,6 +2015,20 @@ fn practice_name(language: Language, kind: PracticeKind) -> &'static str {
     )
 }
 
+fn speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
+    match ui_language {
+        Language::Ko => format!("타수 {kpm:.1} 타/분 · WPM {wpm:.1}"),
+        Language::En => format!("KPM {kpm:.1} · WPM {wpm:.1}"),
+    }
+}
+
+fn signed_speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String {
+    match ui_language {
+        Language::Ko => format!("타수 {kpm:+.1} 타/분 · WPM {wpm:+.1}"),
+        Language::En => format!("KPM {kpm:+.1} · WPM {wpm:+.1}"),
+    }
+}
+
 fn content_kind_name(language: Language, kind: ContentKind) -> &'static str {
     text(
         language,
@@ -2100,6 +2144,26 @@ fn no_data(language: Language, styles: ThemeStyles) -> Paragraph<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn speed_value_helpers_localize_both_units() {
+        assert_eq!(
+            speed_values(Language::En, 200.0, 40.0),
+            "KPM 200.0 · WPM 40.0"
+        );
+        assert_eq!(
+            speed_values(Language::Ko, 200.0, 40.0),
+            "타수 200.0 타/분 · WPM 40.0"
+        );
+        assert_eq!(
+            signed_speed_values(Language::En, 10.0, -2.0),
+            "KPM +10.0 · WPM -2.0"
+        );
+        assert_eq!(
+            signed_speed_values(Language::Ko, 10.0, -2.0),
+            "타수 +10.0 타/분 · WPM -2.0"
+        );
+    }
 
     #[test]
     fn terminal_line_truncates_wide_graphemes_at_zero_and_tiny_widths() {

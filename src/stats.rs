@@ -41,8 +41,8 @@ pub struct Overview {
     pub total: Duration,
     pub sessions: usize,
     pub accuracy: f64,
-    pub korean: SpeedSummary,
-    pub english: SpeedSummary,
+    pub kpm: SpeedSummary,
+    pub wpm: SpeedSummary,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -56,7 +56,8 @@ pub struct KeyAccuracy {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ProgressPoint {
     pub date: Date,
-    pub speed: f64,
+    pub kpm: f64,
+    pub wpm: f64,
     pub accuracy: f64,
     pub minutes: f64,
 }
@@ -66,28 +67,17 @@ pub fn summarize<'a>(sessions: impl IntoIterator<Item = &'a SessionRecord>) -> O
     let mut duration_ms = 0_u64;
     let mut attempted = 0_u128;
     let mut weighted_accuracy = 0.0;
-    let mut ko_speed = 0.0;
-    let mut ko_sessions = 0_usize;
-    let mut en_speed = 0.0;
-    let mut en_sessions = 0_usize;
 
     for session in sessions {
         overview.sessions += 1;
+        let count = overview.sessions as f64;
         duration_ms = duration_ms.saturating_add(session.duration_ms);
         attempted += u128::from(session.attempted_units);
         weighted_accuracy += session.accuracy * session.attempted_units as f64;
-        match session.language {
-            Language::Ko => {
-                ko_speed += session.kpm;
-                ko_sessions += 1;
-                overview.korean.best = overview.korean.best.max(session.kpm);
-            }
-            Language::En => {
-                en_speed += session.wpm;
-                en_sessions += 1;
-                overview.english.best = overview.english.best.max(session.wpm);
-            }
-        }
+        overview.kpm.average += (session.kpm - overview.kpm.average) / count;
+        overview.wpm.average += (session.wpm - overview.wpm.average) / count;
+        overview.kpm.best = overview.kpm.best.max(session.kpm);
+        overview.wpm.best = overview.wpm.best.max(session.wpm);
     }
 
     overview.total = Duration::from_millis(duration_ms);
@@ -96,12 +86,6 @@ pub fn summarize<'a>(sessions: impl IntoIterator<Item = &'a SessionRecord>) -> O
     } else {
         weighted_accuracy / attempted as f64
     };
-    if ko_sessions != 0 {
-        overview.korean.average = ko_speed / ko_sessions as f64;
-    }
-    if en_sessions != 0 {
-        overview.english.average = en_speed / en_sessions as f64;
-    }
     overview
 }
 
@@ -133,7 +117,8 @@ pub fn history(
 struct ProgressTotals {
     duration_ms: u64,
     sessions: usize,
-    speed: f64,
+    kpm: f64,
+    wpm: f64,
     attempted: u128,
     weighted_accuracy: f64,
 }
@@ -154,10 +139,9 @@ pub fn progress(
         let point = totals.entry(session.local_date).or_default();
         point.duration_ms = point.duration_ms.saturating_add(session.duration_ms);
         point.sessions += 1;
-        point.speed += match language {
-            Language::Ko => session.kpm,
-            Language::En => session.wpm,
-        };
+        let count = point.sessions as f64;
+        point.kpm += (session.kpm - point.kpm) / count;
+        point.wpm += (session.wpm - point.wpm) / count;
         point.attempted += u128::from(session.attempted_units);
         point.weighted_accuracy += session.accuracy * session.attempted_units as f64;
     }
@@ -166,7 +150,8 @@ pub fn progress(
         .into_iter()
         .map(|(date, total)| ProgressPoint {
             date,
-            speed: total.speed / total.sessions as f64,
+            kpm: total.kpm,
+            wpm: total.wpm,
             accuracy: if total.attempted == 0 {
                 0.0
             } else {
@@ -352,27 +337,48 @@ mod tests {
     }
 
     #[test]
-    fn overview_separates_language_speed_units_and_uses_arithmetic_means() {
+    fn overview_summarizes_both_speed_units() {
         let mut ko_a = session("ko-a", date!(2026 - 08 - 07), Language::Ko);
         ko_a.kpm = 400.0;
-        ko_a.wpm = 9_999.0;
+        ko_a.wpm = 40.0;
         let mut ko_b = session("ko-b", date!(2026 - 08 - 07), Language::Ko);
         ko_b.kpm = 500.0;
-        ko_b.wpm = 9_999.0;
-        let mut en_a = session("en-a", date!(2026 - 08 - 07), Language::En);
-        en_a.kpm = 9_999.0;
-        en_a.wpm = 80.0;
-        let mut en_b = session("en-b", date!(2026 - 08 - 07), Language::En);
-        en_b.kpm = 9_999.0;
-        en_b.wpm = 60.0;
+        ko_b.wpm = 50.0;
 
-        let overview = summarize([&ko_a, &ko_b, &en_a, &en_b]);
+        let overview = summarize([&ko_a, &ko_b]);
 
-        assert_eq!(overview.sessions, 4);
-        assert_eq!(overview.korean.average, 450.0);
-        assert_eq!(overview.korean.best, 500.0);
-        assert_eq!(overview.english.average, 70.0);
-        assert_eq!(overview.english.best, 80.0);
+        assert_eq!(overview.sessions, 2);
+        assert_eq!(
+            overview.kpm,
+            super::SpeedSummary {
+                average: 450.0,
+                best: 500.0,
+            }
+        );
+        assert_eq!(
+            overview.wpm,
+            super::SpeedSummary {
+                average: 45.0,
+                best: 50.0,
+            }
+        );
+    }
+
+    #[test]
+    fn overview_averages_extreme_finite_speeds_without_overflow() {
+        let mut first = session("first", date!(2026 - 08 - 07), Language::En);
+        first.kpm = f64::MAX;
+        first.wpm = f64::MAX;
+        let mut second = session("second", date!(2026 - 08 - 07), Language::En);
+        second.kpm = f64::MAX;
+        second.wpm = f64::MAX;
+
+        let overview = summarize([&first, &second]);
+
+        assert_eq!(overview.kpm.average, f64::MAX);
+        assert_eq!(overview.wpm.average, f64::MAX);
+        assert_eq!(overview.kpm.best, f64::MAX);
+        assert_eq!(overview.wpm.best, f64::MAX);
     }
 
     #[test]
@@ -397,10 +403,8 @@ mod tests {
         assert_eq!(empty.total, Duration::ZERO);
         assert_eq!(empty.sessions, 0);
         assert_eq!(empty.accuracy, 0.0);
-        assert_eq!(empty.korean.average, 0.0);
-        assert_eq!(empty.korean.best, 0.0);
-        assert_eq!(empty.english.average, 0.0);
-        assert_eq!(empty.english.best, 0.0);
+        assert_eq!(empty.kpm, super::SpeedSummary::default());
+        assert_eq!(empty.wpm, super::SpeedSummary::default());
         assert!(empty.accuracy.is_finite());
 
         let mut first = session("first", date!(2026 - 08 - 07), Language::En);
@@ -471,15 +475,15 @@ mod tests {
         let today = date!(2026 - 08 - 07);
         let yesterday = date!(2026 - 08 - 06);
         let mut older_word = session("older-word", yesterday, Language::Ko);
-        older_word.kpm = 100.0;
-        older_word.wpm = 9_999.0;
+        older_word.kpm = 300.0;
+        older_word.wpm = 30.0;
         older_word.attempted_units = 1;
         older_word.accuracy = 0.0;
         older_word.duration_ms = 60_000;
         let mut older_test = session("older-test", yesterday, Language::Ko);
         older_test.mode = PracticeKind::Test;
-        older_test.kpm = 300.0;
-        older_test.wpm = 9_999.0;
+        older_test.kpm = 500.0;
+        older_test.wpm = 50.0;
         older_test.attempted_units = 3;
         older_test.accuracy = 100.0;
         older_test.duration_ms = 30_000;
@@ -488,6 +492,7 @@ mod tests {
         english.duration_ms = 600_000;
         let mut current = session("current", today, Language::Ko);
         current.kpm = 500.0;
+        current.wpm = 50.0;
         current.attempted_units = 2;
         current.accuracy = 50.0;
         current.duration_ms = 120_000;
@@ -496,11 +501,13 @@ mod tests {
         let points = progress(&sessions, Range::Days7, today, Language::Ko, None);
         assert_eq!(points.len(), 2);
         assert_eq!(points[0].date, yesterday);
-        assert_eq!(points[0].speed, 200.0);
+        assert_eq!(points[0].kpm, 400.0);
+        assert_eq!(points[0].wpm, 40.0);
         assert_eq!(points[0].accuracy, 75.0);
         assert_eq!(points[0].minutes, 1.5);
         assert_eq!(points[1].date, today);
-        assert_eq!(points[1].speed, 500.0);
+        assert_eq!(points[1].kpm, 500.0);
+        assert_eq!(points[1].wpm, 50.0);
         assert_eq!(points[1].accuracy, 50.0);
         assert_eq!(points[1].minutes, 2.0);
 
@@ -511,9 +518,26 @@ mod tests {
             Language::Ko,
             Some(PracticeKind::Words),
         );
-        assert_eq!(words[0].speed, 100.0);
+        assert_eq!(words[0].kpm, 300.0);
+        assert_eq!(words[0].wpm, 30.0);
         assert_eq!(words[0].accuracy, 0.0);
         assert_eq!(words[0].minutes, 1.0);
+    }
+
+    #[test]
+    fn progress_averages_extreme_finite_speeds_without_overflow() {
+        let today = date!(2026 - 08 - 07);
+        let mut first = session("first", today, Language::En);
+        first.kpm = f64::MAX;
+        first.wpm = f64::MAX;
+        let mut second = session("second", today, Language::En);
+        second.kpm = f64::MAX;
+        second.wpm = f64::MAX;
+
+        let points = progress(&[first, second], Range::Days7, today, Language::En, None);
+
+        assert_eq!(points[0].kpm, f64::MAX);
+        assert_eq!(points[0].wpm, f64::MAX);
     }
 
     #[test]

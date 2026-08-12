@@ -90,9 +90,6 @@ fn open_mode_options(app: &mut App, index: usize, now: Instant) {
         app.handle_event(key(KeyCode::Tab), now).unwrap();
     }
     app.handle_event(key(KeyCode::Enter), now).unwrap();
-    assert_eq!(app.screen(), Screen::ModeSelect);
-    assert_eq!(app.focus(), index);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
     assert_eq!(app.screen(), Screen::ModeOptions);
     assert_eq!(app.focus(), 0);
 }
@@ -276,7 +273,8 @@ fn mode_for(kind: PracticeKind) -> PracticeMode {
                 correct_units: 7,
                 attempted_units: 8,
                 errors: 1,
-                speed: 72.5,
+                kpm: 72.5,
+                wpm: 14.5,
                 accuracy: 87.5,
             }),
         },
@@ -324,9 +322,12 @@ fn result_view(id: &str) -> ResultView {
             accuracy: 100.0,
             intended_keys: BTreeMap::new(),
         },
-        previous_speed: Some(10.0),
-        best_speed: Some(12.0),
-        speed_delta: Some(2.0),
+        previous_kpm: Some(50.0),
+        previous_wpm: Some(10.0),
+        best_kpm: Some(60.0),
+        best_wpm: Some(12.0),
+        kpm_delta: Some(10.0),
+        wpm_delta: Some(2.0),
         speed_goal_met: true,
         accuracy_goal_met: true,
         daily_minutes_met: false,
@@ -473,8 +474,6 @@ fn required_label(screen: Screen, language: Language) -> &'static str {
     match (screen, language) {
         (Screen::Home, Language::Ko) => "Typerlude",
         (Screen::Home, Language::En) => "Typerlude",
-        (Screen::ModeSelect, Language::Ko) => "빠른 연습",
-        (Screen::ModeSelect, Language::En) => "Quick practice",
         (Screen::ModeOptions, Language::Ko) => "빠른 연습",
         (Screen::ModeOptions, Language::En) => "Quick practice",
         (Screen::Practice, Language::Ko) => "진행",
@@ -594,29 +593,12 @@ fn every_home_practice_action_opens_its_matching_mode_options() {
         }
 
         app.handle_event(key(KeyCode::Enter), now).unwrap();
-        assert_eq!(app.screen(), Screen::ModeSelect, "{kind:?}");
-        assert_eq!(app.focus(), index, "{kind:?}");
-        let selection = buffer_text(&draw(&app, 80, 24).buffer);
-        assert!(selection.contains(&format!("> {label}")), "{selection}");
-
-        app.handle_event(key(KeyCode::Enter), now).unwrap();
         assert_eq!(app.screen(), Screen::ModeOptions, "{kind:?}");
+        assert_eq!(app.focus(), 0, "{kind:?}");
         assert!(app.active_practice().is_none(), "{kind:?}");
+        let options = buffer_text(&draw(&app, 80, 24).buffer);
+        assert!(options.contains(label), "{options}");
     }
-}
-
-#[test]
-fn mode_select_focus_moves_across_all_six_practice_modes() {
-    let (_root, mut app) = fixture_app();
-    let now = Instant::now();
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
-
-    app.handle_event(key(KeyCode::Tab), now).unwrap();
-    assert_eq!(app.focus(), 1);
-    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("> Key practice"));
-
-    app.handle_event(key(KeyCode::BackTab), now).unwrap();
-    assert_eq!(app.focus(), 0);
 }
 
 #[test]
@@ -756,7 +738,7 @@ fn mode_options_reach_every_documented_quick_key_word_and_test_choice() {
     press(&mut quick, KeyCode::Tab, 1, now);
     assert_eq!(quick.focus(), 0);
     quick.handle_event(key(KeyCode::Esc), now).unwrap();
-    assert_eq!(quick.screen(), Screen::ModeSelect);
+    assert_eq!(quick.screen(), Screen::Home);
 
     let (_root, mut key_app) = fixture_app();
     open_mode_options(&mut key_app, 1, now);
@@ -1202,25 +1184,41 @@ fn stats_shows_default_ranges_no_data_and_stored_session_data() {
 }
 
 #[test]
-fn stats_with_multiple_sessions_renders_a_real_speed_chart() {
+fn stats_with_multiple_sessions_renders_two_speed_series() {
     let (_root, mut app) = fixture_app();
     let mut first = result_view("chart-first").session;
-    first.wpm = 12.0;
+    first.kpm = 100.0;
+    first.wpm = 20.0;
     let mut second = result_view("chart-second").session;
-    second.wpm = 24.0;
+    second.kpm = 300.0;
+    second.wpm = 60.0;
     app.sessions.extend([first, second]);
     app.open(Screen::Stats);
 
     let drawn = draw(&app, 80, 24);
     let output = buffer_text(&drawn.buffer);
     assert!(output.contains("Speed trend"), "{output}");
-    assert!(
+    assert!(output.contains("KPM"), "{output}");
+    assert!(output.contains("WPM"), "{output}");
+    let styles = ThemeCatalog::load_builtins()
+        .unwrap()
+        .get("default")
+        .unwrap()
+        .styles()
+        .unwrap();
+    let has_braille = |style: Style| {
         drawn.buffer.content.iter().any(|cell| {
-            cell.symbol()
-                .chars()
-                .any(|character| ('\u{2801}'..='\u{28ff}').contains(&character))
-        }),
-        "chart has no visible Braille data: {output}"
+            cell.style().fg == style.fg
+                && cell
+                    .symbol()
+                    .chars()
+                    .any(|character| ('\u{2801}'..='\u{28ff}').contains(&character))
+        })
+    };
+    assert!(has_braille(styles.accent), "KPM chart is missing: {output}");
+    assert!(
+        has_braille(styles.correct),
+        "WPM chart is missing: {output}"
     );
 }
 
@@ -1255,19 +1253,23 @@ fn stats_uses_the_selected_language_and_30_days_from_local_today() {
     let today = local_today();
     let mut recent = result_view("recent-en").session;
     recent.local_date = today.saturating_sub(time::Duration::days(1));
+    recent.kpm = 100.0;
     recent.wpm = 20.0;
     recent.accuracy = 80.0;
     let mut boundary = result_view("boundary-en").session;
     boundary.local_date = today.saturating_sub(time::Duration::days(29));
-    boundary.wpm = 40.0;
+    boundary.kpm = 300.0;
+    boundary.wpm = 60.0;
     boundary.accuracy = 100.0;
     let mut too_old = result_view("old-en").session;
     too_old.local_date = today.saturating_sub(time::Duration::days(30));
+    too_old.kpm = 999.0;
     too_old.wpm = 999.0;
     let mut latest_other_language = result_view("latest-ko").session;
     latest_other_language.local_date = today;
     latest_other_language.language = Language::Ko;
     latest_other_language.kpm = 777.0;
+    latest_other_language.wpm = 777.0;
     app.sessions
         .extend([recent, boundary, too_old, latest_other_language]);
     app.open(Screen::Stats);
@@ -1275,10 +1277,31 @@ fn stats_uses_the_selected_language_and_30_days_from_local_today() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("Sessions: 2"), "{output}");
     assert!(output.contains("Accuracy: 90.0%"), "{output}");
-    assert!(output.contains("WPM 30.0/40.0"), "{output}");
-    assert!(!output.contains("KPM "), "{output}");
+    assert!(output.contains("KPM 200.0/300.0"), "{output}");
+    assert!(output.contains("WPM 40.0/60.0"), "{output}");
     assert!(!output.contains("999.0"), "{output}");
     assert!(!output.contains("777.0"), "{output}");
+
+    app.settings.ui_language = Language::Ko;
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("타수 200.0/300.0 타/분"), "{output}");
+    assert!(output.contains("WPM 40.0/60.0"), "{output}");
+}
+
+#[test]
+fn korean_stats_goal_uses_localized_kpm_terminology() {
+    let (_root, mut app) = fixture_app();
+    app.settings.ui_language = Language::Ko;
+    app.settings.target_kpm = 450;
+    app.set_stats_language(Language::Ko);
+    let mut session = result_view("korean-stats-goal").session;
+    session.language = Language::Ko;
+    session.kpm = 321.0;
+    app.sessions.push(session);
+    app.open(Screen::Stats);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("목표: 타수 321/450 타/분"), "{output}");
 }
 
 #[test]
@@ -1383,9 +1406,12 @@ fn korean_data_screens_do_not_fall_back_to_english_prose() {
 #[test]
 fn history_renders_newest_session_first_without_mutating_storage_order() {
     let (_root, mut app) = fixture_app();
-    let mut newer = result_view("newer-session").session;
+    let mut newer = result_view("1786029600000000000-12345-1").session;
     newer.started_at_unix_ms = 2;
-    let mut older = result_view("older-session").session;
+    newer.mode = PracticeKind::Long;
+    newer.kpm = 200.0;
+    newer.wpm = 40.0;
+    let mut older = result_view("1786029600000000000-12345-0").session;
     older.started_at_unix_ms = 1;
     app.sessions.extend([newer, older]);
     let stored = app.sessions.clone();
@@ -1393,12 +1419,21 @@ fn history_renders_newest_session_first_without_mutating_storage_order() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     let newer = output
-        .find("newer-session")
+        .find("KPM 200.0 · WPM 40.0")
         .expect("newer session is visible");
     let older = output
-        .find("older-session")
+        .find("KPM 60.0 · WPM 12.0")
         .expect("older session is visible");
     assert!(newer < older, "{output}");
+    let newer_row = output
+        .lines()
+        .find(|line| line.contains("KPM 200.0 · WPM 40.0"))
+        .expect("both newer speeds are visible on one row");
+    let id = newer_row
+        .find("178602960000")
+        .expect("production-length session ID prefix is visible");
+    let speeds = newer_row.find("KPM 200.0 · WPM 40.0").unwrap();
+    assert!(speeds < id, "{newer_row}");
     assert_eq!(app.sessions, stored);
 }
 
@@ -1412,11 +1447,12 @@ fn populated_result_renders_only_its_stored_outcome_fields() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     for value in [
-        "12.0 WPM",
+        "KPM 60.0 · WPM 12.0",
         "Accuracy: 100.0%",
         "Errors: 0",
-        "Previous: 10.0",
-        "Best: 12.0",
+        "Previous: KPM 50.0 · WPM 10.0",
+        "Best: KPM 60.0 · WPM 12.0",
+        "KPM +10.0 · WPM +2.0",
         "Typerlude relative grade: B",
         "preserve this result",
     ] {
@@ -1490,7 +1526,11 @@ fn goals_and_settings_render_the_saved_values_without_edit_state() {
     for value in ["321 KPM", "65 WPM", "97.5%", "22 min"] {
         assert!(goals.contains(value), "missing {value:?}: {goals}");
     }
+    app.settings.ui_language = Language::Ko;
+    let goals = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(goals.contains("321 타/분"), "{goals}");
 
+    app.settings.ui_language = Language::En;
     app.open(Screen::Settings);
     let settings = buffer_text(&draw(&app, 80, 24).buffer);
     for value in ["Language: ko", "UI language: en", "Theme: nord"] {
@@ -1507,6 +1547,26 @@ fn themes_lists_all_five_validated_builtin_ids() {
     for id in ["default", "matrix", "minimal", "monochrome", "nord"] {
         assert!(output.contains(id), "missing {id:?}: {output}");
     }
+}
+
+#[test]
+fn focused_theme_previews_without_saving_and_escape_reverts() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    app.settings.theme = "default".into();
+    app.warnings.clear();
+    app.open(Screen::Themes);
+    press(&mut app, KeyCode::Tab, 4, now);
+
+    let preview = draw(&app, 80, 24);
+    let nord = app.themes.get("nord").unwrap().styles().unwrap();
+    assert_role_style(&preview.buffer[(70, 18)], nord.base);
+    assert_eq!(app.settings.theme, "default");
+
+    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    let reverted = draw(&app, 80, 24);
+    let default = app.themes.get("default").unwrap().styles().unwrap();
+    assert_role_style(&reverted.buffer[(70, 18)], default.base);
 }
 
 #[test]
@@ -1581,7 +1641,7 @@ fn stats_filters_change_derived_points_without_mutating_sessions() {
     app.set_stats_mode(Some(PracticeKind::Words));
     app.set_stats_range(Range::Days7);
     assert_eq!(app.stats_points().len(), 1);
-    assert_eq!(app.stats_points()[0].speed, 40.0);
+    assert_eq!(app.stats_points()[0].wpm, 40.0);
     app.set_stats_range(Range::All);
     assert_eq!(app.stats_points().len(), 2);
     assert_eq!(app.sessions, stored);
@@ -2056,14 +2116,12 @@ fn unknown_saved_theme_falls_back_to_validated_default_styles() {
 }
 
 #[test]
-fn mode_select_and_help_render_keyboard_guidance() {
-    for screen in [Screen::ModeSelect, Screen::Help] {
-        let (_root, mut app) = fixture_app();
-        app.open(screen);
-        let output = buffer_text(&draw(&app, 80, 24).buffer);
-        for key_name in ["Tab", "Enter", "Esc"] {
-            assert!(output.contains(key_name), "{screen:?} {key_name}: {output}");
-        }
+fn help_renders_keyboard_guidance() {
+    let (_root, mut app) = fixture_app();
+    app.open(Screen::Help);
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for key_name in ["Tab", "Enter", "Esc"] {
+        assert!(output.contains(key_name), "{key_name}: {output}");
     }
 }
 
@@ -2104,7 +2162,6 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
         Screen::ALL,
         [
             Screen::Home,
-            Screen::ModeSelect,
             Screen::ModeOptions,
             Screen::Practice,
             Screen::Result,
@@ -2119,7 +2176,7 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
             Screen::Help,
         ]
     );
-    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 14);
+    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 13);
 
     let (_root, app) = fixture_app();
     assert_eq!(app.screen(), Screen::Home);
@@ -2405,8 +2462,13 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
         StopRule::ActiveTime(Duration::from_secs(5)),
     );
     app.start_mode(requested.clone(), start).unwrap();
-    let active = app.active_practice_mut().unwrap();
-    assert_eq!(active.engine.input("a", start), InputOutcome::Accepted);
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        None
+    );
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.observed_input_language(), Some(Language::En));
     assert!(!active.engine.is_finished(start + Duration::from_secs(4)));
     assert!(active.engine.is_finished(start + Duration::from_secs(5)));
 
@@ -2424,7 +2486,79 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
     assert_eq!(retried.item_ends, requested.item_ends);
     assert_eq!(retried.content_ids, requested.content_ids);
     assert_eq!(retried.engine.metrics(start).attempted_units, 0);
+    assert_eq!(retried.observed_input_language(), None);
     assert_eq!(retried.engine.input("ab", start), InputOutcome::Finished);
+}
+
+#[test]
+fn practice_shows_observed_input_language_and_preserves_scoring() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Words,
+            Language::En,
+            "abc",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        None
+    );
+    assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("Practice EN · Input —"));
+
+    app.handle_event(key(KeyCode::Char('한')), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        Some(Language::Ko)
+    );
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    assert!(output.contains("Practice EN · Input KO ⚠"), "{output}");
+    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let warning = drawn
+        .buffer
+        .content
+        .iter()
+        .find(|cell| cell.symbol() == "⚠")
+        .unwrap();
+    assert_role_style(warning, styles.error);
+
+    let attempted = app.active_practice().unwrap().engine.attempted_units();
+    app.handle_event(key(KeyCode::Char('!')), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        Some(Language::Ko)
+    );
+    assert!(app.active_practice().unwrap().engine.attempted_units() > attempted);
+    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    assert_eq!(
+        app.active_practice().unwrap().observed_input_language(),
+        Some(Language::En)
+    );
+
+    let (_root, mut korean) = fixture_app();
+    korean.settings.ui_language = Language::Ko;
+    korean
+        .start_mode(
+            request(
+                PracticeKind::Words,
+                Language::En,
+                "abc",
+                StopRule::TargetEnd,
+            ),
+            start,
+        )
+        .unwrap();
+    korean
+        .handle_event(key(KeyCode::Char('한')), start)
+        .unwrap();
+    let output = buffer_text(&draw(&korean, 80, 24).buffer);
+    assert!(output.contains("연습 EN · 입력 한글 ⚠"), "{output}");
 }
 
 #[test]
@@ -3188,14 +3322,15 @@ fn result_uses_same_language_mode_history_goals_and_relative_grade_boundaries() 
         started_at_unix_ms: i128,
         language: Language,
         mode: PracticeKind,
-        speed: f64,
+        kpm: f64,
+        wpm: f64,
     ) -> SessionRecord {
         let mut session = result_view(id).session;
         session.started_at_unix_ms = started_at_unix_ms;
         session.language = language;
         session.mode = mode;
-        session.wpm = speed;
-        session.kpm = speed;
+        session.kpm = kpm;
+        session.wpm = wpm;
         session
     }
 
@@ -3204,15 +3339,33 @@ fn result_uses_same_language_mode_history_goals_and_relative_grade_boundaries() 
     app.settings.target_accuracy = 98.0;
     app.settings.daily_minutes = 1;
     app.sessions = vec![
-        prior("older", 100, Language::En, PracticeKind::Words, 0.5),
-        prior("best", 200, Language::En, PracticeKind::Words, 1.2),
-        prior("newest", 300, Language::En, PracticeKind::Words, 0.7),
-        prior("other-mode", 400, Language::En, PracticeKind::Test, 999.0),
+        prior("older", 100, Language::En, PracticeKind::Words, 2.5, 0.5),
+        prior("best-wpm", 200, Language::En, PracticeKind::Words, 6.0, 1.2),
+        prior("best-kpm", 250, Language::En, PracticeKind::Words, 9.0, 0.6),
+        prior("newest-a", 300, Language::En, PracticeKind::Words, 3.5, 0.7),
+        prior("newest-b", 300, Language::En, PracticeKind::Words, 4.0, 0.8),
+        prior(
+            "invalid-newer",
+            400,
+            Language::En,
+            PracticeKind::Words,
+            f64::NAN,
+            8.0,
+        ),
+        prior(
+            "other-mode",
+            500,
+            Language::En,
+            PracticeKind::Test,
+            999.0,
+            999.0,
+        ),
         prior(
             "other-language",
-            500,
+            600,
             Language::Ko,
             PracticeKind::Words,
+            999.0,
             999.0,
         ),
     ];
@@ -3241,15 +3394,18 @@ fn result_uses_same_language_mode_history_goals_and_relative_grade_boundaries() 
 
     let result = app.result.as_ref().unwrap();
     assert_eq!(result.session.wpm, 1.0);
-    assert_eq!(result.previous_speed, Some(0.7));
-    assert_eq!(result.best_speed, Some(1.2));
-    assert!((result.speed_delta.unwrap() - 0.3).abs() < f64::EPSILON * 4.0);
+    assert_eq!(result.previous_kpm, Some(4.0));
+    assert_eq!(result.previous_wpm, Some(0.8));
+    assert_eq!(result.best_kpm, Some(9.0));
+    assert_eq!(result.best_wpm, Some(8.0));
+    assert!((result.kpm_delta.unwrap() - 1.0).abs() < f64::EPSILON * 4.0);
+    assert!((result.wpm_delta.unwrap() - 0.2).abs() < f64::EPSILON * 4.0);
     assert!(result.speed_goal_met);
     assert!(result.accuracy_goal_met);
     assert!(result.daily_minutes_met);
     assert_eq!(result.grade, None);
     assert_eq!(result.session.difficulty, Some(3));
-    assert_eq!(app.sessions.len(), 6);
+    assert_eq!(app.sessions.len(), 9);
 
     assert_eq!(grade(80.0, 80.0, 98.0, 98.0), Grade::A);
     assert_eq!(grade(64.0, 80.0, 95.0, 98.0), Grade::B);
@@ -3605,24 +3761,33 @@ fn practice_renderer_uses_stored_live_and_item_fields() {
     app.start_mode(
         ModeRequest {
             kind: PracticeKind::Words,
-            language: Language::En,
-            target: "one two".into(),
+            language: Language::Ko,
+            target: "한글".into(),
             mode: PracticeMode::Words {
                 difficulty: Difficulty::Easy,
                 completed: 0,
                 streak: 0,
             },
             stop: StopRule::TargetEnd,
-            item_ends: vec![4, 7],
-            content_ids: vec!["one".into(), "two".into()],
+            item_ends: vec![2],
+            content_ids: vec!["한글".into()],
         },
         start,
     )
     .unwrap();
-    type_text(&mut app, "one", start + Duration::from_secs(1));
+    type_text(&mut app, "한", start);
+    app.settings.ui_language = Language::Ko;
+    app.tick(start + Duration::from_millis(600)).unwrap();
     let output = buffer_text(&draw(&app, 80, 24).buffer);
-    for field in ["Speed", "Accuracy", "Errors", "Streak", "Progress"] {
+    for field in ["속도", "정확도", "오류", "연속", "진행"] {
         assert!(output.contains(field), "missing {field}: {output}");
+    }
+    for value in [
+        "속도: 타수 300.0 타/분 · WPM 20.0",
+        "현재: 타수 300.0 타/분 · WPM 20.0",
+        "평균: 타수 300.0 타/분 · WPM 20.0",
+    ] {
+        assert!(output.contains(value), "missing {value:?}: {output}");
     }
     let metrics = app.active_practice().unwrap().live_metrics();
     assert_eq!(metrics.correct_units, 3);
@@ -3635,27 +3800,10 @@ fn practice_renderer_uses_stored_live_and_item_fields() {
             .correct_units,
         3
     );
-    app.handle_event(key(KeyCode::Backspace), start + Duration::from_secs(1))
-        .unwrap();
-    assert_eq!(
-        app.active_practice()
-            .unwrap()
-            .current_item_delta()
-            .unwrap()
-            .correct_units,
-        2
-    );
-    app.tick(start + Duration::from_secs(61)).unwrap();
-    assert!(
-        (app.active_practice()
-            .unwrap()
-            .current_item_delta()
-            .unwrap()
-            .speed
-            - 0.4)
-            .abs()
-            < f64::EPSILON * 4.0
-    );
+    let delta = app.active_practice().unwrap().current_item_delta().unwrap();
+    assert_eq!(delta.correct_units, 3);
+    assert!((delta.kpm - 300.0).abs() < f64::EPSILON * 4.0);
+    assert!((delta.wpm - 20.0).abs() < f64::EPSILON * 4.0);
 }
 
 #[test]
@@ -3692,6 +3840,10 @@ fn live_metric_visibility_settings_apply_in_both_languages_and_every_mode() {
                     .unwrap();
 
                 let output = buffer_text(&draw(&app, 80, 24).buffer);
+                let zero_speeds = match language {
+                    Language::Ko => "타수 0.0 타/분 · WPM 0.0",
+                    Language::En => "KPM 0.0 · WPM 0.0",
+                };
                 assert_eq!(
                     output.contains(accuracy_label),
                     show_accuracy,
@@ -3703,6 +3855,21 @@ fn live_metric_visibility_settings_apply_in_both_languages_and_every_mode() {
                         show_speed,
                         "{language:?} {kind:?} speed={show_speed} accuracy={show_accuracy}: {output}"
                     );
+                    assert_eq!(
+                        output.contains(&format!("{speed_label} {zero_speeds}")),
+                        show_speed,
+                        "{language:?} {kind:?} speed={show_speed}: {output}"
+                    );
+                    for unit in match language {
+                        Language::Ko => ["타수", "WPM"],
+                        Language::En => ["KPM", "WPM"],
+                    } {
+                        assert_eq!(
+                            output.contains(unit),
+                            show_speed,
+                            "{language:?} {kind:?} speed={show_speed}: missing/toggled {unit:?}: {output}"
+                        );
+                    }
                 }
                 if kind == PracticeKind::Words {
                     for item_speed_label in match language {
@@ -3714,7 +3881,23 @@ fn live_metric_visibility_settings_apply_in_both_languages_and_every_mode() {
                             show_speed,
                             "{language:?} {kind:?}: {output}"
                         );
+                        assert_eq!(
+                            output.contains(&format!("{item_speed_label} {zero_speeds}")),
+                            show_speed,
+                            "{language:?} {kind:?}: {output}"
+                        );
                     }
+                }
+                if kind == PracticeKind::Sentence {
+                    let item_speeds = match language {
+                        Language::Ko => "타수 72.5 타/분 · WPM 14.5",
+                        Language::En => "KPM 72.5 · WPM 14.5",
+                    };
+                    assert_eq!(
+                        output.contains(&format!("{speed_label} {item_speeds}")),
+                        show_speed,
+                        "{language:?} {kind:?}: {output}"
+                    );
                 }
                 assert!(
                     output.contains(errors_label),
@@ -3755,8 +3938,8 @@ fn result_metrics_ignore_live_visibility_settings() {
             let output = buffer_text(&draw(&app, 80, 24).buffer);
             assert!(
                 output.contains(match language {
-                    Language::Ko => "60.0 KPM",
-                    Language::En => "12.0 WPM",
+                    Language::Ko => "타수 60.0 타/분 · WPM 12.0",
+                    Language::En => "KPM 60.0 · WPM 12.0",
                 }),
                 "{language:?} speed={show_speed} accuracy={show_accuracy}: {output}"
             );
@@ -4194,11 +4377,16 @@ fn custom_long_text_is_memory_only_and_uses_safe_content_ids() {
     let long = result.long.unwrap();
     assert_eq!(long.completed_graphemes, 31);
     assert!(long.total_graphemes > long.completed_graphemes);
-    assert!((long.best_rolling_speed - 12.0).abs() < f64::EPSILON * 8.0);
+    assert!((long.best_rolling_kpm - 60.0).abs() < f64::EPSILON * 8.0);
+    assert!((long.best_rolling_wpm - 12.0).abs() < f64::EPSILON * 8.0);
     assert!((1..100).contains(&long.percent));
     app.settings.ui_language = Language::Ko;
     let korean_result = buffer_text(&draw(&app, 80, 24).buffer);
-    for marker in ["최고 30초 속도", "글자: 31/", "진행:"] {
+    for marker in [
+        "최고 30초 속도: 타수 60.0 타/분 · WPM 12.0",
+        "글자: 31/",
+        "진행:",
+    ] {
         assert!(
             korean_result.contains(marker),
             "missing {marker}: {korean_result}"

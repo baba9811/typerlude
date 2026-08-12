@@ -17,6 +17,7 @@ struct Cell {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metrics {
     pub active: Duration,
+    pub correct_cells: u64,
     pub correct_units: u64,
     pub attempted_units: u64,
     pub errors: u64,
@@ -45,8 +46,9 @@ pub struct PracticeEngine {
     errors: u64,
     backspaces: u64,
     intended: BTreeMap<char, [u64; 2]>,
-    rolling_samples: VecDeque<(Duration, u64)>,
-    best_rolling_speed: f64,
+    rolling_samples: VecDeque<(Duration, u64, u64)>,
+    best_rolling_kpm: f64,
+    best_rolling_wpm: f64,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -88,7 +90,8 @@ impl PracticeEngine {
             backspaces: 0,
             intended: BTreeMap::new(),
             rolling_samples: VecDeque::new(),
-            best_rolling_speed: 0.0,
+            best_rolling_kpm: 0.0,
+            best_rolling_wpm: 0.0,
         })
     }
 
@@ -188,6 +191,7 @@ impl PracticeEngine {
 
         Metrics {
             active,
+            correct_cells: self.correct_cells,
             correct_units: self.correct_units,
             attempted_units: self.attempted_units,
             errors: self.errors,
@@ -239,8 +243,8 @@ impl PracticeEngine {
         })
     }
 
-    pub const fn best_rolling_speed(&self) -> f64 {
-        self.best_rolling_speed
+    pub const fn best_rolling_speeds(&self) -> (f64, f64) {
+        (self.best_rolling_kpm, self.best_rolling_wpm)
     }
 
     pub fn extend_target(&mut self, separator: &str, target: &str) -> Result<()> {
@@ -305,38 +309,34 @@ impl PracticeEngine {
     fn record_rolling_sample(&mut self, now: Instant) {
         const WINDOW: Duration = Duration::from_secs(30);
         let active = self.active(now);
-        let units = match self.language {
-            Language::Ko => self.correct_units,
-            Language::En => self.correct_cells,
-        };
-        if let Some((last, _)) = self.rolling_samples.back()
+        let units = self.correct_units;
+        let cells = self.correct_cells;
+        if let Some((last, _, _)) = self.rolling_samples.back()
             && active < *last
         {
             let last = *last;
             self.rolling_samples.clear();
-            self.rolling_samples.push_back((last, units));
+            self.rolling_samples.push_back((last, units, cells));
             return;
         }
-        self.rolling_samples.push_back((active, units));
+        self.rolling_samples.push_back((active, units, cells));
         let cutoff = active.saturating_sub(WINDOW);
         while self.rolling_samples.len() > 1 && self.rolling_samples[1].0 <= cutoff {
             self.rolling_samples.pop_front();
         }
-        if let Some((time, _)) = self.rolling_samples.front_mut() {
+        if let Some((time, _, _)) = self.rolling_samples.front_mut() {
             *time = (*time).max(cutoff);
         }
         if active < WINDOW {
             return;
         }
-        let Some((_, baseline)) = self.rolling_samples.front() else {
+        let Some((_, baseline_units, baseline_cells)) = self.rolling_samples.front() else {
             return;
         };
-        let per_minute = units.saturating_sub(*baseline) as f64 * 2.0;
-        let speed = match self.language {
-            Language::Ko => per_minute,
-            Language::En => per_minute / 5.0,
-        };
-        self.best_rolling_speed = self.best_rolling_speed.max(speed);
+        let kpm = units.saturating_sub(*baseline_units) as f64 * 2.0;
+        let wpm = cells.saturating_sub(*baseline_cells) as f64 * 2.0 / 5.0;
+        self.best_rolling_kpm = self.best_rolling_kpm.max(kpm);
+        self.best_rolling_wpm = self.best_rolling_wpm.max(wpm);
     }
 }
 
@@ -660,7 +660,7 @@ mod tests {
     }
 
     #[test]
-    fn best_rolling_speed_uses_the_last_thirty_active_seconds() {
+    fn best_rolling_speeds_use_the_last_thirty_active_seconds() {
         let start = Instant::now();
         let mut engine =
             PracticeEngine::new(Language::En, PracticeKind::Long, &"a".repeat(40), None).unwrap();
@@ -669,7 +669,18 @@ mod tests {
             engine.input("a", start + Duration::from_secs(second));
         }
 
-        assert!((engine.best_rolling_speed() - 12.0).abs() < f64::EPSILON * 8.0);
+        let (kpm, wpm) = engine.best_rolling_speeds();
+        assert!((kpm - 60.0).abs() < f64::EPSILON * 8.0);
+        assert!((wpm - 12.0).abs() < f64::EPSILON * 8.0);
+
+        let mut korean =
+            PracticeEngine::new(Language::Ko, PracticeKind::Long, &"가".repeat(40), None).unwrap();
+        for second in 0..=30 {
+            korean.input("가", start + Duration::from_secs(second));
+        }
+        let (kpm, wpm) = korean.best_rolling_speeds();
+        assert!((kpm - 120.0).abs() < f64::EPSILON * 8.0);
+        assert!((wpm - 12.0).abs() < f64::EPSILON * 8.0);
     }
 
     #[test]
@@ -686,7 +697,10 @@ mod tests {
             out_of_order.input("a", start + Duration::from_secs(second));
         }
 
-        assert!(out_of_order.best_rolling_speed() <= ordered.best_rolling_speed());
+        let (out_of_order_kpm, out_of_order_wpm) = out_of_order.best_rolling_speeds();
+        let (ordered_kpm, ordered_wpm) = ordered.best_rolling_speeds();
+        assert!(out_of_order_kpm <= ordered_kpm);
+        assert!(out_of_order_wpm <= ordered_wpm);
     }
 
     #[test]
