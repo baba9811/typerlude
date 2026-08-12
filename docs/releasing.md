@@ -57,15 +57,15 @@ Name ownership is first-come-first-served. Check immediately before bootstrap:
 - npm: `typerlude-darwin-x64`
 - npm: `typerlude-linux-arm64`
 - npm: `typerlude-linux-x64`
-- npm: `@baba9811/typerlude-win32-arm64-msvc`
-- npm: `@baba9811/typerlude-win32-x64-msvc`
+- npm: `typerlude-win32-arm64-msvc`
+- npm: `typerlude-win32-x64-msvc`
 
 ```bash
 curl -fsS https://crates.io/api/v1/crates/typerlude
 for package in \
   typerlude typerlude-darwin-arm64 typerlude-darwin-x64 typerlude-linux-arm64 \
-  typerlude-linux-x64 @baba9811/typerlude-win32-arm64-msvc \
-  @baba9811/typerlude-win32-x64-msvc; do
+  typerlude-linux-x64 typerlude-win32-arm64-msvc \
+  typerlude-win32-x64-msvc; do
   npm view "$package" name version --json
 done
 ```
@@ -73,19 +73,19 @@ done
 For an available name these read-only commands are expected to return a not-found response.
 Any existing result is a stop condition until ownership is resolved.
 
-## 3. One-time npm bootstrap credential / npm 최초 1회 자격 증명
+## 3. One-time registry bootstrap credentials / 레지스트리 최초 자격 증명
 
 Do not assume the `typerlude` crate is available: confirm its registry state in step 2 before
-choosing a release path. Never add a `CRATES_TOKEN` to this repository. Until all seven npm
-packages have been created, make one **new Typerlude-only, short-lived** npm credential
-immediately before tagging:
+choosing a release path. Immediately before the first tag, create new, short-lived Typerlude-only
+credentials for both registries:
 
-1. On [npm access tokens](https://www.npmjs.com/settings/~/tokens), create a granular token with
+1. Create a crates.io publish token as `CRATES_TOKEN`.
+2. On [npm access tokens](https://www.npmjs.com/settings/~/tokens), create `NPM_TOKEN` as a granular token with
    the shortest allowed expiry, **Packages and scopes: Read and write**, **All Packages** (some
    required names do not exist yet), no organization-management access, and **Bypass 2FA enabled**.
    This exception is only for non-interactive first creation.
-2. In the Typerlude `release` environment, add only environment secret `NPM_TOKEN` and environment
-   variable `TYPERLUDE_NPM_BOOTSTRAP=1`.
+3. In the Typerlude `release` environment, add both secrets and set the one shared bootstrap
+   variable `TYPERLUDE_REGISTRY_BOOTSTRAP=1`.
 
 The ignored, mode-`600` `.env` in the main worktree is only a local input convenience; GitHub
 Actions cannot read it. After filling its value, upload it without printing it:
@@ -95,23 +95,25 @@ Actions cannot read it. After filling its value, upload it without printing it:
   set +x
   set -euo pipefail
   source .env
+  : "${CRATES_TOKEN:?fill CRATES_TOKEN in .env}"
   : "${NPM_TOKEN:?fill NPM_TOKEN in .env}"
+  printf '%s' "$CRATES_TOKEN" | gh secret set CRATES_TOKEN --env release --repo baba9811/typerlude
   printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN --env release --repo baba9811/typerlude
-  gh variable set TYPERLUDE_NPM_BOOTSTRAP --body 1 --env release --repo baba9811/typerlude
+  gh variable set TYPERLUDE_REGISTRY_BOOTSTRAP --body 1 --env release --repo baba9811/typerlude
   rm -- .env
 )
 ```
 
-Cargo never reads a registry secret. npm requires `NPM_TOKEN` only while
-`TYPERLUDE_NPM_BOOTSTRAP=1`. Values are never printed.
+Cargo requires `CRATES_TOKEN` and npm requires `NPM_TOKEN` only while
+`TYPERLUDE_REGISTRY_BOOTSTRAP=1`. Values are never printed.
 
 GitHub does not reveal, copy, or transfer secret values between repositories. Never reuse a
 Practicode credential.
 
 ## 4. First release tag / 최초 배포 태그
 
-Only after the repository, protections, environment, crates.io trusted publisher, npm bootstrap
-secret, and npm bootstrap variable exist, run the same guarded entry point used for later releases:
+Only after the repository, protections, environment, both bootstrap secrets, and the shared
+bootstrap variable exist, run the same guarded entry point used for later releases:
 
 ```bash
 git switch main
@@ -152,13 +154,13 @@ For **each of the seven npm packages**, configure one GitHub Actions Trusted Pub
 
 The seven npm settings pages are:
 
-- <https://www.npmjs.com/package/@baba9811/typerlude/access>
+- <https://www.npmjs.com/package/typerlude/access>
 - <https://www.npmjs.com/package/typerlude-darwin-arm64/access>
 - <https://www.npmjs.com/package/typerlude-darwin-x64/access>
 - <https://www.npmjs.com/package/typerlude-linux-arm64/access>
 - <https://www.npmjs.com/package/typerlude-linux-x64/access>
-- <https://www.npmjs.com/package/@baba9811/typerlude-win32-arm64-msvc/access>
-- <https://www.npmjs.com/package/@baba9811/typerlude-win32-x64-msvc/access>
+- <https://www.npmjs.com/package/typerlude-win32-arm64-msvc/access>
+- <https://www.npmjs.com/package/typerlude-win32-x64-msvc/access>
 
 Configure these records in the npm web UI. The `npm trust` command shown by newer npm
 documentation is not available in the workflow's pinned npm 11.5.1 minimum.
@@ -176,8 +178,8 @@ Verify all published material before removing temporary access:
 cargo info typerlude@1.0.1
 for package in \
   typerlude typerlude-darwin-arm64 typerlude-darwin-x64 typerlude-linux-arm64 \
-  typerlude-linux-x64 @baba9811/typerlude-win32-arm64-msvc \
-  @baba9811/typerlude-win32-x64-msvc; do
+  typerlude-linux-x64 typerlude-win32-arm64-msvc \
+  typerlude-win32-x64-msvc; do
   npm view "$package@1.0.1" name version repository dist.integrity dist.attestations --json
 done
 gh release view v1.0.1 --repo baba9811/typerlude --json isDraft,isImmutable,assets,url
@@ -193,9 +195,9 @@ one tar.gz, one zip, the Cargo crate, the root npm tarball, and a native npm tar
 
 Then, in this order:
 
-1. Delete environment variable `TYPERLUDE_NPM_BOOTSTRAP`.
-2. Delete Typerlude environment secret `NPM_TOKEN`.
-3. Revoke the npm bootstrap token; confirm it no longer appears as active.
+1. Delete environment variable `TYPERLUDE_REGISTRY_BOOTSTRAP`.
+2. Delete Typerlude environment secrets `CRATES_TOKEN` and `NPM_TOKEN`.
+3. Revoke both bootstrap tokens; confirm neither remains active.
 4. For the next synchronized semver tag, require both registry jobs to succeed through OIDC with
    no registry token secret. Re-run the registry version,
    provenance, checksum, asset-closure, and public-release checks above for that version.

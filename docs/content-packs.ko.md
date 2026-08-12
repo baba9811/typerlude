@@ -7,7 +7,7 @@
 
 ## 팩 추가
 
-설치 전에 검증하세요. Typerlude은 검증과 시작 시점에 같은 스키마, NFC, 중복, 출처,
+설치 전에 검증하세요. Typerlude는 검증과 시작 시점에 같은 스키마, NFC, 중복, 출처,
 라이선스 규칙을 적용하며 기존 팩을 덮어쓰지 않습니다.
 
 ```bash
@@ -58,5 +58,5 @@ tags = ["custom"]
 typerlude content disable my-pack
 ```
 
-사용자 팩만 비활성화할 수 있습니다. Typerlude은 기존 항목을 덮어쓰지 않고 승인된 파일을
+사용자 팩만 비활성화할 수 있습니다. Typerlude는 기존 항목을 덮어쓰지 않고 승인된 파일을
 `content/disabled/`로 옮깁니다. 실제 경로는 `typerlude paths`로 확인하세요.

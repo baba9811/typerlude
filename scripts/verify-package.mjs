@@ -383,7 +383,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   const install = path.join(temporary, "install");
   if (fs.existsSync(install)) throw new Error(`install directory must be absent: ${install}`);
   fs.mkdirSync(install, { mode: 0o755 });
-  fs.writeFileSync(path.join(install, "package.json"), "{\"name\":\"typeul-package-check\",\"private\":true}\n");
+  fs.writeFileSync(path.join(install, "package.json"), "{\"name\":\"typerlude-package-check\",\"private\":true}\n");
   runNpm([
     "install", rootTgz, platformTgz, "--ignore-scripts", "--no-audit", "--no-fund",
   ], { cwd: install });
@@ -415,7 +415,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
     optionalDependencies: {}, peerDependencies: {}, peerDependenciesMeta: {},
   });
 
-  const home = path.join(temporary, "typeul-home");
+  const home = path.join(temporary, "typerlude-home");
   const version = installed(["--version"], install, home);
   if (version !== `typerlude ${expectedVersion}\n`) throw new Error(`installed --version returned ${JSON.stringify(version)}`);
   const paths = installed(["paths"], install, home);
@@ -454,7 +454,7 @@ function main() {
     bin: { typerlude: "bin/typerlude.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
-  const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "typeul-package-")));
+  const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-package-")));
   try {
     run("cargo", ["build", "--release", "--locked"], { cwd: root });
     const binary = regularFile(path.join(root, "target", "release", executable), "release binary");

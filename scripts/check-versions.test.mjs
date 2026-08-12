@@ -207,7 +207,7 @@ test("CI and release use the complete Typerlude native artifact family", () => {
     assert.equal((source.match(/^\s+executable: typerlude(?:\.exe)?$/gm) ?? []).length, 6);
     assert.match(source, /archive[_Rr]oot[^\n]*typerlude-/);
     assert.match(source, /artifacts[\\/]typerlude-/);
-    assert.doesNotMatch(source, /typeul/i);
+    assert.doesNotMatch(source, new RegExp(["type", "ul"].join(""), "i"));
   }
 
   assert.match(fs.readFileSync("Makefile", "utf8"), /target\/release\/typerlude/);
@@ -220,7 +220,7 @@ test("one registry bootstrap switch gates both token paths before ordered public
 
   assert.deepEqual([...new Set(bootstrapSwitches)], ["TYPERLUDE_REGISTRY_BOOTSTRAP"]);
   assert.match(workflow, /TYPERLUDE_REGISTRY_BOOTSTRAP must be empty or 1/);
-  assert.doesNotMatch(workflow, /TYPEUL_(?:NPM_)?BOOTSTRAP/);
+  assert.doesNotMatch(workflow, new RegExp(["TYPE", "UL", "_(?:NPM_)?BOOTSTRAP"].join("")));
   assertRegistryReleasePolicy(workflow);
   assert.match(workflow, /Publish npm bootstrap, native packages first[\s\S]*publish-npm-packages\.mjs "\$version" --provenance/);
   assert.match(workflow, /publish-npm:\n\s+needs: publish-cargo/);

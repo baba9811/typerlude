@@ -24,7 +24,7 @@ function listFiles(root, prefix = "") {
 }
 
 function fixture(packageName = "typerlude-linux-x64") {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-stage-test-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-stage-test-"));
   const packageDir = path.join(root, "npm", packageName);
   const executable = packageName.startsWith("typerlude-win32-") ? "typerlude.exe" : "typerlude";
   const binary = path.join(root, "target", "release", executable);
@@ -113,7 +113,7 @@ test("staging requires the native manifest name, os, cpu, and files allowlist", 
 
 test("staging rejects path escapes, non-regular sources, and symlinks", () => {
   withFixture(({ root, packageDir, output }) => {
-    const outside = path.join(os.tmpdir(), `typeul-outside-${process.pid}-${Date.now()}`);
+    const outside = path.join(os.tmpdir(), `typerlude-outside-${process.pid}-${Date.now()}`);
     fs.writeFileSync(outside, "outside");
     try {
       assert.throws(() => stagePlatform(packageDir, outside, output), /outside|escape|binary/);
@@ -166,7 +166,7 @@ test("staging rejects path escapes, non-regular sources, and symlinks", () => {
     }
 
     withFixture((value) => {
-      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-license-escape-"));
+      const outside = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-license-escape-"));
       try {
         fs.renameSync(path.join(value.root, "assets", "licenses"), path.join(outside, "licenses"));
         fs.rmSync(path.join(value.root, "assets"), { recursive: true });
@@ -350,7 +350,7 @@ test("fake npm prepends the existing Windows Path spelling without a duplicate P
 });
 
 test("Node CLI execution preserves shell metacharacters as exact arguments", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul cli &^()%! "));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude cli &^()%! "));
   try {
     const cli = path.join(root, "npm cli &^()%!.mjs");
     fs.writeFileSync(cli, "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n");
@@ -372,7 +372,7 @@ test("Node CLI execution preserves shell metacharacters as exact arguments", () 
 });
 
 test("installed package trees reject extra, missing, replaced, and linked legal files", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-installed-tree-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-installed-tree-"));
   try {
     const source = path.join(root, "source-LICENSE");
     const installed = path.join(root, "installed");
@@ -404,7 +404,7 @@ test("installed package trees reject extra, missing, replaced, and linked legal 
 });
 
 test("all source native manifests are validated before selecting the host", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-native-manifests-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-native-manifests-"));
   const version = JSON.parse(fs.readFileSync(path.join(sourceRoot, "package.json"))).version;
   try {
     fs.cpSync(path.join(sourceRoot, "npm"), path.join(root, "npm"), { recursive: true });
@@ -433,7 +433,7 @@ test("CLI duplicate flags reject an empty first value", () => {
 });
 
 test("license cleanliness rejects tracked changes and all untracked license files", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-license-git-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-license-git-"));
   const git = (...args) => {
     const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
@@ -463,7 +463,7 @@ test("license cleanliness rejects tracked changes and all untracked license file
 });
 
 test("license cleanliness skips an archive without its own Git entry", () => {
-  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-license-parent-git-"));
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-license-parent-git-"));
   try {
     const result = spawnSync("git", ["init", "--quiet"], { cwd: parent, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
