@@ -600,13 +600,13 @@ fn practice_live_lines(
             )),
         ];
     }
-    let speed = match active.engine.language() {
-        Language::Ko => metrics.kpm,
-        Language::En => metrics.wpm,
-    };
     let mut summary = Vec::new();
     if show_speed {
-        summary.push(format!("{}: {speed:.1}", text(language, TextKey::Speed)));
+        summary.push(format!(
+            "{}: {}",
+            text(language, TextKey::Speed),
+            speed_values(language, metrics.kpm, metrics.wpm)
+        ));
     }
     if show_accuracy {
         summary.push(format!(
@@ -696,19 +696,21 @@ fn practice_live_lines(
         PracticeMode::Words {
             completed, streak, ..
         } => {
-            let current =
-                active
-                    .current_item_delta()
-                    .map_or(0.0, |delta| match active.engine.language() {
-                        Language::Ko => delta.kpm,
-                        Language::En => delta.wpm,
-                    });
+            let (current_kpm, current_wpm) = active
+                .current_item_delta()
+                .map_or((0.0, 0.0), |delta| (delta.kpm, delta.wpm));
             let (current_label, average_label) = current_average(language);
             let mut fields = Vec::new();
             if show_speed {
                 fields.extend([
-                    format!("{current_label}: {current:.1}"),
-                    format!("{average_label}: {speed:.1}"),
+                    format!(
+                        "{current_label}: {}",
+                        speed_values(language, current_kpm, current_wpm)
+                    ),
+                    format!(
+                        "{average_label}: {}",
+                        speed_values(language, metrics.kpm, metrics.wpm)
+                    ),
                 ]);
             }
             fields.extend([
@@ -728,12 +730,9 @@ fn practice_live_lines(
             if let Some(delta) = last_item {
                 if show_speed {
                     fields.push(format!(
-                        "{}: {:.1}",
+                        "{}: {}",
                         text(language, TextKey::Speed),
-                        match active.engine.language() {
-                            Language::Ko => delta.kpm,
-                            Language::En => delta.wpm,
-                        }
+                        speed_values(language, delta.kpm, delta.wpm)
                     ));
                 }
                 if show_accuracy {
@@ -1118,12 +1117,11 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
         return;
     };
     let session = &result.session;
-    let (speed, unit) = match session.language {
-        Language::Ko => (session.kpm, "KPM"),
-        Language::En => (session.wpm, "WPM"),
-    };
     let mut lines = vec![
-        Line::from(Span::styled(format!("{speed:.1} {unit}"), styles.accent)),
+        Line::from(Span::styled(
+            speed_values(language, session.kpm, session.wpm),
+            styles.accent,
+        )),
         Line::from(format!(
             "{}: {:.1}%",
             text(language, TextKey::Accuracy),
@@ -1140,20 +1138,22 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             session.duration_ms
         )),
     ];
-    if let Some(previous) = result.previous_speed {
+    if let (Some(kpm), Some(wpm)) = (result.previous_kpm, result.previous_wpm) {
         lines.push(Line::from(format!(
-            "{}: {previous:.1} {unit}",
-            text(language, TextKey::Previous)
+            "{}: {}",
+            text(language, TextKey::Previous),
+            speed_values(language, kpm, wpm)
         )));
     }
-    if let Some(best) = result.best_speed {
+    if let (Some(kpm), Some(wpm)) = (result.best_kpm, result.best_wpm) {
         lines.push(Line::from(format!(
-            "{}: {best:.1} {unit}",
-            text(language, TextKey::Best)
+            "{}: {}",
+            text(language, TextKey::Best),
+            speed_values(language, kpm, wpm)
         )));
     }
-    if let Some(delta) = result.speed_delta {
-        lines.push(Line::from(format!("{delta:+.1} {unit}")));
+    if let (Some(kpm), Some(wpm)) = (result.kpm_delta, result.wpm_delta) {
+        lines.push(Line::from(signed_speed_values(language, kpm, wpm)));
     }
     if let Some(grade) = result.grade {
         lines.push(Line::from(format!(
@@ -1170,11 +1170,10 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
             Language::Ko => ("최고 30초 속도", "글자"),
             Language::En => ("Best rolling 30s", "Graphemes"),
         };
-        let rolling_speed = match session.language {
-            Language::Ko => long.best_rolling_kpm,
-            Language::En => long.best_rolling_wpm,
-        };
-        lines.push(Line::from(format!("{rolling}: {rolling_speed:.1} {unit}")));
+        lines.push(Line::from(format!(
+            "{rolling}: {}",
+            speed_values(language, long.best_rolling_kpm, long.best_rolling_wpm)
+        )));
         lines.push(Line::from(format!(
             "{graphemes}: {}/{}",
             long.completed_graphemes, long.total_graphemes
@@ -1651,9 +1650,13 @@ fn render_goals(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyle
     frame.render_widget(
         Paragraph::new(vec![
             Line::from(format!(
-                "{}{kpm}: {} KPM",
+                "{}{kpm}: {} {}",
                 focus_marker(app, 0),
-                app.settings.target_kpm
+                app.settings.target_kpm,
+                match language {
+                    Language::Ko => "타/분",
+                    Language::En => "KPM",
+                }
             )),
             Line::from(format!(
                 "{}{wpm}: {} WPM",

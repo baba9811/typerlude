@@ -97,9 +97,12 @@ pub struct ItemDelta {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResultView {
     pub session: SessionRecord,
-    pub previous_speed: Option<f64>,
-    pub best_speed: Option<f64>,
-    pub speed_delta: Option<f64>,
+    pub previous_kpm: Option<f64>,
+    pub previous_wpm: Option<f64>,
+    pub best_kpm: Option<f64>,
+    pub best_wpm: Option<f64>,
+    pub kpm_delta: Option<f64>,
+    pub wpm_delta: Option<f64>,
     pub speed_goal_met: bool,
     pub accuracy_goal_met: bool,
     pub daily_minutes_met: bool,
@@ -1778,19 +1781,25 @@ impl App {
             .iter()
             .filter(|prior| prior.language == language && prior.mode == kind)
             .collect::<Vec<_>>();
-        let previous_speed = comparable
+        let previous = comparable
             .iter()
             .copied()
-            .filter(|prior| session_speed(prior).is_finite())
+            .filter(|prior| prior.kpm.is_finite() && prior.wpm.is_finite())
             .max_by(|left, right| {
                 left.started_at_unix_ms
                     .cmp(&right.started_at_unix_ms)
                     .then_with(|| left.id.cmp(&right.id))
-            })
-            .map(session_speed);
-        let best_speed = comparable
+            });
+        let previous_kpm = previous.map(|prior| prior.kpm);
+        let previous_wpm = previous.map(|prior| prior.wpm);
+        let best_kpm = comparable
             .iter()
-            .map(|prior| session_speed(prior))
+            .map(|prior| prior.kpm)
+            .filter(|speed| speed.is_finite())
+            .max_by(f64::total_cmp);
+        let best_wpm = comparable
+            .iter()
+            .map(|prior| prior.wpm)
             .filter(|speed| speed.is_finite())
             .max_by(f64::total_cmp);
         let speed_goal = match language {
@@ -1814,9 +1823,12 @@ impl App {
             )
         });
         let mut view = ResultView {
-            previous_speed,
-            best_speed,
-            speed_delta: previous_speed.map(|previous| speed - previous),
+            previous_kpm,
+            previous_wpm,
+            best_kpm,
+            best_wpm,
+            kpm_delta: previous_kpm.map(|previous| session.kpm - previous),
+            wpm_delta: previous_wpm.map(|previous| session.wpm - previous),
             speed_goal_met: speed >= speed_goal,
             accuracy_goal_met: session.accuracy >= self.settings.target_accuracy,
             daily_minutes_met: prior_duration.saturating_add(session.duration_ms) >= daily_target,
