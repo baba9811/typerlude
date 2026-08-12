@@ -1,0 +1,35 @@
+name: Feature request
+description: Suggest a focused improvement to Typerlude
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What typing or terminal workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe what should become possible, not only one implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What do you use or do instead today?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Mockups or examples are optional. Remove private data first.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for an existing issue or request.
+          required: true

@@ -1,0 +1,68 @@
+name: Bug report
+description: Report a reproducible problem in Typerlude
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Typerlude. For vulnerabilities, use a private security advisory. Do not attach credentials, private practice text, or local session/config files.
+  - type: input
+    id: version
+    attributes:
+      label: Typerlude version
+      description: Run `typerlude --version`.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      options:
+        - npm
+        - Cargo
+        - GitHub release
+        - Source build
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include your OS, architecture, terminal, and shell.
+      placeholder: macOS 15, arm64, Ghostty, zsh
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Use the smallest safe example that shows the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add sanitized logs or screenshots only when they help reproduce the issue.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched for an existing issue.
+          required: true
+        - label: I removed credentials, private text, and local user data.
+          required: true

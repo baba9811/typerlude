@@ -2,9 +2,8 @@
 
 ## Supported versions
 
-Before the first public release, security fixes are made on `main`. After publication, the latest
-released version is supported; older versions are not guaranteed security updates. Upgrade to the
-latest release before reporting or validating a fix.
+Only the latest released version is supported; older versions are not guaranteed security updates.
+Upgrade before reporting or validating a fix.
 
 ## Reporting a vulnerability
 
