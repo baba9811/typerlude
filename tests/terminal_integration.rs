@@ -147,9 +147,19 @@ fn validated_startups_build_the_requested_app_before_terminal_entry() {
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn piped_stdin_keeps_reading_events_from_the_controlling_terminal() {
+    use std::os::unix::fs::PermissionsExt;
+
     let root = TestDir::new();
     let input = root.path().join("input.txt");
+    let bin = root.path().join("bin");
+    let npm_probe = root.path().join("npm-probe");
     fs::write(&input, "custom text\n").unwrap();
+    fs::create_dir(&bin).unwrap();
+    let npm = bin.join("npm");
+    fs::write(&npm, "#!/bin/sh\n: > \"$TYPERLUDE_NPM_PROBE\"\n").unwrap();
+    let mut permissions = fs::metadata(&npm).unwrap().permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(&npm, permissions).unwrap();
 
     let mut command = Command::new("/usr/bin/script");
     #[cfg(target_os = "macos")]
@@ -173,7 +183,10 @@ fn piped_stdin_keeps_reading_events_from_the_controlling_terminal() {
         .env("TYPERLUDE_TEST_BIN", env!("CARGO_BIN_EXE_typerlude"))
         .env("TYPERLUDE_TEST_INPUT", &input)
         .env("TYPERLUDE_HOME", root.path().join("home"))
+        .env("TYPERLUDE_INSTALL_METHOD", "npm")
         .env("TYPERLUDE_NO_UPDATE_CHECK", "1")
+        .env("TYPERLUDE_NPM_PROBE", &npm_probe)
+        .env("PATH", &bin)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -209,6 +222,8 @@ fn piped_stdin_keeps_reading_events_from_the_controlling_terminal() {
     entered_rx
         .recv_timeout(Duration::from_secs(5))
         .expect("piped launch never entered the alternate screen");
+    thread::sleep(Duration::from_millis(100));
+    assert!(!npm_probe.exists(), "suppressed update check ran npm");
     let _ = child.stdin.take().unwrap().write_all(&[3]);
     let deadline = Instant::now() + Duration::from_secs(5);
     let status = loop {

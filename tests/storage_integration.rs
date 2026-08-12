@@ -106,7 +106,7 @@ fn discovery_uses_typerlude_home_and_project_directories() {
     let discovered = Command::new(env!("CARGO_BIN_EXE_typerlude"))
         .arg("paths")
         .env_remove("TYPERLUDE_HOME")
-        .env_remove("TYPERLUDE_HOME")
+        .env("TYPEUL_HOME", root.path().join("legacy-home"))
         .stdin(Stdio::null())
         .output()
         .unwrap();

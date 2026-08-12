@@ -101,6 +101,14 @@ fn only_stable_three_part_versions_compare() {
 }
 
 #[test]
+fn npm_update_instruction_uses_the_unscoped_package() {
+    assert_eq!(
+        InstallMethod::Npm.instructions(),
+        "npm install -g typerlude · npx typerlude"
+    );
+}
+
+#[test]
 fn fresh_cache_and_exact_skipped_version_suppress_a_notice() {
     let now = 1_786_060_800;
     let cache = UpdateCache {
@@ -148,7 +156,7 @@ fn practice_queues_a_notice_home_and_result_render_it_and_skip_persists() {
     let result = screen_text(&app);
     assert!(result.contains("Update available"), "{result}");
     assert!(
-        result.contains("npm install -g @baba9811/typerlude@latest"),
+        result.contains("npm install -g typerlude · npx typerlude"),
         "{result}"
     );
     app.handle_event(
@@ -245,5 +253,26 @@ fn foreground_standalone_check_is_headless_and_never_installs() {
         stdout.contains("never installs updates automatically"),
         "{stdout}"
     );
+    assert!(!home.exists());
+}
+
+#[test]
+fn install_method_override_uses_typerlude_environment_variable() {
+    let root = TestDir::new();
+    let home = root.0.join("home");
+    let empty_path = root.0.join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_typerlude"))
+        .arg("update")
+        .env("TYPERLUDE_HOME", &home)
+        .env("TYPERLUDE_INSTALL_METHOD", "npm")
+        .env("PATH", &empty_path)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert_eq!(output.status.code(), Some(1), "{stderr}");
+    assert!(stderr.contains("failed to start npm"), "{stderr}");
     assert!(!home.exists());
 }
