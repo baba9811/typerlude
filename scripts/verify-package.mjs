@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 import { readVersions, validateVersions } from "./check-versions.mjs";
 import { stagePlatform } from "./stage-platform-package.mjs";
 
-const { nativePackages, packageFor } = createRequire(import.meta.url)("../bin/typeul.js");
+const { nativePackages, packageFor } = createRequire(import.meta.url)("../bin/typerlude.js");
 const sourceRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const supportedPairs = nativePackages.map(({ platform, arch }) => [platform, arch]);
 const legalRoots = ["LICENSE", "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md"];
-const rootPackageName = "@baba9811/typeul";
+const rootPackageName = "typerlude";
 const rootManifestFiles = [
-  "bin/typeul.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
+  "bin/typerlude.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
   "THIRD_PARTY_LICENSES.html", "assets/licenses",
 ];
 const lifecycleScripts = new Set([
@@ -249,9 +249,9 @@ function pack(cwd, destination, expected) {
 }
 
 function installed(args, cwd, home, env = process.env) {
-  return runNpx(["--no-install", "typeul", ...args], {
+  return runNpx(["--no-install", "typerlude", ...args], {
     cwd,
-    env: { ...env, TYPEUL_HOME: home },
+    env: { ...env, TYPERLUDE_HOME: home },
   });
 }
 
@@ -346,7 +346,7 @@ function sourceCopies(prefix, includeReadmeAndLauncher = false) {
   if (includeReadmeAndLauncher) {
     copies.set("README.md", path.join(sourceRoot, "README.md"));
     copies.set("README.ko.md", path.join(sourceRoot, "README.ko.md"));
-    copies.set("bin/typeul.js", path.join(sourceRoot, "bin", "typeul.js"));
+    copies.set("bin/typerlude.js", path.join(sourceRoot, "bin", "typerlude.js"));
   }
   return copies;
 }
@@ -391,7 +391,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   const licenseNames = sourceLicenseNames();
   const rootPackageDir = path.join(install, "node_modules", ...rootPackageName.split("/"));
   validateInstalledPackageTree(rootPackageDir, [
-    "package.json", "bin/typeul.js", "LICENSE", "README.md", "README.ko.md",
+    "package.json", "bin/typerlude.js", "LICENSE", "README.md", "README.ko.md",
     "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md",
     ...licenseNames.map((name) => path.posix.join("assets/licenses", name)),
   ], sourceCopies("assets/licenses", true));
@@ -404,7 +404,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   const rootManifest = readJson(path.join(rootPackageDir, "package.json"), "installed root manifest");
   validatePackedManifest(rootManifest, {
     name: rootPackageName, version: expectedVersion, files: rootManifestFiles,
-    bin: { typeul: "bin/typeul.js" }, dependencies: {},
+    bin: { typerlude: "bin/typerlude.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
   const platformManifestFiles = [executable, ...legalRoots, "licenses"];
@@ -417,7 +417,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
 
   const home = path.join(temporary, "typeul-home");
   const version = installed(["--version"], install, home);
-  if (version !== `typeul ${expectedVersion}\n`) throw new Error(`installed --version returned ${JSON.stringify(version)}`);
+  if (version !== `typerlude ${expectedVersion}\n`) throw new Error(`installed --version returned ${JSON.stringify(version)}`);
   const paths = installed(["paths"], install, home);
   for (const relative of ["config.toml", "sessions", "content", "themes", "cache/update.json"]) {
     if (!paths.includes(path.join(home, relative))) throw new Error(`installed paths omitted ${relative}`);
@@ -436,7 +436,7 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
   const update = installed(["update"], install, home, prependPath(process.env, fake));
   for (const text of [
     "latest: 99.0.0",
-    "update: npm install -g @baba9811/typeul@latest · npx @baba9811/typeul@latest",
+    "update: npm install -g typerlude · npx typerlude",
   ]) {
     if (!update.includes(text)) throw new Error(`installed update omitted ${text}`);
   }
@@ -451,7 +451,7 @@ function main() {
   const rootManifest = readJson(path.join(root, "package.json"), "root manifest");
   validatePackedManifest(rootManifest, {
     name: rootPackageName, version: expectedVersion, files: rootManifestFiles,
-    bin: { typeul: "bin/typeul.js" }, dependencies: {},
+    bin: { typerlude: "bin/typerlude.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
   });
   const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "typeul-package-")));
@@ -459,10 +459,10 @@ function main() {
     run("cargo", ["build", "--release", "--locked"], { cwd: root });
     const binary = regularFile(path.join(root, "target", "release", executable), "release binary");
     const directVersion = run(binary, ["--version"], { cwd: root });
-    if (directVersion !== `typeul ${expectedVersion}\n`) throw new Error(`release --version returned ${JSON.stringify(directVersion)}`);
+    if (directVersion !== `typerlude ${expectedVersion}\n`) throw new Error(`release --version returned ${JSON.stringify(directVersion)}`);
     const directSmoke = run(binary, ["--smoke"], {
       cwd: root,
-      env: { ...process.env, TYPEUL_HOME: path.join(temporary, "direct-home") },
+      env: { ...process.env, TYPERLUDE_HOME: path.join(temporary, "direct-home") },
     });
     if (!/^smoke ok: \d+ content items, 0 sessions\n$/.test(directSmoke)) {
       throw new Error(`release --smoke returned ${JSON.stringify(directSmoke)}`);
@@ -475,7 +475,7 @@ function main() {
       ...licenseFiles(root, "licenses").map((name) => [name, 0o644]),
     ]);
     const rootFiles = new Map([
-      ["package.json", 0o644], ["bin/typeul.js", 0o755], ["README.md", 0o644],
+      ["package.json", 0o644], ["bin/typerlude.js", 0o755], ["README.md", 0o644],
       ["README.ko.md", 0o644],
       ...legalRoots.map((name) => [name, 0o644]),
       ...licenseFiles(root, "assets/licenses").map((name) => [name, 0o644]),

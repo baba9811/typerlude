@@ -3,7 +3,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
+const { nativePackages } = createRequire(import.meta.url)("../bin/typerlude.js");
 const supported = new Map(nativePackages.map((item) => [item.directory, item]));
 const legalRoots = ["LICENSE", "THIRD_PARTY_LICENSES.html", "THIRD_PARTY_NOTICES.md"];
 

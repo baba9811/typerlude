@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
+const { nativePackages } = createRequire(import.meta.url)("../bin/typerlude.js");
 const versionPattern = /^\d+\.\d+\.\d+$/;
-const rootPackageName = "@baba9811/typeul";
+const rootPackageName = "typerlude";
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -19,10 +19,10 @@ function cargoPackageVersion(cargoToml) {
 
 function cargoLockVersion(cargoLock) {
   const records = cargoLock.split(/^\[\[package\]\]\s*$/m)
-    .filter((packageRecord) => /^name\s*=\s*"typeul"\s*$/m.test(packageRecord));
-  if (records.length !== 1) throw new Error("Cargo.lock must contain exactly one typeul package");
+    .filter((packageRecord) => /^name\s*=\s*"typerlude"\s*$/m.test(packageRecord));
+  if (records.length !== 1) throw new Error("Cargo.lock must contain exactly one typerlude package");
   const version = records[0].match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
-  if (!version) throw new Error("Cargo.lock typeul package is missing version");
+  if (!version) throw new Error("Cargo.lock typerlude package is missing version");
   return version;
 }
 

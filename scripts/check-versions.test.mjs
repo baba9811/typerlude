@@ -7,12 +7,12 @@ import path from "node:path";
 import { readVersions, validateVersions } from "./check-versions.mjs";
 
 const nativePackages = [
-  ["typeul-darwin-arm64", "typeul-darwin-arm64"],
-  ["typeul-darwin-x64", "typeul-darwin-x64"],
-  ["typeul-linux-arm64", "typeul-linux-arm64"],
-  ["typeul-linux-x64", "typeul-linux-x64"],
-  ["typeul-win32-arm64-msvc", "@baba9811/typeul-win32-arm64-msvc"],
-  ["typeul-win32-x64-msvc", "@baba9811/typeul-win32-x64-msvc"],
+  ["typerlude-darwin-arm64", "typerlude-darwin-arm64"],
+  ["typerlude-darwin-x64", "typerlude-darwin-x64"],
+  ["typerlude-linux-arm64", "typerlude-linux-arm64"],
+  ["typerlude-linux-x64", "typerlude-linux-x64"],
+  ["typerlude-win32-arm64-msvc", "typerlude-win32-arm64-msvc"],
+  ["typerlude-win32-x64-msvc", "typerlude-win32-x64-msvc"],
 ];
 const packageNames = nativePackages.map(([, name]) => name);
 const packageDirectories = nativePackages.map(([directory]) => directory);
@@ -22,9 +22,9 @@ function withFixture(change, check) {
   const version = "1.2.3";
   const optionalDependencies = Object.fromEntries(packageNames.map((name) => [name, version]));
   fs.writeFileSync(path.join(root, "Cargo.toml"), `[package]\nversion = "${version}"\n`);
-  fs.writeFileSync(path.join(root, "Cargo.lock"), `[[package]]\nname = "typeul"\nversion = "${version}"\n`);
+  fs.writeFileSync(path.join(root, "Cargo.lock"), `[[package]]\nname = "typerlude"\nversion = "${version}"\n`);
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
-    name: "@baba9811/typeul", version, optionalDependencies,
+    name: "typerlude", version, optionalDependencies,
   }));
   fs.mkdirSync(path.join(root, "npm"));
   for (const [directory, name] of nativePackages) {
@@ -42,8 +42,8 @@ function withFixture(change, check) {
 test("reports every mismatched package path", () => {
   assert.throws(() => validateVersions([
     ["Cargo.toml", "1.2.3"], ["package.json", "1.2.4"],
-    ["npm/typeul-linux-x64/package.json", "1.2.2"],
-  ], "v1.2.3"), /package.json.*typeul-linux-x64/s);
+    ["npm/typerlude-linux-x64/package.json", "1.2.2"],
+  ], "v1.2.3"), /package.json.*typerlude-linux-x64/s);
 });
 
 test("reads one complete synchronized fixture", () => {
@@ -74,8 +74,8 @@ test("rejects invalid fixture layouts", () => {
       pkg.optionalDependencies.extra = "1.2.3";
       fs.writeFileSync(file, JSON.stringify(pkg));
     }, /optionalDependencies/],
-    ["missing lock record", (root) => fs.writeFileSync(path.join(root, "Cargo.lock"), ""), /exactly one typeul package/],
-    ["duplicate lock record", (root) => fs.appendFileSync(path.join(root, "Cargo.lock"), `\n[[package]]\nname = "typeul"\nversion = "1.2.3"\n`), /exactly one typeul package/],
+    ["missing lock record", (root) => fs.writeFileSync(path.join(root, "Cargo.lock"), ""), /exactly one typerlude package/],
+    ["duplicate lock record", (root) => fs.appendFileSync(path.join(root, "Cargo.lock"), `\n[[package]]\nname = "typerlude"\nversion = "1.2.3"\n`), /exactly one typerlude package/],
   ]) {
     withFixture(change, (root) => assert.throws(() => readVersions(root), message), name);
   }
@@ -96,12 +96,12 @@ test("reports a mismatched optional dependency from a fixture", () => {
   withFixture((root) => {
     const file = path.join(root, "package.json");
     const pkg = JSON.parse(fs.readFileSync(file));
-    pkg.optionalDependencies["typeul-linux-x64"] = "1.2.4";
+    pkg.optionalDependencies["typerlude-linux-x64"] = "1.2.4";
     fs.writeFileSync(file, JSON.stringify(pkg));
   }, (root) => {
     assert.throws(
       () => validateVersions(readVersions(root), "v1.2.3"),
-      /optionalDependencies\.typeul-linux-x64 \(1\.2\.4\)/,
+      /optionalDependencies\.typerlude-linux-x64 \(1\.2\.4\)/,
     );
   });
 });
@@ -200,10 +200,10 @@ function releaseFailureFixture(failure) {
     console.log(version);
   `);
   fs.writeFileSync(path.join(root, "scripts/verify-package.mjs"), "");
-  fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\nname = \"typeul\"\nversion = \"1.0.0\"\n");
+  fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\nname = \"typerlude\"\nversion = \"1.0.0\"\n");
   fs.writeFileSync(path.join(root, "Cargo.lock"), "version = 3\n");
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
-    name: "@baba9811/typeul",
+    name: "typerlude",
     version: "1.0.0",
     optionalDependencies: Object.fromEntries(packageNames.map((name) => [name, "1.0.0"])),
   }, null, 2));

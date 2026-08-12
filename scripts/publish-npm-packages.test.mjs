@@ -6,13 +6,13 @@ import os from "node:os";
 import path from "node:path";
 
 const expectedPackages = [
-  ["typeul-darwin-arm64", "typeul-darwin-arm64"],
-  ["typeul-darwin-x64", "typeul-darwin-x64"],
-  ["typeul-linux-arm64", "typeul-linux-arm64"],
-  ["typeul-linux-x64", "typeul-linux-x64"],
-  ["@baba9811/typeul-win32-arm64-msvc", "typeul-win32-arm64-msvc"],
-  ["@baba9811/typeul-win32-x64-msvc", "typeul-win32-x64-msvc"],
-  ["@baba9811/typeul", "typeul"],
+  ["typerlude-darwin-arm64", "typerlude-darwin-arm64"],
+  ["typerlude-darwin-x64", "typerlude-darwin-x64"],
+  ["typerlude-linux-arm64", "typerlude-linux-arm64"],
+  ["typerlude-linux-x64", "typerlude-linux-x64"],
+  ["typerlude-win32-arm64-msvc", "typerlude-win32-arm64-msvc"],
+  ["typerlude-win32-x64-msvc", "typerlude-win32-x64-msvc"],
+  ["typerlude", "typerlude"],
 ];
 const registry = "https://registry.npmjs.org/";
 
@@ -93,7 +93,7 @@ test("queries E404 then publishes every exact tarball in fixed root-last order",
 test("a partial rerun skips exact remote SRI and publishes only absent packages", async () => {
   const { publishNpmPackages } = await loadPublisher();
   const { root, version } = fixture();
-  const absent = "typeul-linux-arm64";
+  const absent = "typerlude-linux-arm64";
   const calls = [];
   try {
     publishNpmPackages({
@@ -145,14 +145,14 @@ test("an integrity mismatch aborts before publishing or querying later packages"
           return { status: 0, stdout: JSON.stringify(remote), stderr: "" };
         },
       }),
-      /integrity mismatch for typeul-darwin-x64@1\.2\.3/,
+      /integrity mismatch for typerlude-darwin-x64@1\.2\.3/,
     );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
   assert.deepEqual(calls.map(({ args }) => args[1]), [
-    "typeul-darwin-arm64@1.2.3",
-    "typeul-darwin-x64@1.2.3",
+    "typerlude-darwin-arm64@1.2.3",
+    "typerlude-darwin-x64@1.2.3",
   ]);
 });
 

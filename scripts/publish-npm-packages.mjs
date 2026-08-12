@@ -5,8 +5,8 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
-const packages = [...nativePackages, { directory: "typeul", name: "@baba9811/typeul" }];
+const { nativePackages } = createRequire(import.meta.url)("../bin/typerlude.js");
+const packages = [...nativePackages, { directory: "typerlude", name: "typerlude" }];
 const registry = "https://registry.npmjs.org/";
 
 function defaultRunNpm(args, capture) {

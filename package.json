@@ -1,6 +1,6 @@
 {
-  "name": "@baba9811/typeul",
-  "version": "1.0.3",
+  "name": "typerlude",
+  "version": "1.0.0",
   "description": "Offline-first Korean and English terminal typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -11,10 +11,10 @@
   "bugs": "https://github.com/baba9811/typeul/issues",
   "type": "commonjs",
   "bin": {
-    "typeul": "bin/typeul.js"
+    "typerlude": "bin/typerlude.js"
   },
   "files": [
-    "bin/typeul.js",
+    "bin/typerlude.js",
     "LICENSE",
     "README.md",
     "README.ko.md",
@@ -31,12 +31,12 @@
     "package-check": "node scripts/verify-package.mjs"
   },
   "optionalDependencies": {
-    "typeul-darwin-arm64": "1.0.3",
-    "typeul-darwin-x64": "1.0.3",
-    "typeul-linux-arm64": "1.0.3",
-    "typeul-linux-x64": "1.0.3",
-    "@baba9811/typeul-win32-arm64-msvc": "1.0.3",
-    "@baba9811/typeul-win32-x64-msvc": "1.0.3"
+    "typerlude-darwin-arm64": "1.0.0",
+    "typerlude-darwin-x64": "1.0.0",
+    "typerlude-linux-arm64": "1.0.0",
+    "typerlude-linux-x64": "1.0.0",
+    "typerlude-win32-arm64-msvc": "1.0.0",
+    "typerlude-win32-x64-msvc": "1.0.0"
   },
   "publishConfig": {
     "access": "public"

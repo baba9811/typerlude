@@ -1,6 +1,6 @@
 {
-  "name": "typeul-darwin-x64",
-  "version": "1.0.3",
+  "name": "typerlude-linux-arm64",
+  "version": "1.0.0",
   "description": "Typeul native binary for the Typeul typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -8,13 +8,13 @@
     "url": "git+https://github.com/baba9811/typeul.git"
   },
   "os": [
-    "darwin"
+    "linux"
   ],
   "cpu": [
-    "x64"
+    "arm64"
   ],
   "files": [
-    "typeul",
+    "typerlude",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "THIRD_PARTY_LICENSES.html",

@@ -23,10 +23,10 @@ function listFiles(root, prefix = "") {
     .sort();
 }
 
-function fixture(packageName = "typeul-linux-x64") {
+function fixture(packageName = "typerlude-linux-x64") {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-stage-test-"));
   const packageDir = path.join(root, "npm", packageName);
-  const executable = packageName.startsWith("typeul-win32-") ? "typeul.exe" : "typeul";
+  const executable = packageName.startsWith("typerlude-win32-") ? "typerlude.exe" : "typerlude";
   const binary = path.join(root, "target", "release", executable);
   const output = path.join(root, "staged", packageName);
   fs.mkdirSync(packageDir, { recursive: true });
@@ -66,37 +66,37 @@ test("staging copies only the manifest, binary, and every committed license file
       "THIRD_PARTY_NOTICES.md",
       ...listFiles(path.join(sourceRoot, "assets", "licenses")).map((name) => `licenses/${name}`),
       "package.json",
-      "typeul",
+      "typerlude",
     ].sort());
-    assert.equal(fs.readFileSync(path.join(output, "typeul"), "utf8"), "native binary");
+    assert.equal(fs.readFileSync(path.join(output, "typerlude"), "utf8"), "native binary");
     if (process.platform !== "win32") {
-      assert.equal(fs.statSync(path.join(output, "typeul")).mode & 0o777, 0o755);
+      assert.equal(fs.statSync(path.join(output, "typerlude")).mode & 0o777, 0o755);
     }
   });
 });
 
-test("staging accepts a scoped registry name in a stable Windows source directory", () => {
+test("staging accepts the unscoped Windows registry name", () => {
   withFixture(({ packageDir, binary, output }) => {
     changeManifest(packageDir, (manifest) => {
-      manifest.name = "@baba9811/typeul-win32-x64-msvc";
+      manifest.name = "typerlude-win32-x64-msvc";
     });
     stagePlatform(packageDir, binary, output);
     assert.equal(
       JSON.parse(fs.readFileSync(path.join(output, "package.json"))).name,
-      "@baba9811/typeul-win32-x64-msvc",
+      "typerlude-win32-x64-msvc",
     );
-    assert.equal(fs.readFileSync(path.join(output, "typeul.exe"), "utf8"), "native binary");
-  }, "typeul-win32-x64-msvc");
+    assert.equal(fs.readFileSync(path.join(output, "typerlude.exe"), "utf8"), "native binary");
+  }, "typerlude-win32-x64-msvc");
 });
 
 test("staging requires the native manifest name, os, cpu, and files allowlist", () => {
   for (const [name, change] of [
-    ["name", (manifest) => { manifest.name = "typeul-linux-arm64"; }],
+    ["name", (manifest) => { manifest.name = "typerlude-linux-arm64"; }],
     ["os", (manifest) => { manifest.os = ["darwin"]; }],
     ["cpu", (manifest) => { manifest.cpu = ["arm64"]; }],
     ["missing file", (manifest) => { manifest.files.pop(); }],
     ["extra file", (manifest) => { manifest.files.push("src"); }],
-    ["wrong binary", (manifest) => { manifest.files[0] = "../typeul"; }],
+    ["wrong binary", (manifest) => { manifest.files[0] = "../typerlude"; }],
     ["joined file", (manifest) => {
       const sorted = [...manifest.files].sort();
       manifest.files = [`${sorted[0]}\n${sorted[1]}`, ...sorted.slice(2)];
@@ -205,26 +205,26 @@ test("staging accepts only an absent or empty real output directory", () => {
 
 test("pack records require the exact versioned file and mode allowlist", () => {
   const expected = {
-    name: "typeul",
+    name: "typerlude",
     version: "1.0.0",
-    files: new Map([["package.json", 0o644], ["bin/typeul.js", 0o755]]),
+    files: new Map([["package.json", 0o644], ["bin/typerlude.js", 0o755]]),
   };
   const record = {
-    name: "typeul",
+    name: "typerlude",
     version: "1.0.0",
-    filename: "typeul-1.0.0.tgz",
+    filename: "typerlude-1.0.0.tgz",
     files: [
-      { path: "bin/typeul.js", mode: 0o755, size: 10 },
+      { path: "bin/typerlude.js", mode: 0o755, size: 10 },
       { path: "package.json", mode: 0o644, size: 20 },
     ],
     entryCount: 2,
     bundled: [],
   };
-  assert.equal(validatePackRecord(record, expected), "typeul-1.0.0.tgz");
+  assert.equal(validatePackRecord(record, expected), "typerlude-1.0.0.tgz");
 
   const scoped = structuredClone(record);
-  scoped.name = "@baba9811/typeul-win32-x64-msvc";
-  scoped.filename = "baba9811-typeul-win32-x64-msvc-1.0.0.tgz";
+  scoped.name = "typerlude-win32-x64-msvc";
+  scoped.filename = "typerlude-win32-x64-msvc-1.0.0.tgz";
   assert.equal(
     validatePackRecord(scoped, { ...expected, name: scoped.name }),
     scoped.filename,
@@ -245,37 +245,37 @@ test("pack records require the exact versioned file and mode allowlist", () => {
 
 test("packed manifests reject private packages and lifecycle install scripts", () => {
   const manifest = {
-    name: "typeul",
+    name: "typerlude",
     version: "1.0.0",
-    files: ["bin/typeul.js", "LICENSE"],
+    files: ["bin/typerlude.js", "LICENSE"],
     scripts: { test: "node --test" },
   };
   validatePackedManifest(manifest, {
-    name: "typeul",
+    name: "typerlude",
     version: "1.0.0",
-    files: ["bin/typeul.js", "LICENSE"],
+    files: ["bin/typerlude.js", "LICENSE"],
   });
   for (const [change, message] of [
     [(value) => { value.private = true; }, /private/],
     [(value) => { value.scripts.install = "node install.js"; }, /install/],
     [(value) => { value.files.push("src"); }, /files/],
-    [(value) => { value.files = ["bin/typeul.js\nLICENSE"]; }, /files/],
+    [(value) => { value.files = ["bin/typerlude.js\nLICENSE"]; }, /files/],
   ]) {
     const mutated = structuredClone(manifest);
     change(mutated);
     assert.throws(() => validatePackedManifest(mutated, {
-      name: "typeul",
+      name: "typerlude",
       version: "1.0.0",
-      files: ["bin/typeul.js", "LICENSE"],
+      files: ["bin/typerlude.js", "LICENSE"],
     }), message);
   }
 });
 
 test("packed manifests pin platform selectors and the root native dependency closure", () => {
   const native = {
-    name: "typeul-win32-x64-msvc",
+    name: "typerlude-win32-x64-msvc",
     version: "1.0.0",
-    files: ["typeul.exe"],
+    files: ["typerlude.exe"],
     os: ["win32"],
     cpu: ["x64"],
   };
@@ -292,7 +292,7 @@ test("packed manifests pin platform selectors and the root native dependency clo
     }), new RegExp(field));
   }
   for (const [field, value] of [
-    ["bin", { typeul: "typeul.exe" }],
+    ["bin", { typerlude: "typerlude.exe" }],
     ["dependencies", { extra: "1.0.0" }],
     ["optionalDependencies", { extra: "1.0.0" }],
     ["peerDependencies", { extra: "1.0.0" }],
@@ -306,19 +306,19 @@ test("packed manifests pin platform selectors and the root native dependency clo
     }), new RegExp(field));
   }
 
-  const dependencies = { "typeul-linux-x64": "1.0.0", "typeul-linux-arm64": "1.0.0" };
+  const dependencies = { "typerlude-linux-x64": "1.0.0", "typerlude-linux-arm64": "1.0.0" };
   const root = {
-    name: "typeul", version: "1.0.0", files: ["bin/typeul.js"],
-    bin: { typeul: "bin/typeul.js" }, optionalDependencies: dependencies,
+    name: "typerlude", version: "1.0.0", files: ["bin/typerlude.js"],
+    bin: { typerlude: "bin/typerlude.js" }, optionalDependencies: dependencies,
   };
   validatePackedManifest(root, {
     name: root.name, version: root.version, files: root.files, bin: root.bin,
     dependencies: {}, optionalDependencies: dependencies, peerDependencies: {}, peerDependenciesMeta: {},
   });
   for (const change of [
-    (value) => { delete value.optionalDependencies["typeul-linux-x64"]; },
+    (value) => { delete value.optionalDependencies["typerlude-linux-x64"]; },
     (value) => { value.optionalDependencies.extra = "1.0.0"; },
-    (value) => { value.optionalDependencies["typeul-linux-x64"] = "1.0.1"; },
+    (value) => { value.optionalDependencies["typerlude-linux-x64"] = "1.0.1"; },
   ]) {
     const mutated = structuredClone(root);
     change(mutated);
@@ -328,7 +328,7 @@ test("packed manifests pin platform selectors and the root native dependency clo
     }), /optionalDependencies/);
   }
   for (const change of [
-    (value) => { value.bin.typeul = "src/main.js"; },
+    (value) => { value.bin.typerlude = "src/main.js"; },
     (value) => { value.dependencies = { extra: "1.0.0" }; },
     (value) => { value.peerDependencies = { extra: "1.0.0" }; },
     (value) => { value.peerDependenciesMeta = { extra: { optional: true } }; },
@@ -410,8 +410,8 @@ test("all source native manifests are validated before selecting the host", () =
     fs.cpSync(path.join(sourceRoot, "npm"), path.join(root, "npm"), { recursive: true });
     validateNativeManifests(root, version);
     const host = process.platform === "win32"
-      ? `typeul-${process.platform}-${process.arch}-msvc`
-      : `typeul-${process.platform}-${process.arch}`;
+      ? `typerlude-${process.platform}-${process.arch}-msvc`
+      : `typerlude-${process.platform}-${process.arch}`;
     const nonHost = fs.readdirSync(path.join(root, "npm")).find((name) => name !== host);
     changeManifest(path.join(root, "npm", nonHost), (manifest) => {
       manifest.dependencies = { "private-registry-code": "1.0.0" };
