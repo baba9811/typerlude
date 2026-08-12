@@ -148,24 +148,8 @@ impl PracticeEngine {
                 break;
             };
             let correct = grapheme == target;
-            let intended = key_units(self.language, target);
-            let units = intended.len() as u64;
-            self.started_at.get_or_insert(now);
-            self.attempted_units += units;
-            if correct {
-                self.correct_attempt_units += units;
-                self.correct_cells += 1;
-                self.correct_units += units;
-            } else {
-                self.errors += 1;
-            }
-            for unit in intended {
-                self.intended.entry(unit).or_default()[usize::from(!correct)] += 1;
-            }
-            self.input.push(Cell {
-                entered: grapheme.into(),
-                correct,
-            });
+            self.record_cell(grapheme, correct, now);
+            self.advance_active_line();
 
             if self.target_complete() {
                 outcome = InputOutcome::Finished;
@@ -179,9 +163,50 @@ impl PracticeEngine {
         outcome
     }
 
+    pub fn submit_line(&mut self, now: Instant) -> InputOutcome {
+        if self.kind == PracticeKind::Key {
+            return self.input("\n", now);
+        }
+        if self.paused_at.is_some() {
+            return InputOutcome::IgnoredWhilePaused;
+        }
+        if self.is_finished(now) {
+            return InputOutcome::Finished;
+        }
+        if self.target_grapheme(self.input.len()) == Some("\n") {
+            return self.input("\n", now);
+        }
+        let Some(line_end) = self.current_line_range().map(|range| range.end) else {
+            return InputOutcome::Finished;
+        };
+        let attempted_before = self.attempted_units;
+        while self.input.len() < line_end {
+            self.record_cell("", false, now);
+        }
+        self.advance_active_line();
+        if self.kind == PracticeKind::Long && self.attempted_units != attempted_before {
+            self.record_rolling_sample(now);
+        }
+        if self.target_complete() {
+            InputOutcome::Finished
+        } else {
+            InputOutcome::Accepted
+        }
+    }
+
     pub fn backspace(&mut self) -> bool {
         if self.finalized_at.is_some() || self.paused_at.is_some() || self.target_complete() {
             return false;
+        }
+        if self.kind != PracticeKind::Key
+            && self.active_line > 0
+            && self
+                .current_line_range()
+                .is_some_and(|range| self.input.len() == range.start)
+        {
+            self.active_line -= 1;
+            self.backspaces += 1;
+            return true;
         }
         let index = self.input.len().saturating_sub(1);
         let units = self
@@ -365,7 +390,8 @@ impl PracticeEngine {
     }
 
     pub fn target_complete(&self) -> bool {
-        self.input.len() == self.target_ends.len() && self.input.iter().all(|cell| cell.correct)
+        self.input.len() == self.target_ends.len()
+            && (self.kind != PracticeKind::Key || self.input.iter().all(|cell| cell.correct))
     }
 
     fn active(&self, now: Instant) -> Duration {
@@ -389,6 +415,40 @@ impl PracticeEngine {
 
     fn target_grapheme(&self, index: usize) -> Option<&str> {
         indexed_grapheme(&self.target, &self.target_ends, index)
+    }
+
+    fn record_cell(&mut self, entered: &str, correct: bool, now: Instant) {
+        let intended = self
+            .target_grapheme(self.input.len())
+            .map(|target| key_units(self.language, target))
+            .unwrap_or_default();
+        let units = intended.len() as u64;
+        self.started_at.get_or_insert(now);
+        self.attempted_units += units;
+        if correct {
+            self.correct_attempt_units += units;
+            self.correct_cells += 1;
+            self.correct_units += units;
+        } else {
+            self.errors += 1;
+        }
+        for unit in intended {
+            self.intended.entry(unit).or_default()[usize::from(!correct)] += 1;
+        }
+        self.input.push(Cell {
+            entered: entered.into(),
+            correct,
+        });
+    }
+
+    fn advance_active_line(&mut self) {
+        while self
+            .line_ends
+            .get(self.active_line)
+            .is_some_and(|&end| self.input.len() >= end as usize)
+        {
+            self.active_line += 1;
+        }
     }
 
     fn record_rolling_sample(&mut self, now: Instant) {
@@ -625,8 +685,7 @@ mod tests {
     #[test]
     fn correction_does_not_erase_an_accuracy_error_or_inflate_speed() {
         let start = Instant::now();
-        let mut engine =
-            PracticeEngine::new(Language::Ko, PracticeKind::Sentence, "한", None).unwrap();
+        let mut engine = PracticeEngine::new(Language::Ko, PracticeKind::Key, "한", None).unwrap();
         engine.input("강", start);
         assert!(engine.backspace());
         engine.input("한", start + Duration::from_secs(60));
@@ -761,8 +820,7 @@ mod tests {
     #[test]
     fn intended_key_buckets_track_correct_and_erroneous_attempts() {
         let start = Instant::now();
-        let mut engine =
-            PracticeEngine::new(Language::Ko, PracticeKind::Sentence, "한", None).unwrap();
+        let mut engine = PracticeEngine::new(Language::Ko, PracticeKind::Key, "한", None).unwrap();
         engine.input("강", start);
         engine.backspace();
         engine.input("한", start);
@@ -773,9 +831,9 @@ mod tests {
     }
 
     #[test]
-    fn a_wrong_full_length_cell_requires_correction() {
+    fn a_wrong_full_length_key_cell_requires_correction() {
         let start = Instant::now();
-        let mut engine = PracticeEngine::new(Language::En, PracticeKind::Words, "a", None).unwrap();
+        let mut engine = PracticeEngine::new(Language::En, PracticeKind::Key, "a", None).unwrap();
 
         assert_eq!(engine.input("x", start), InputOutcome::Accepted);
         assert!(!engine.is_finished(start));
@@ -784,6 +842,70 @@ mod tests {
         assert!(engine.backspace());
         assert_eq!(engine.input("a", start), InputOutcome::Finished);
         assert_eq!(engine.metrics(start).attempted_units, 2);
+    }
+
+    #[test]
+    fn a_wrong_line_advances_and_finishes_non_key_practice() {
+        let start = Instant::now();
+        let mut engine = PracticeEngine::new_for_items(
+            Language::En,
+            PracticeKind::Sentence,
+            "ab cd",
+            &[3, 5],
+            None,
+        )
+        .unwrap();
+
+        engine.input("ax", start);
+        assert_eq!(engine.current_line_index(), 0);
+        engine.input(" ", start);
+        assert_eq!(engine.current_line_index(), 1);
+        engine.input("cd", start);
+
+        assert!(engine.target_complete());
+        assert_eq!(engine.metrics(start).errors, 1);
+    }
+
+    #[test]
+    fn enter_marks_the_untyped_remainder_wrong_and_moves_on() {
+        let start = Instant::now();
+        let mut engine = PracticeEngine::new_for_items(
+            Language::En,
+            PracticeKind::Sentence,
+            "hello world",
+            &[6, 11],
+            None,
+        )
+        .unwrap();
+
+        engine.input("he", start);
+        engine.submit_line(start);
+
+        assert_eq!(engine.cursor(), 6);
+        assert_eq!(engine.metrics(start).errors, 4);
+        assert_eq!(engine.current_line_index(), 1);
+    }
+
+    #[test]
+    fn backspace_reopens_before_deleting_and_history_never_decreases() {
+        let start = Instant::now();
+        let mut engine = PracticeEngine::new_for_items(
+            Language::En,
+            PracticeKind::Sentence,
+            "a b",
+            &[2, 3],
+            None,
+        )
+        .unwrap();
+        engine.input("a ", start);
+        let attempted = engine.metrics(start).attempted_units;
+
+        assert!(engine.backspace());
+        assert_eq!(engine.cursor(), 2);
+        assert!(engine.backspace());
+        assert_eq!(engine.cursor(), 1);
+        assert_eq!(engine.metrics(start).attempted_units, attempted);
+        assert_eq!(engine.metrics(start).backspaces, 2);
     }
 
     #[test]
@@ -826,7 +948,7 @@ mod tests {
     #[test]
     fn extending_a_completed_target_preserves_time_totals_and_normalizes() {
         let start = Instant::now();
-        let mut engine = PracticeEngine::new(Language::En, PracticeKind::Words, "a", None).unwrap();
+        let mut engine = PracticeEngine::new(Language::En, PracticeKind::Key, "a", None).unwrap();
 
         assert_eq!(engine.input("x", start), InputOutcome::Accepted);
         assert!(engine.backspace());
