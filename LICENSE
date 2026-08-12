@@ -1,6 +1,6 @@
-Typeul is a composite project.
+Typerlude is a composite project.
 
-* The original Typeul Rust and JavaScript source code is licensed under the MIT
+* The original Typerlude Rust and JavaScript source code is licensed under the MIT
   License below.
 * Project-authored practice data uses CC0 1.0 Universal: `assets/licenses/CC0-1.0.txt`
   in source/Cargo/root npm and identical `licenses/CC0-1.0.txt` in native npm/archive.
@@ -10,7 +10,7 @@ Typeul is a composite project.
 
 MIT License
 
-Copyright (c) 2026 Typeul contributors
+Copyright (c) 2026 Typerlude contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

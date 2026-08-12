@@ -3,20 +3,18 @@
 const { spawnSync } = require("node:child_process");
 
 const nativePackages = [
-  { platform: "darwin", arch: "arm64", directory: "typeul-darwin-arm64", name: "typeul-darwin-arm64", executable: "typeul" },
-  { platform: "darwin", arch: "x64", directory: "typeul-darwin-x64", name: "typeul-darwin-x64", executable: "typeul" },
-  { platform: "linux", arch: "arm64", directory: "typeul-linux-arm64", name: "typeul-linux-arm64", executable: "typeul" },
-  { platform: "linux", arch: "x64", directory: "typeul-linux-x64", name: "typeul-linux-x64", executable: "typeul" },
-  { platform: "win32", arch: "arm64", directory: "typeul-win32-arm64-msvc", name: "@baba9811/typeul-win32-arm64-msvc", executable: "typeul.exe" },
-  { platform: "win32", arch: "x64", directory: "typeul-win32-x64-msvc", name: "@baba9811/typeul-win32-x64-msvc", executable: "typeul.exe" },
+  { platform: "darwin", arch: "arm64", name: "typerlude-darwin-arm64", executable: "typerlude" },
+  { platform: "darwin", arch: "x64", name: "typerlude-darwin-x64", executable: "typerlude" },
+  { platform: "linux", arch: "arm64", name: "typerlude-linux-arm64", executable: "typerlude" },
+  { platform: "linux", arch: "x64", name: "typerlude-linux-x64", executable: "typerlude" },
+  { platform: "win32", arch: "arm64", name: "typerlude-win32-arm64-msvc", executable: "typerlude.exe" },
+  { platform: "win32", arch: "x64", name: "typerlude-win32-x64-msvc", executable: "typerlude.exe" },
 ];
 
 function packageFor(platform, arch) {
   const result = nativePackages.find((item) => item.platform === platform && item.arch === arch);
   if (!result) throw new Error(`unsupported platform: ${platform}-${arch}`);
-  return result.name === result.directory
-    ? [result.name, result.executable]
-    : [result.name, result.executable, result.directory];
+  return [result.name, result.executable];
 }
 
 function run(argv, platform, arch) {
@@ -32,7 +30,7 @@ function run(argv, platform, arch) {
 
   const result = spawnSync(binary, argv, {
     cwd: process.cwd(),
-    env: { ...process.env, TYPEUL_INSTALL_METHOD: "npm" },
+    env: { ...process.env, TYPERLUDE_INSTALL_METHOD: "npm" },
     stdio: "inherit",
     windowsHide: false,
   });

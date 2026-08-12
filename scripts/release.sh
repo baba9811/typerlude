@@ -116,7 +116,7 @@ if [[ "$version" != "$current" ]]; then
   release_commit="$(git rev-parse HEAD)"
 fi
 
-git tag -s -m "Typeul v$version" "v$version"
+git tag -s -m "Typerlude v$version" "v$version"
 tag_created=true
 git push --atomic origin main "v$version"
 pushed=true

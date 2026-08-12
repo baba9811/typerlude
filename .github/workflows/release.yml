@@ -62,6 +62,10 @@ jobs:
             exit 1
           }
           tag_commit="$(jq -er '.object.sha | select(type == "string" and length > 0)' <<< "$tag_object")"
+          [[ "$GITHUB_EVENT_NAME" != "workflow_dispatch" || "$tag_commit" == "$GITHUB_SHA" ]] || {
+            echo "workflow_dispatch ref must resolve to the release tag commit" >&2
+            exit 1
+          }
           test "$tag_commit" = "$(git rev-parse "$RELEASE_TAG^{}")" || {
             echo "GitHub tag target does not match the checked-out tag" >&2
             exit 1
@@ -87,33 +91,33 @@ jobs:
         include:
           - runner: macos-15-intel
             target: x86_64-apple-darwin
-            package: typeul-darwin-x64
-            executable: typeul
+            package: typerlude-darwin-x64
+            executable: typerlude
             archive_extension: tar.gz
           - runner: macos-15
             target: aarch64-apple-darwin
-            package: typeul-darwin-arm64
-            executable: typeul
+            package: typerlude-darwin-arm64
+            executable: typerlude
             archive_extension: tar.gz
           - runner: ubuntu-24.04
             target: x86_64-unknown-linux-musl
-            package: typeul-linux-x64
-            executable: typeul
+            package: typerlude-linux-x64
+            executable: typerlude
             archive_extension: tar.gz
           - runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
-            package: typeul-linux-arm64
-            executable: typeul
+            package: typerlude-linux-arm64
+            executable: typerlude
             archive_extension: tar.gz
           - runner: windows-2025
             target: x86_64-pc-windows-msvc
-            package: typeul-win32-x64-msvc
-            executable: typeul.exe
+            package: typerlude-win32-x64-msvc
+            executable: typerlude.exe
             archive_extension: zip
           - runner: windows-11-arm
             target: aarch64-pc-windows-msvc
-            package: typeul-win32-arm64-msvc
-            executable: typeul.exe
+            package: typerlude-win32-arm64-msvc
+            executable: typerlude.exe
             archive_extension: zip
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -148,8 +152,8 @@ jobs:
           temporary="$(mktemp -d)"
           trap 'rm -rf "$temporary"' EXIT
           binary="$GITHUB_WORKSPACE/target/$TARGET/release/$EXECUTABLE"
-          export TYPEUL_HOME="$temporary/direct-home"
-          export TYPEUL_NO_UPDATE_CHECK=1
+          export TYPERLUDE_HOME="$temporary/direct-home"
+          export TYPERLUDE_NO_UPDATE_CHECK=1
           "$binary" --version
           "$binary" paths > "$temporary/direct-paths.txt"
           "$binary" licenses > "$temporary/direct-licenses.txt"
@@ -174,15 +178,15 @@ jobs:
           test -f "$platform_tgz"
 
           archive_parent="$temporary/archive"
-          archive_root="$archive_parent/typeul-$TARGET"
+          archive_root="$archive_parent/typerlude-$TARGET"
           mkdir -p "$archive_root"
           cp "$staged/$EXECUTABLE" "$archive_root/$EXECUTABLE"
           cp "$staged/LICENSE" "$staged/THIRD_PARTY_NOTICES.md" \
             "$staged/THIRD_PARTY_LICENSES.html" "$archive_root/"
           cp -R "$staged/licenses" "$archive_root/licenses"
           mkdir "$GITHUB_WORKSPACE/artifacts"
-          archive="$GITHUB_WORKSPACE/artifacts/typeul-$TARGET.tar.gz"
-          COPYFILE_DISABLE=1 tar -C "$archive_parent" -czf "$archive" "typeul-$TARGET"
+          archive="$GITHUB_WORKSPACE/artifacts/typerlude-$TARGET.tar.gz"
+          COPYFILE_DISABLE=1 tar -C "$archive_parent" -czf "$archive" "typerlude-$TARGET"
           python3 - "$archive_root" "$archive" <<'PY'
           import pathlib, sys, tarfile
           root = pathlib.Path(sys.argv[1])
@@ -195,10 +199,10 @@ jobs:
           extracted="$temporary/extracted"
           mkdir "$extracted"
           COPYFILE_DISABLE=1 tar -C "$extracted" -xzf "$archive"
-          extracted_binary="$extracted/typeul-$TARGET/$EXECUTABLE"
+          extracted_binary="$extracted/typerlude-$TARGET/$EXECUTABLE"
           test -x "$extracted_binary"
-          TYPEUL_HOME="$temporary/extracted-home" "$extracted_binary" --version
-          TYPEUL_HOME="$temporary/extracted-home" "$extracted_binary" --smoke
+          TYPERLUDE_HOME="$temporary/extracted-home" "$extracted_binary" --version
+          TYPERLUDE_HOME="$temporary/extracted-home" "$extracted_binary" --smoke
           cp "$platform_tgz" "$GITHUB_WORKSPACE/artifacts/"
           test "$(find "$GITHUB_WORKSPACE/artifacts" -maxdepth 1 -type f | wc -l | tr -d ' ')" = 2
       - name: Smoke, pack, and archive Windows binary
@@ -211,12 +215,12 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $PSNativeCommandUseErrorActionPreference = $true
-          $temporary = Join-Path ([IO.Path]::GetTempPath()) ("typeul-release-" + [guid]::NewGuid())
+          $temporary = Join-Path ([IO.Path]::GetTempPath()) ("typerlude-release-" + [guid]::NewGuid())
           New-Item -ItemType Directory -Path $temporary | Out-Null
           try {
             $binary = Join-Path $env:GITHUB_WORKSPACE "target\$env:TARGET\release\$env:EXECUTABLE"
-            $env:TYPEUL_HOME = Join-Path $temporary "direct-home"
-            $env:TYPEUL_NO_UPDATE_CHECK = "1"
+            $env:TYPERLUDE_HOME = Join-Path $temporary "direct-home"
+            $env:TYPERLUDE_NO_UPDATE_CHECK = "1"
             & $binary --version
             & $binary paths | Out-File (Join-Path $temporary "direct-paths.txt") -Encoding utf8
             & $binary licenses | Out-File (Join-Path $temporary "direct-licenses.txt") -Encoding utf8
@@ -241,7 +245,7 @@ jobs:
             }
 
             $archiveParent = Join-Path $temporary "archive"
-            $archiveRoot = Join-Path $archiveParent "typeul-$env:TARGET"
+            $archiveRoot = Join-Path $archiveParent "typerlude-$env:TARGET"
             New-Item -ItemType Directory -Path $archiveRoot | Out-Null
             Copy-Item (Join-Path $staged $env:EXECUTABLE) $archiveRoot
             Copy-Item (Join-Path $staged "LICENSE") $archiveRoot
@@ -250,7 +254,7 @@ jobs:
             Copy-Item (Join-Path $staged "licenses") (Join-Path $archiveRoot "licenses") -Recurse
             $artifacts = Join-Path $env:GITHUB_WORKSPACE "artifacts"
             New-Item -ItemType Directory -Path $artifacts | Out-Null
-            $archive = Join-Path $artifacts "typeul-$env:TARGET.zip"
+            $archive = Join-Path $artifacts "typerlude-$env:TARGET.zip"
             Compress-Archive -Path $archiveRoot -DestinationPath $archive
 
             Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -278,8 +282,8 @@ jobs:
             if (Compare-Object ($expectedFiles | Sort-Object) ($extractedFiles | Sort-Object)) {
               throw "extracted zip closure differs from the staged closure"
             }
-            $extractedBinary = Join-Path $extracted "typeul-$env:TARGET\$env:EXECUTABLE"
-            $env:TYPEUL_HOME = Join-Path $temporary "extracted-home"
+            $extractedBinary = Join-Path $extracted "typerlude-$env:TARGET\$env:EXECUTABLE"
+            $env:TYPERLUDE_HOME = Join-Path $temporary "extracted-home"
             & $extractedBinary --version
             & $extractedBinary --smoke
             Copy-Item $platformTgz $artifacts
@@ -295,7 +299,7 @@ jobs:
           name: native-${{ matrix.package }}-${{ matrix.target }}
           path: |
             artifacts/${{ matrix.package }}-*.tgz
-            artifacts/typeul-${{ matrix.target }}.${{ matrix.archive_extension }}
+            artifacts/typerlude-${{ matrix.target }}.${{ matrix.archive_extension }}
           if-no-files-found: error
           retention-days: 1
 
@@ -323,7 +327,6 @@ jobs:
           set -euo pipefail
           version="$(node scripts/check-versions.mjs)"
           npm pack --ignore-scripts --pack-destination dist .
-          mv "dist/baba9811-typeul-$version.tgz" "dist/typeul-$version.tgz"
       - name: Verify exact release payload
         shell: bash
         run: |
@@ -332,27 +335,27 @@ jobs:
           temporary="$(mktemp -d)"
           trap 'rm -rf "$temporary"' EXIT
           expected=(
-            "typeul-aarch64-apple-darwin.tar.gz"
-            "typeul-aarch64-pc-windows-msvc.zip"
-            "typeul-aarch64-unknown-linux-musl.tar.gz"
-            "typeul-darwin-arm64-$version.tgz"
-            "typeul-darwin-x64-$version.tgz"
-            "typeul-linux-arm64-$version.tgz"
-            "typeul-linux-x64-$version.tgz"
-            "typeul-win32-arm64-msvc-$version.tgz"
-            "typeul-win32-x64-msvc-$version.tgz"
-            "typeul-$version.tgz"
-            "typeul-x86_64-apple-darwin.tar.gz"
-            "typeul-x86_64-pc-windows-msvc.zip"
-            "typeul-x86_64-unknown-linux-musl.tar.gz"
+            "typerlude-aarch64-apple-darwin.tar.gz"
+            "typerlude-aarch64-pc-windows-msvc.zip"
+            "typerlude-aarch64-unknown-linux-musl.tar.gz"
+            "typerlude-darwin-arm64-$version.tgz"
+            "typerlude-darwin-x64-$version.tgz"
+            "typerlude-linux-arm64-$version.tgz"
+            "typerlude-linux-x64-$version.tgz"
+            "typerlude-win32-arm64-msvc-$version.tgz"
+            "typerlude-win32-x64-msvc-$version.tgz"
+            "typerlude-$version.tgz"
+            "typerlude-x86_64-apple-darwin.tar.gz"
+            "typerlude-x86_64-pc-windows-msvc.zip"
+            "typerlude-x86_64-unknown-linux-musl.tar.gz"
           )
           printf '%s\n' "${expected[@]}" | LC_ALL=C sort > "$temporary/expected"
           find dist -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort > "$temporary/actual"
           diff -u "$temporary/expected" "$temporary/actual"
 
           packages=(
-            typeul-darwin-arm64 typeul-darwin-x64 typeul-linux-arm64
-            typeul-linux-x64 typeul-win32-arm64-msvc typeul-win32-x64-msvc
+            typerlude-darwin-arm64 typerlude-darwin-x64 typerlude-linux-arm64
+            typerlude-linux-x64 typerlude-win32-arm64-msvc typerlude-win32-x64-msvc
           )
           for package in "${packages[@]}"; do
             unpacked="$temporary/npm-$package"
@@ -369,23 +372,23 @@ jobs:
             while IFS= read -r license; do
               cmp "assets/licenses/$license" "$unpacked/package/licenses/$license"
             done < <(find assets/licenses -type f -printf '%P\n' | LC_ALL=C sort)
-            executable=typeul
-            [[ "$package" == typeul-win32-* ]] && executable=typeul.exe
+            executable=typerlude
+            [[ "$package" == typerlude-win32-* ]] && executable=typerlude.exe
             expected_files="$temporary/$package-files"
             {
               printf '%s\n' LICENSE THIRD_PARTY_LICENSES.html THIRD_PARTY_NOTICES.md package.json "$executable"
               find assets/licenses -type f -printf 'licenses/%P\n'
             } | LC_ALL=C sort > "$expected_files"
             diff -u "$expected_files" <(find "$unpacked/package" -type f -printf '%P\n' | LC_ALL=C sort)
-            [[ "$package" == typeul-win32-* ]] || test -x "$unpacked/package/$executable"
+            [[ "$package" == typerlude-win32-* ]] || test -x "$unpacked/package/$executable"
           done
 
           root="$temporary/npm-root"
           mkdir "$root"
-          tar -C "$root" -xzf "dist/typeul-$version.tgz"
+          tar -C "$root" -xzf "dist/typerlude-$version.tgz"
           test -z "$(find "$root" -type l -print -quit)"
           cmp package.json "$root/package/package.json"
-          cmp bin/typeul.js "$root/package/bin/typeul.js"
+          cmp bin/typerlude.js "$root/package/bin/typerlude.js"
           cmp README.md "$root/package/README.md"
           cmp README.ko.md "$root/package/README.ko.md"
           for file in LICENSE THIRD_PARTY_NOTICES.md THIRD_PARTY_LICENSES.html; do
@@ -399,11 +402,11 @@ jobs:
           done < <(find assets/licenses -type f -printf '%P\n' | LC_ALL=C sort)
           root_expected="$temporary/root-files"
           {
-            printf '%s\n' LICENSE README.ko.md README.md THIRD_PARTY_LICENSES.html THIRD_PARTY_NOTICES.md bin/typeul.js package.json
+            printf '%s\n' LICENSE README.ko.md README.md THIRD_PARTY_LICENSES.html THIRD_PARTY_NOTICES.md bin/typerlude.js package.json
             find assets/licenses -type f -printf 'assets/licenses/%P\n'
           } | LC_ALL=C sort > "$root_expected"
           diff -u "$root_expected" <(find "$root/package" -type f -printf '%P\n' | LC_ALL=C sort)
-          test -x "$root/package/bin/typeul.js"
+          test -x "$root/package/bin/typerlude.js"
 
           targets=(
             aarch64-apple-darwin aarch64-unknown-linux-musl x86_64-apple-darwin
@@ -411,21 +414,21 @@ jobs:
           )
           for target in "${targets[@]}"; do
             extension=tar.gz
-            executable=typeul
+            executable=typerlude
             case "$target" in
-              aarch64-apple-darwin) package=typeul-darwin-arm64 ;;
-              x86_64-apple-darwin) package=typeul-darwin-x64 ;;
-              aarch64-unknown-linux-musl) package=typeul-linux-arm64 ;;
-              x86_64-unknown-linux-musl) package=typeul-linux-x64 ;;
-              aarch64-pc-windows-msvc) package=typeul-win32-arm64-msvc; extension=zip; executable=typeul.exe ;;
-              x86_64-pc-windows-msvc) package=typeul-win32-x64-msvc; extension=zip; executable=typeul.exe ;;
+              aarch64-apple-darwin) package=typerlude-darwin-arm64 ;;
+              x86_64-apple-darwin) package=typerlude-darwin-x64 ;;
+              aarch64-unknown-linux-musl) package=typerlude-linux-arm64 ;;
+              x86_64-unknown-linux-musl) package=typerlude-linux-x64 ;;
+              aarch64-pc-windows-msvc) package=typerlude-win32-arm64-msvc; extension=zip; executable=typerlude.exe ;;
+              x86_64-pc-windows-msvc) package=typerlude-win32-x64-msvc; extension=zip; executable=typerlude.exe ;;
             esac
-            archive="dist/typeul-$target.$extension"
+            archive="dist/typerlude-$target.$extension"
             extracted="$temporary/archive-$target"
             mkdir "$extracted"
             if [[ "$extension" == zip ]]; then unzip -q "$archive" -d "$extracted"; else tar -C "$extracted" -xzf "$archive"; fi
             test -z "$(find "$extracted" -type l -print -quit)"
-            archive_root="$extracted/typeul-$target"
+            archive_root="$extracted/typerlude-$target"
             expected_files="$temporary/$target-files"
             {
               printf '%s\n' LICENSE THIRD_PARTY_LICENSES.html THIRD_PARTY_NOTICES.md "$executable"
@@ -478,7 +481,7 @@ jobs:
             gh release upload "$RELEASE_TAG" dist/* --clobber
           else
             gh release create "$RELEASE_TAG" dist/* \
-              --draft --verify-tag --generate-notes --title "Typeul ${RELEASE_TAG#v}"
+              --draft --verify-tag --generate-notes --title "Typerlude ${RELEASE_TAG#v}"
           fi
           actual="$(mktemp)"
           gh release view "$RELEASE_TAG" --json isDraft,assets --jq '.isDraft, (.assets[].name)' > "$actual.raw"
@@ -506,21 +509,39 @@ jobs:
         run: |
           cargo package --locked
           cargo publish --dry-run --locked
+      - name: Validate registry bootstrap mode
+        shell: bash
+        env:
+          BOOTSTRAP: ${{ vars.TYPERLUDE_REGISTRY_BOOTSTRAP }}
+        run: |
+          [[ -z "$BOOTSTRAP" || "$BOOTSTRAP" == 1 ]] || {
+            echo "TYPERLUDE_REGISTRY_BOOTSTRAP must be empty or 1" >&2
+            exit 1
+          }
+      - name: Preflight registry bootstrap credentials
+        if: vars.TYPERLUDE_REGISTRY_BOOTSTRAP == '1'
+        shell: bash
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          test -n "$CARGO_REGISTRY_TOKEN" || { echo "CRATES_TOKEN is required for bootstrap" >&2; exit 1; }
+          test -n "$NODE_AUTH_TOKEN" || { echo "NPM_TOKEN is required for bootstrap" >&2; exit 1; }
       - name: Check for an identical existing Cargo version
         id: cargo-version
         shell: bash
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          crate="target/package/typeul-$version.crate"
+          crate="target/package/typerlude-$version.crate"
           test -f "$crate"
           local_checksum="$(sha256sum "$crate" | awk '{print $1}')"
           response="$(mktemp)"
           trap 'rm -f "$response"' EXIT
           status="$(curl --silent --show-error \
-            --user-agent "typeul-release/$RELEASE_TAG" \
+            --user-agent "typerlude-release/$RELEASE_TAG" \
             --output "$response" --write-out '%{http_code}' \
-            "https://crates.io/api/v1/crates/typeul/$version")"
+            "https://crates.io/api/v1/crates/typerlude/$version")"
           case "$status" in
             200)
               remote_checksum="$(python3 -c \
@@ -531,7 +552,7 @@ jobs:
                 exit 1
               }
               test "$local_checksum" = "$remote_checksum" || {
-                echo "crates.io checksum differs for typeul $version" >&2
+                echo "crates.io checksum differs for typerlude $version" >&2
                 exit 1
               }
               echo "publish=false" >> "$GITHUB_OUTPUT"
@@ -540,20 +561,25 @@ jobs:
             *) echo "crates.io query failed with HTTP $status" >&2; exit 1 ;;
           esac
       - name: Authenticate with crates.io
-        if: steps.cargo-version.outputs.publish == 'true'
+        if: steps.cargo-version.outputs.publish == 'true' && vars.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'
         id: crates-auth
         uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
       - name: Require OIDC credential
-        if: steps.cargo-version.outputs.publish == 'true'
+        if: steps.cargo-version.outputs.publish == 'true' && vars.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'
         shell: bash
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
         run: test -n "$CARGO_REGISTRY_TOKEN"
       - name: Publish Cargo with OIDC
-        if: steps.cargo-version.outputs.publish == 'true'
+        if: steps.cargo-version.outputs.publish == 'true' && vars.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'
         run: cargo publish --locked
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+      - name: Publish Cargo bootstrap
+        if: steps.cargo-version.outputs.publish == 'true' && vars.TYPERLUDE_REGISTRY_BOOTSTRAP == '1'
+        run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
 
   publish-npm:
     needs: publish-cargo
@@ -566,7 +592,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || env.RELEASE_TAG }}
+          ref: ${{ env.RELEASE_TAG }}
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 22.14.0
@@ -581,44 +607,44 @@ jobs:
         with:
           name: release-npm-${{ env.RELEASE_TAG }}
           path: dist
-      - name: Validate bootstrap mode and exact npm payload
+      - name: Validate registry bootstrap mode and exact npm payload
         shell: bash
         env:
-          BOOTSTRAP: ${{ vars.TYPEUL_NPM_BOOTSTRAP }}
+          BOOTSTRAP: ${{ vars.TYPERLUDE_REGISTRY_BOOTSTRAP }}
         run: |
           set -euo pipefail
           [[ -z "$BOOTSTRAP" || "$BOOTSTRAP" == 1 ]] || {
-            echo "TYPEUL_NPM_BOOTSTRAP must be empty or 1" >&2
+            echo "TYPERLUDE_REGISTRY_BOOTSTRAP must be empty or 1" >&2
             exit 1
           }
           version="${RELEASE_TAG#v}"
           expected="$(mktemp)"
           printf '%s\n' \
-            "typeul-darwin-arm64-$version.tgz" "typeul-darwin-x64-$version.tgz" \
-            "typeul-linux-arm64-$version.tgz" "typeul-linux-x64-$version.tgz" \
-            "typeul-win32-arm64-msvc-$version.tgz" "typeul-win32-x64-msvc-$version.tgz" \
-            "typeul-$version.tgz" | LC_ALL=C sort > "$expected"
+            "typerlude-darwin-arm64-$version.tgz" "typerlude-darwin-x64-$version.tgz" \
+            "typerlude-linux-arm64-$version.tgz" "typerlude-linux-x64-$version.tgz" \
+            "typerlude-win32-arm64-msvc-$version.tgz" "typerlude-win32-x64-msvc-$version.tgz" \
+            "typerlude-$version.tgz" | LC_ALL=C sort > "$expected"
           diff -u "$expected" <(find dist -maxdepth 1 -type f -printf '%f\n' | LC_ALL=C sort)
       - name: Preflight npm bootstrap credential
-        if: vars.TYPEUL_NPM_BOOTSTRAP == '1'
+        if: vars.TYPERLUDE_REGISTRY_BOOTSTRAP == '1'
         shell: bash
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: test -n "$NPM_TOKEN" || { echo "NPM_TOKEN is required for bootstrap" >&2; exit 1; }
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: test -n "$NODE_AUTH_TOKEN" || { echo "NPM_TOKEN is required for bootstrap" >&2; exit 1; }
       - name: Dry-run every npm package before publication
         shell: bash
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
           packages=(
-            typeul-darwin-arm64 typeul-darwin-x64 typeul-linux-arm64
-            typeul-linux-x64 typeul-win32-arm64-msvc typeul-win32-x64-msvc typeul
+            typerlude-darwin-arm64 typerlude-darwin-x64 typerlude-linux-arm64
+            typerlude-linux-x64 typerlude-win32-arm64-msvc typerlude-win32-x64-msvc typerlude
           )
           for package in "${packages[@]}"; do
             npm publish --dry-run --ignore-scripts "./dist/$package-$version.tgz"
           done
       - name: Publish npm bootstrap, native packages first
-        if: vars.TYPEUL_NPM_BOOTSTRAP == '1'
+        if: vars.TYPERLUDE_REGISTRY_BOOTSTRAP == '1'
         shell: bash
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -627,7 +653,7 @@ jobs:
           version="${RELEASE_TAG#v}"
           node scripts/publish-npm-packages.mjs "$version" --provenance
       - name: Publish npm with OIDC, native packages first
-        if: vars.TYPEUL_NPM_BOOTSTRAP != '1'
+        if: vars.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'
         shell: bash
         run: |
           set -euo pipefail

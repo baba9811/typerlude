@@ -70,9 +70,9 @@ pub enum InstallMethod {
 impl InstallMethod {
     pub const fn instructions(self) -> &'static str {
         match self {
-            Self::Npm => "npm install -g @baba9811/typeul@latest · npx @baba9811/typeul@latest",
-            Self::Cargo => "cargo install --force typeul",
-            Self::Standalone => "https://github.com/baba9811/typeul/releases",
+            Self::Npm => "npm install -g typerlude · npx typerlude",
+            Self::Cargo => "cargo install --force typerlude",
+            Self::Standalone => "https://github.com/baba9811/typerlude/releases",
         }
     }
 }
@@ -123,7 +123,7 @@ pub fn notice(
 }
 
 pub fn detect_install_method() -> InstallMethod {
-    let marker = env::var_os("TYPEUL_INSTALL_METHOD");
+    let marker = env::var_os("TYPERLUDE_INSTALL_METHOD");
     if marker.as_deref() == Some(OsStr::new("npm")) {
         return InstallMethod::Npm;
     }
@@ -204,8 +204,8 @@ fn parse_cargo_version(output: &str) -> Result<StableVersion> {
         .lines()
         .next()
         .context("cargo search returned no results")?
-        .strip_prefix("typeul = \"")
-        .context("cargo search did not return the typeul crate")?;
+        .strip_prefix("typerlude = \"")
+        .context("cargo search did not return the typerlude crate")?;
     let (version, suffix) = value
         .split_once('"')
         .context("cargo search returned an invalid version field")?;
@@ -310,7 +310,7 @@ impl RegistryWorkspace {
     fn new() -> Result<Self> {
         for _ in 0..10 {
             let path = env::temp_dir().join(format!(
-                "typeul-registry-{}-{}",
+                "typerlude-registry-{}-{}",
                 std::process::id(),
                 fastrand::u64(..)
             ));
@@ -349,7 +349,7 @@ fn registry_version(method: InstallMethod, timeout: Duration) -> Result<Option<S
                 npm_executable(),
                 &[
                     "view",
-                    "typeul",
+                    "typerlude",
                     "version",
                     "--silent",
                     "--registry=https://registry.npmjs.org/",
@@ -372,7 +372,7 @@ fn registry_version(method: InstallMethod, timeout: Duration) -> Result<Option<S
                 Path::new("cargo"),
                 &[
                     "search",
-                    "typeul",
+                    "typerlude",
                     "--limit",
                     "1",
                     "--registry",
@@ -439,8 +439,7 @@ pub fn start_background_check(
     let suppressed = cfg!(test)
         || !settings.check_updates
         || env::var_os("CI").is_some()
-        || env::var_os("TYPEUL_NO_UPDATE_CHECK").as_deref() == Some(OsStr::new("1"))
-        || env::var_os("TYPEUL_TEST").as_deref() == Some(OsStr::new("1"));
+        || env::var_os("TYPERLUDE_NO_UPDATE_CHECK").as_deref() == Some(OsStr::new("1"));
     if !automatic_allowed(
         method,
         std::io::stdin().is_terminal(),
@@ -505,7 +504,7 @@ mod tests {
     impl TestDir {
         fn new() -> Self {
             let path = std::env::temp_dir().join(format!(
-                "typeul-update-unit-{}-{}",
+                "typerlude-update-unit-{}-{}",
                 std::process::id(),
                 fastrand::u64(..)
             ));
@@ -679,7 +678,7 @@ mod tests {
         assert!(notice("1.2.3", "1.2.2", "", InstallMethod::Npm).is_none());
         assert!(notice("1.2.3", "1.2.4", "1.2.4", InstallMethod::Npm).is_none());
         let notice = notice("1.2.3", "1.2.4", "", InstallMethod::Cargo).unwrap();
-        assert_eq!(notice.instructions(), "cargo install --force typeul");
+        assert_eq!(notice.instructions(), "cargo install --force typerlude");
     }
 
     #[test]
@@ -688,17 +687,21 @@ mod tests {
         assert_eq!(
             install_method_from(
                 Some(OsStr::new("npm")),
-                Path::new("/elsewhere/typeul"),
+                Path::new("/elsewhere/typerlude"),
                 cargo_home
             ),
             InstallMethod::Npm
         );
         assert_eq!(
-            install_method_from(None, Path::new("/resolved/cargo/bin/typeul"), cargo_home),
+            install_method_from(None, Path::new("/resolved/cargo/bin/typerlude"), cargo_home),
             InstallMethod::Cargo
         );
         assert_eq!(
-            install_method_from(None, Path::new("/resolved/cargo/tools/typeul"), cargo_home),
+            install_method_from(
+                None,
+                Path::new("/resolved/cargo/tools/typerlude"),
+                cargo_home
+            ),
             InstallMethod::Standalone
         );
     }
@@ -719,7 +722,7 @@ mod tests {
         }
         assert_eq!(
             parse_cargo_version(
-                "typeul = \"1.4.0\"    # Offline typing tutor\n\
+                "typerlude = \"1.4.0\"    # Offline typing tutor\n\
                  ... and 4 crates more (use --limit N to see more)",
             )
             .unwrap()
@@ -728,9 +731,9 @@ mod tests {
         );
         for output in [
             "other = \"1.4.0\"",
-            "typeul-cli = \"1.4.0\"",
-            "typeul = \"1.4.0-beta\"",
-            "typeul = \"1.4.0\" junk",
+            "typerlude-cli = \"1.4.0\"",
+            "typerlude = \"1.4.0-beta\"",
+            "typerlude = \"1.4.0\" junk",
         ] {
             assert!(parse_cargo_version(output).is_err(), "{output:?}");
         }
@@ -743,7 +746,7 @@ mod tests {
         assert_eq!(
             run_registry_command(
                 &success,
-                &["view", "typeul", "version", "--silent"],
+                &["view", "typerlude", "version", "--silent"],
                 Duration::from_secs(5),
             )
             .unwrap(),
@@ -751,12 +754,12 @@ mod tests {
         );
         let cargo = root.script(
             "cargo-output",
-            "typeul = \"1.4.0\"    # Offline typing tutor\n... and 4 crates more\n",
+            "typerlude = \"1.4.0\"    # Offline typing tutor\n... and 4 crates more\n",
             0,
         );
         let output = run_registry_command(
             &cargo,
-            &["search", "typeul", "--limit", "1"],
+            &["search", "typerlude", "--limit", "1"],
             Duration::from_secs(5),
         )
         .unwrap();
@@ -776,7 +779,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn registry_probe_child() {
-        let Ok(method) = std::env::var("TYPEUL_REGISTRY_PROBE_METHOD") else {
+        let Ok(method) = std::env::var("TYPERLUDE_REGISTRY_PROBE_METHOD") else {
             return;
         };
         let method = match method.as_str() {
@@ -814,12 +817,12 @@ mod tests {
             (
                 "npm",
                 "1.4.0\n",
-                "<view><typeul><version><--silent><--registry=https://registry.npmjs.org/>",
+                "<view><typerlude><version><--silent><--registry=https://registry.npmjs.org/>",
             ),
             (
                 "cargo",
-                "typeul = \"1.4.0\"    # Offline typing tutor\n",
-                "<search><typeul><--limit><1><--registry><crates-io>",
+                "typerlude = \"1.4.0\"    # Offline typing tutor\n",
+                "<search><typerlude><--limit><1><--registry><crates-io>",
             ),
         ] {
             let capture = root.0.join(format!("{method}.capture"));
@@ -834,7 +837,7 @@ mod tests {
                 ])
                 .current_dir(&hostile)
                 .env("PATH", &bin)
-                .env("TYPEUL_REGISTRY_PROBE_METHOD", method)
+                .env("TYPERLUDE_REGISTRY_PROBE_METHOD", method)
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .output()

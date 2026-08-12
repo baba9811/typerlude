@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise one complete Typeul session through a real Unix PTY."""
+"""Exercise one complete Typerlude session through a real Unix PTY."""
 
 import errno
 import json
@@ -241,8 +241,8 @@ def run_smoke(binary, pty, fcntl, termios):
     material_path = None
     home_path = None
     result = None
-    with tempfile.TemporaryDirectory(prefix="typeul-pty-material-") as material_tmp:
-        with tempfile.TemporaryDirectory(prefix="typeul-pty-home-") as home_tmp:
+    with tempfile.TemporaryDirectory(prefix="typerlude-pty-material-") as material_tmp:
+        with tempfile.TemporaryDirectory(prefix="typerlude-pty-home-") as home_tmp:
             material_root = Path(material_tmp).resolve()
             home = Path(home_tmp).resolve()
             target = (material_root / "hello").resolve()
@@ -263,8 +263,8 @@ def run_smoke(binary, pty, fcntl, termios):
                 environment.update(
                     {
                         "LANG": "en_US.UTF-8",
-                        "TYPEUL_HOME": str(home),
-                        "TYPEUL_NO_UPDATE_CHECK": "1",
+                        "TYPERLUDE_HOME": str(home),
+                        "TYPERLUDE_NO_UPDATE_CHECK": "1",
                     }
                 )
                 child = subprocess.Popen(
@@ -305,9 +305,9 @@ def run_smoke(binary, pty, fcntl, termios):
                     deadline,
                     "waiting for the home screen",
                 )
-                write_all(master, b"\x1b", deadline, "leaving Typeul")
+                write_all(master, b"\x1b", deadline, "leaving Typerlude")
                 status = wait_for_exit(master, child, output, deadline)
-                require(status == 0, "Typeul exited with status " + str(status))
+                require(status == 0, "Typerlude exited with status " + str(status))
 
                 require(b"\x1b[?1049h" in output, "alternate screen was not entered")
                 cleanup = b"\x1b[?2004l\x1b[?1049l\x1b[?25h"

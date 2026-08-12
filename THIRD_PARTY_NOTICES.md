@@ -1,7 +1,7 @@
 # Third-Party Notices and Data Rights
 
-Typeul is a composite project. The Rust and JavaScript software is licensed
-under the MIT License in `LICENSE`. Practice data written by Typeul contributors
+Typerlude is a composite project. The Rust and JavaScript software is licensed
+under the MIT License in `LICENSE`. Practice data written by Typerlude contributors
 is released under CC0 1.0 Universal. Third-party material keeps the license or
 public-domain status stated below; MIT does not replace those terms.
 
@@ -11,7 +11,7 @@ bundled in `THIRD_PARTY_LICENSES.html`. In particular, `option-ext` 0.2.0 is
 MPL-2.0 licensed; its corresponding source is available from the upstream
 repository at commit `272f22fc9ea1ac6b08f01704af52c4ac338df4e2`:
 https://github.com/soc/option-ext/tree/272f22fc9ea1ac6b08f01704af52c4ac338df4e2.
-The Typeul MIT license does not replace or restrict the MPL-2.0 terms.
+The Typerlude MIT license does not replace or restrict the MPL-2.0 terms.
 
 The complete offline legal texts are bundled under `assets/licenses/` in the
 source tree, Cargo package, and root npm package, and under `licenses/` in
@@ -57,7 +57,7 @@ Retrieved: `2026-08-07`
 | `kor_base` | https://downloads.tatoeba.org/exports/per_language/kor/kor_sentences_base.tsv.bz2 | 93636 | `805c8e9ecbf6c8e0ad34e05deba03403f30af5310edfb2de3f66140d7965c1f6` | 249817 | `8fe248bd4d755432cfe1894ca94c90b53b33946e3929d73fe137646a5455fcd8` |
 | `eng_cc0` | https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_CC0.tsv.bz2 | 1288524 | `6ab169264a28008c25bf63042bf7535fc63137c9d7e09b7b8bd7812d10117d1b` | 4734738 | `9e8b3d587be1bd7cf299e09387aeec5707d48d988e1bea14cba091ebc5250262` |
 
-Typeul added only selection, packaging, and metadata. The sentence text is
+Typerlude added only selection, packaging, and metadata. The sentence text is
 unchanged: it was not normalized or otherwise modified (`modified = false`).
 
 ### Korean: CC BY 2.0 France
@@ -168,10 +168,10 @@ This basis is term expiration, not 17 U.S.C. § 105. Section 105 concerns U.S.
 federal-government material such as the federal page or transcription; it is
 not a claim that the federal government authored the 1787 Constitution.
 
-## Typeul-authored practice data and traditional-story retellings
+## Typerlude-authored practice data and traditional-story retellings
 
-All Typeul-authored word selections, essays, fiction, aphorisms, and retellings
-are new Typeul expression released by Typeul contributors under CC0 1.0
+All Typerlude-authored word selections, essays, fiction, aphorisms, and retellings
+are new Typerlude expression released by Typerlude contributors under CC0 1.0
 Universal. In particular, the four retellings use only the named traditional or
 public-domain plot bases below; no wording from a modern edition, translation,
 or adaptation was copied.
@@ -193,10 +193,10 @@ commit `1cef71605416a222e57225b544540ce0fcec18d4`. The palette source is
 https://raw.githubusercontent.com/nordtheme/nord/1cef71605416a222e57225b544540ce0fcec18d4/src/nord.css
 (5,380 bytes, SHA-256
 `b931ac3732582b2066b2d6cadec02d9820ba7081e6e3e404c31cb62d9315a962`).
-Typeul maps unchanged hex values from that palette to its theme roles:
+Typerlude maps unchanged hex values from that palette to its theme roles:
 `#2e3440` background, `#d8dee9` foreground, `#88c0d0` accent, `#a3be8c`
 correct, `#bf616a` error, `#ebcb8b` cursor, and `#81a1c1` dim. The dim value
-provides at least 4.5:1 contrast against the background. Typeul also renders
+provides at least 4.5:1 contrast against the background. Typerlude also renders
 errors bold and underlined, and renders the cursor bold and reversed, so color
 is not the only signal for either role.
 

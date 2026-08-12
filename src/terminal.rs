@@ -177,7 +177,7 @@ mod tests {
     fn fixture_app() -> App {
         App::new(
             Settings::default(),
-            AppPaths::from_override(std::env::temp_dir().join("typeul-tiny-terminal-unused")),
+            AppPaths::from_override(std::env::temp_dir().join("typerlude-tiny-terminal-unused")),
             ContentCatalog::load_builtins().unwrap(),
             ThemeCatalog::load_builtins().unwrap(),
             Vec::new(),

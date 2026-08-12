@@ -1,11 +1,11 @@
 {
-  "name": "typeul-linux-arm64",
-  "version": "1.0.3",
-  "description": "Typeul native binary for the Typeul typing tutor",
+  "name": "typerlude-linux-arm64",
+  "version": "1.0.0",
+  "description": "Typerlude native binary for the Typerlude typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/baba9811/typeul.git"
+    "url": "git+https://github.com/baba9811/typerlude.git"
   },
   "os": [
     "linux"
@@ -14,7 +14,7 @@
     "arm64"
   ],
   "files": [
-    "typeul",
+    "typerlude",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "THIRD_PARTY_LICENSES.html",

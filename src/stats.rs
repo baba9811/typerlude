@@ -583,7 +583,7 @@ mod tests {
     fn adaptive_catalog() -> (TestDir, ContentCatalog) {
         let nonce = NEXT_TEMP_DIR.fetch_add(1, Ordering::Relaxed);
         let dir = TestDir(
-            std::env::temp_dir().join(format!("typeul-stats-{}-{nonce}", std::process::id())),
+            std::env::temp_dir().join(format!("typerlude-stats-{}-{nonce}", std::process::id())),
         );
         fs::create_dir_all(&dir.0).unwrap();
         fs::write(
@@ -595,9 +595,9 @@ title = "Stats fixture English"
 language = "en"
 
 [source]
-author = "Typeul contributors"
+author = "Typerlude contributors"
 source_id = "stats-fixture-en"
-source_url = "https://github.com/baba9811/typeul"
+source_url = "https://github.com/baba9811/typerlude"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -666,9 +666,9 @@ title = "Stats fixture Korean"
 language = "ko"
 
 [source]
-author = "Typeul contributors"
+author = "Typerlude contributors"
 source_id = "stats-fixture-ko"
-source_url = "https://github.com/baba9811/typeul"
+source_url = "https://github.com/baba9811/typerlude"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false

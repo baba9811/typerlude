@@ -4,33 +4,38 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { readVersions, validateVersions } from "./check-versions.mjs";
 
 const nativePackages = [
-  ["typeul-darwin-arm64", "typeul-darwin-arm64"],
-  ["typeul-darwin-x64", "typeul-darwin-x64"],
-  ["typeul-linux-arm64", "typeul-linux-arm64"],
-  ["typeul-linux-x64", "typeul-linux-x64"],
-  ["typeul-win32-arm64-msvc", "@baba9811/typeul-win32-arm64-msvc"],
-  ["typeul-win32-x64-msvc", "@baba9811/typeul-win32-x64-msvc"],
+  ["typerlude-darwin-arm64", "typerlude-darwin-arm64"],
+  ["typerlude-darwin-x64", "typerlude-darwin-x64"],
+  ["typerlude-linux-arm64", "typerlude-linux-arm64"],
+  ["typerlude-linux-x64", "typerlude-linux-x64"],
+  ["typerlude-win32-arm64-msvc", "typerlude-win32-arm64-msvc"],
+  ["typerlude-win32-x64-msvc", "typerlude-win32-x64-msvc"],
 ];
 const packageNames = nativePackages.map(([, name]) => name);
 const packageDirectories = nativePackages.map(([directory]) => directory);
 
-function withFixture(change, check) {
-  const root = fs.mkdtempSync(path.join(process.cwd(), ".check-versions-"));
+function writeVersionFixture(root) {
   const version = "1.2.3";
   const optionalDependencies = Object.fromEntries(packageNames.map((name) => [name, version]));
   fs.writeFileSync(path.join(root, "Cargo.toml"), `[package]\nversion = "${version}"\n`);
-  fs.writeFileSync(path.join(root, "Cargo.lock"), `[[package]]\nname = "typeul"\nversion = "${version}"\n`);
+  fs.writeFileSync(path.join(root, "Cargo.lock"), `[[package]]\nname = "typerlude"\nversion = "${version}"\n`);
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
-    name: "@baba9811/typeul", version, optionalDependencies,
+    name: "typerlude", version, optionalDependencies,
   }));
   fs.mkdirSync(path.join(root, "npm"));
   for (const [directory, name] of nativePackages) {
     fs.mkdirSync(path.join(root, "npm", directory));
     fs.writeFileSync(path.join(root, "npm", directory, "package.json"), JSON.stringify({ name, version }));
   }
+}
+
+function withFixture(change, check) {
+  const root = fs.mkdtempSync(path.join(process.cwd(), ".check-versions-"));
+  writeVersionFixture(root);
   try {
     change(root);
     check(root);
@@ -39,11 +44,141 @@ function withFixture(change, check) {
   }
 }
 
+function namedWorkflowStep(workflow, name) {
+  const marker = `      - name: ${name}\n`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `missing workflow step: ${name}`);
+  const rest = workflow.slice(start + marker.length);
+  const boundary = rest.search(/\n(?:      - |  [a-z][a-z0-9-]*:)/);
+  const end = boundary === -1 ? workflow.length : start + marker.length + boundary;
+  return { start, end, text: workflow.slice(start, end) };
+}
+
+function replaceWorkflowStep(workflow, name, transform) {
+  const { start, end, text } = namedWorkflowStep(workflow, name);
+  return workflow.slice(0, start) + transform(text) + workflow.slice(end);
+}
+
+function moveWorkflowStepAfter(workflow, name, destination) {
+  const source = namedWorkflowStep(workflow, name);
+  const withoutSource = workflow.slice(0, source.start) + workflow.slice(source.end);
+  const target = namedWorkflowStep(withoutSource, destination);
+  return withoutSource.slice(0, target.end) + `\n${source.text}` + withoutSource.slice(target.end);
+}
+
+function replaceWorkflowJob(workflow, name, transform) {
+  const marker = `  ${name}:\n`;
+  const start = workflow.indexOf(marker);
+  assert.notEqual(start, -1, `missing workflow job: ${name}`);
+  const rest = workflow.slice(start + marker.length);
+  const boundary = rest.search(/\n {2}[a-z][a-z0-9-]*:\n/);
+  const end = boundary === -1 ? workflow.length : start + marker.length + boundary;
+  return workflow.slice(0, start) + transform(workflow.slice(start, end)) + workflow.slice(end);
+}
+
+function fencedBashAfter(markdown, marker) {
+  const markerIndex = markdown.indexOf(marker);
+  assert.notEqual(markerIndex, -1, `missing documentation marker: ${marker}`);
+  const start = markdown.indexOf("```bash\n", markerIndex);
+  assert.notEqual(start, -1, `missing bash block after: ${marker}`);
+  const body = start + "```bash\n".length;
+  const end = markdown.indexOf("\n```", body);
+  assert.notEqual(end, -1, `unterminated bash block after: ${marker}`);
+  return markdown.slice(body, end);
+}
+
+function assertStepCondition(step, name, condition) {
+  assert.equal(
+    step.text.match(/^ {8}if: (.+)$/m)?.[1],
+    condition,
+    `${name} must use its exact registry condition`,
+  );
+}
+
+function assertNoLongLivedRegistrySecret(step, name) {
+  assert.doesNotMatch(
+    step.text,
+    /secrets\.(?:CRATES_TOKEN|NPM_TOKEN)/,
+    `${name} must not reference long-lived registry secrets`,
+  );
+}
+
+function assertReleaseSourcePolicy(workflow) {
+  const validation = namedWorkflowStep(workflow, "Validate tag and ancestry");
+  assert.match(
+    validation.text,
+    /^ {10}\[\[ "\$GITHUB_EVENT_NAME" != "workflow_dispatch" \|\| "\$tag_commit" == "\$GITHUB_SHA" \]\] \|\| \{$/m,
+    "manual dispatch must bind the selected ref commit to the release tag commit",
+  );
+
+  const checkoutSteps = [...workflow.matchAll(
+    /^ {6}- uses: actions\/checkout@[^\n]+(?:\n(?! {6}- )[^\n]*)*/gm,
+  )].map((match) => match[0]);
+  assert.equal(checkoutSteps.length, 5, "release workflow must retain five source checkouts");
+  for (const step of checkoutSteps) {
+    assert.equal(
+      step.match(/^ {10}ref: (.+)$/m)?.[1],
+      "${{ env.RELEASE_TAG }}",
+      "every release source checkout must use RELEASE_TAG",
+    );
+  }
+}
+
+function assertReleaseDocumentationVersions(markdown) {
+  const bootstrap = fencedBashAfter(markdown, "Verify the first public 1.0.0 publication");
+  assert.match(bootstrap, /^version=1\.0\.0$/m);
+  assert.match(bootstrap, /cargo info "typerlude@\$version"/);
+  assert.match(bootstrap, /npm view "\$package@\$version"/);
+  assert.match(bootstrap, /gh release view "v\$version"/);
+  assert.doesNotMatch(bootstrap, /1\.0\.1/);
+
+  const oidc = fencedBashAfter(markdown, "Publish and verify the OIDC-only 1.0.1 proof release");
+  assert.match(oidc, /^version=1\.0\.1$/m);
+  assert.match(oidc, /VERSION="\$version" make release/);
+  assert.match(oidc, /cargo info "typerlude@\$version"/);
+  assert.match(oidc, /npm view "\$package@\$version"/);
+  assert.match(oidc, /gh release view "v\$version"/);
+  assert.doesNotMatch(oidc, /1\.0\.0/);
+}
+
+function assertRegistryReleasePolicy(workflow) {
+  const bootstrap = "vars.TYPERLUDE_REGISTRY_BOOTSTRAP";
+  const cargoCondition = `steps.cargo-version.outputs.publish == 'true' && ${bootstrap}`;
+  const preflight = namedWorkflowStep(workflow, "Preflight registry bootstrap credentials");
+  const cargoBootstrap = namedWorkflowStep(workflow, "Publish Cargo bootstrap");
+
+  assertStepCondition(preflight, "Preflight registry bootstrap credentials", `${bootstrap} == '1'`);
+  assert.match(preflight.text, /^ {10}CARGO_REGISTRY_TOKEN: \$\{\{ secrets\.CRATES_TOKEN \}\}$/m);
+  assert.match(preflight.text, /^ {10}NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}$/m);
+  assert.match(
+    preflight.text,
+    /^ {10}test -n "\$CARGO_REGISTRY_TOKEN" \|\| \{ echo "CRATES_TOKEN is required for bootstrap" >&2; exit 1; \}$/m,
+    "preflight must require CARGO_REGISTRY_TOKEN",
+  );
+  assert.match(
+    preflight.text,
+    /^ {10}test -n "\$NODE_AUTH_TOKEN" \|\| \{ echo "NPM_TOKEN is required for bootstrap" >&2; exit 1; \}$/m,
+    "preflight must require NODE_AUTH_TOKEN",
+  );
+  assert.ok(preflight.start < cargoBootstrap.start, "preflight must precede Cargo bootstrap publication");
+  assertStepCondition(cargoBootstrap, "Publish Cargo bootstrap", `${cargoCondition} == '1'`);
+
+  for (const name of ["Authenticate with crates.io", "Require OIDC credential", "Publish Cargo with OIDC"]) {
+    const step = namedWorkflowStep(workflow, name);
+    assertStepCondition(step, name, `${cargoCondition} != '1'`);
+    assertNoLongLivedRegistrySecret(step, name);
+  }
+
+  const npmOidc = namedWorkflowStep(workflow, "Publish npm with OIDC, native packages first");
+  assertStepCondition(npmOidc, "Publish npm with OIDC, native packages first", `${bootstrap} != '1'`);
+  assertNoLongLivedRegistrySecret(npmOidc, "Publish npm with OIDC, native packages first");
+}
+
 test("reports every mismatched package path", () => {
   assert.throws(() => validateVersions([
     ["Cargo.toml", "1.2.3"], ["package.json", "1.2.4"],
-    ["npm/typeul-linux-x64/package.json", "1.2.2"],
-  ], "v1.2.3"), /package.json.*typeul-linux-x64/s);
+    ["npm/typerlude-linux-x64/package.json", "1.2.2"],
+  ], "v1.2.3"), /package.json.*typerlude-linux-x64/s);
 });
 
 test("reads one complete synchronized fixture", () => {
@@ -57,7 +192,7 @@ test("rejects invalid fixture layouts", () => {
     ["wrong root package name", (root) => {
       const file = path.join(root, "package.json");
       const pkg = JSON.parse(fs.readFileSync(file));
-      pkg.name = "typeul";
+      pkg.name = "not-typerlude";
       fs.writeFileSync(file, JSON.stringify(pkg));
     }, /root npm package/],
     ["missing manifest", (root) => fs.rmSync(path.join(root, "npm", packageDirectories[0]), { recursive: true }), /Native manifests/],
@@ -74,8 +209,8 @@ test("rejects invalid fixture layouts", () => {
       pkg.optionalDependencies.extra = "1.2.3";
       fs.writeFileSync(file, JSON.stringify(pkg));
     }, /optionalDependencies/],
-    ["missing lock record", (root) => fs.writeFileSync(path.join(root, "Cargo.lock"), ""), /exactly one typeul package/],
-    ["duplicate lock record", (root) => fs.appendFileSync(path.join(root, "Cargo.lock"), `\n[[package]]\nname = "typeul"\nversion = "1.2.3"\n`), /exactly one typeul package/],
+    ["missing lock record", (root) => fs.writeFileSync(path.join(root, "Cargo.lock"), ""), /exactly one typerlude package/],
+    ["duplicate lock record", (root) => fs.appendFileSync(path.join(root, "Cargo.lock"), `\n[[package]]\nname = "typerlude"\nversion = "1.2.3"\n`), /exactly one typerlude package/],
   ]) {
     withFixture(change, (root) => assert.throws(() => readVersions(root), message), name);
   }
@@ -96,12 +231,12 @@ test("reports a mismatched optional dependency from a fixture", () => {
   withFixture((root) => {
     const file = path.join(root, "package.json");
     const pkg = JSON.parse(fs.readFileSync(file));
-    pkg.optionalDependencies["typeul-linux-x64"] = "1.2.4";
+    pkg.optionalDependencies["typerlude-linux-x64"] = "1.2.4";
     fs.writeFileSync(file, JSON.stringify(pkg));
   }, (root) => {
     assert.throws(
       () => validateVersions(readVersions(root), "v1.2.3"),
-      /optionalDependencies\.typeul-linux-x64 \(1\.2\.4\)/,
+      /optionalDependencies\.typerlude-linux-x64 \(1\.2\.4\)/,
     );
   });
 });
@@ -126,13 +261,212 @@ test("ignores a branch ref when no release tag is supplied", () => {
   assert.equal(result.stdout, `${version}\n`);
 });
 
-test("release uses Cargo OIDC independently from npm bootstrap", () => {
+test("direct execution guard compares resolved platform file URLs", async () => {
+  const module = await import("./check-versions.mjs");
+  const entry = path.join("directory with spaces", "check versions.mjs");
+  const entryUrl = pathToFileURL(path.resolve(entry)).href;
+  assert.equal(module.isDirectExecution(entryUrl, entry), true);
+  assert.equal(module.isDirectExecution(entryUrl, `${entry}.other`), false);
+  assert.equal(module.isDirectExecution(entryUrl, undefined), false);
+});
+
+test("executes from a real path containing spaces", () => {
+  const temporary = fs.mkdtempSync(path.join(process.cwd(), ".versions with spaces "));
+  const root = path.join(temporary, "repository with spaces");
+  try {
+    fs.mkdirSync(root);
+    writeVersionFixture(root);
+    fs.mkdirSync(path.join(root, "scripts"));
+    fs.mkdirSync(path.join(root, "bin"));
+    fs.copyFileSync("scripts/check-versions.mjs", path.join(root, "scripts", "check-versions.mjs"));
+    fs.copyFileSync("bin/typerlude.js", path.join(root, "bin", "typerlude.js"));
+
+    const result = spawnSync(process.execPath, [path.join(root, "scripts", "check-versions.mjs")], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, "1.2.3\n");
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("CI and release use the complete Typerlude native artifact family", () => {
+  const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
   const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
-  assert.match(workflow, /rust-lang\/crates-io-auth-action@/);
+
+  for (const source of [ci, workflow]) {
+    const matrixPackages = [...source.matchAll(/^\s+package: (typerlude-[^\s]+)$/gm)].map((match) => match[1]);
+    assert.deepEqual(matrixPackages.sort(), [...packageNames].sort());
+    assert.equal((source.match(/^\s+executable: typerlude(?:\.exe)?$/gm) ?? []).length, 6);
+    assert.match(source, /archive[_Rr]oot[^\n]*typerlude-/);
+    assert.match(source, /artifacts[\\/]typerlude-/);
+    assert.doesNotMatch(source, new RegExp(["type", "ul"].join(""), "i"));
+  }
+
+  assert.match(fs.readFileSync("Makefile", "utf8"), /target\/release\/typerlude/);
+});
+
+test("one registry bootstrap switch gates both token paths before ordered publication", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  const bootstrapSwitches = [...workflow.matchAll(/vars\.([A-Z][A-Z0-9_]*BOOTSTRAP)/g)]
+    .map((match) => match[1]);
+
+  assert.deepEqual([...new Set(bootstrapSwitches)], ["TYPERLUDE_REGISTRY_BOOTSTRAP"]);
+  assert.match(workflow, /TYPERLUDE_REGISTRY_BOOTSTRAP must be empty or 1/);
+  assert.doesNotMatch(workflow, new RegExp(["TYPE", "UL", "_(?:NPM_)?BOOTSTRAP"].join("")));
+  assertRegistryReleasePolicy(workflow);
+  assert.match(workflow, /Publish npm bootstrap, native packages first[\s\S]*publish-npm-packages\.mjs "\$version" --provenance/);
+  assert.match(workflow, /publish-npm:\n\s+needs: publish-cargo/);
+});
+
+test("normal registry publication remains OIDC-only", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  const cargoAuth = namedWorkflowStep(workflow, "Authenticate with crates.io");
+  assert.match(cargoAuth.text, /rust-lang\/crates-io-auth-action@/);
   assert.match(workflow, /Verify Cargo package again[\s\S]*cargo package --locked[\s\S]*cargo publish --dry-run --locked/);
-  assert.doesNotMatch(workflow, /Publish Cargo bootstrap|secrets\.CRATES_TOKEN|TYPEUL_BOOTSTRAP/);
-  assert.match(workflow, /TYPEUL_NPM_BOOTSTRAP/);
-  assert.match(workflow, /Publish npm bootstrap, native packages first/);
+  assertRegistryReleasePolicy(workflow);
+});
+
+test("release source policy binds dispatch and every checkout to the release tag", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  assertReleaseSourcePolicy(workflow);
+
+  const mismatchedDispatch = workflow.replace(
+    '"$tag_commit" == "$GITHUB_SHA"',
+    '"$tag_commit" == "$tag_commit"',
+  );
+  assert.notEqual(mismatchedDispatch, workflow, "dispatch mismatch mutation must change the workflow");
+  assert.throws(
+    () => assertReleaseSourcePolicy(mismatchedDispatch),
+    /manual dispatch must bind/,
+  );
+
+  const wrongCheckout = replaceWorkflowJob(workflow, "publish-npm", (job) =>
+    job.replace("ref: ${{ env.RELEASE_TAG }}", "ref: ${{ github.sha }}"));
+  assert.notEqual(wrongCheckout, workflow, "checkout mutation must change the workflow");
+  assert.throws(
+    () => assertReleaseSourcePolicy(wrongCheckout),
+    /every release source checkout must use RELEASE_TAG/,
+  );
+});
+
+test("release dispatch documentation selects the same tag as its input", () => {
+  const markdown = fs.readFileSync("docs/releasing.md", "utf8");
+  assert.match(
+    markdown,
+    /tag=v1\.0\.0\ngh workflow run release\.yml --repo baba9811\/typerlude --ref "\$tag" -f tag="\$tag"/,
+  );
+});
+
+test("release documentation separates bootstrap and OIDC verification versions", () => {
+  assertReleaseDocumentationVersions(fs.readFileSync("docs/releasing.md", "utf8"));
+});
+
+test("bootstrap upload parses only exact dotenv keys without executing or deleting the file", () => {
+  const markdown = fs.readFileSync("docs/releasing.md", "utf8");
+  const block = fencedBashAfter(markdown, "upload it without printing it:");
+  const executable = block.replace(/^\(\n/, "").replace(/\n\)$/, "");
+  assert.notEqual(executable, block, "bootstrap upload must remain isolated in a subshell");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-bootstrap-doc-"));
+  const fakeBin = path.join(root, "bin");
+  const dotenv = path.join(root, ".env");
+  const evaluated = path.join(root, "dotenv-was-executed");
+  const calls = path.join(root, "gh-calls");
+  const secrets = path.join(root, "gh-secrets");
+  try {
+    fs.mkdirSync(fakeBin);
+    fs.writeFileSync(dotenv, [
+      "CRATES_TOKEN=crates-secret",
+      `touch "${evaluated}"`,
+      "UNRELATED=value",
+      "NPM_TOKEN=npm-secret",
+      "",
+    ].join("\n"), { mode: 0o600 });
+    const fakeGh = path.join(fakeBin, "gh");
+    fs.writeFileSync(fakeGh, [
+      "#!/bin/sh",
+      "set -eu",
+      "printf '%s\\n' \"$*\" >> \"$GH_CALLS\"",
+      "if [ \"$1 $2\" = \"secret set\" ]; then",
+      "  value=\"$(cat)\"",
+      "  printf '%s=%s\\n' \"$3\" \"$value\" >> \"$GH_SECRETS\"",
+      "fi",
+      "",
+    ].join("\n"), { mode: 0o700 });
+    const environment = {
+      ...process.env,
+      PATH: `${fakeBin}${path.delimiter}${process.env.PATH ?? ""}`,
+      GH_CALLS: calls,
+      GH_SECRETS: secrets,
+    };
+    delete environment.CRATES_TOKEN;
+    delete environment.NPM_TOKEN;
+    const result = spawnSync("bash", ["-c", [
+      "set -euo pipefail",
+      executable,
+      'test -z "${CRATES_TOKEN+x}"',
+      'test -z "${NPM_TOKEN+x}"',
+    ].join("\n")], { cwd: root, encoding: "utf8", env: environment });
+
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    assert.equal(fs.existsSync(evaluated), false, ".env contents must be parsed, never executed");
+    assert.equal(fs.existsSync(dotenv), true, ".env must remain until bootstrap revocation is verified");
+    assert.equal(fs.statSync(dotenv).mode & 0o777, 0o600);
+    assert.deepEqual(fs.readFileSync(calls, "utf8").trim().split("\n"), [
+      "secret set CRATES_TOKEN --env release --repo baba9811/typerlude",
+      "secret set NPM_TOKEN --env release --repo baba9811/typerlude",
+      "variable set TYPERLUDE_REGISTRY_BOOTSTRAP --body 1 --env release --repo baba9811/typerlude",
+    ]);
+    assert.deepEqual(fs.readFileSync(secrets, "utf8").trim().split("\n"), [
+      "CRATES_TOKEN=crates-secret",
+      "NPM_TOKEN=npm-secret",
+    ]);
+    assert.doesNotMatch(block, /\b(?:source|eval)\b/);
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, /(?:crates|npm)-secret/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("registry security assertions reject unsafe workflow mutations", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  const mutations = [
+    [
+      "missing Cargo credential preflight",
+      replaceWorkflowStep(workflow, "Preflight registry bootstrap credentials", (step) =>
+        step.replace(/^\s+test -n "\$CARGO_REGISTRY_TOKEN".*$/m, "")),
+      /preflight must require CARGO_REGISTRY_TOKEN/,
+    ],
+    [
+      "missing npm credential preflight",
+      replaceWorkflowStep(workflow, "Preflight registry bootstrap credentials", (step) =>
+        step.replace(/^\s+test -n "\$NODE_AUTH_TOKEN".*$/m, "")),
+      /preflight must require NODE_AUTH_TOKEN/,
+    ],
+    [
+      "preflight after Cargo publication",
+      moveWorkflowStepAfter(workflow, "Preflight registry bootstrap credentials", "Publish Cargo bootstrap"),
+      /preflight must precede Cargo bootstrap publication/,
+    ],
+    [
+      "long-lived Cargo secret in OIDC publication",
+      replaceWorkflowStep(workflow, "Publish Cargo with OIDC", (step) =>
+        step.replace("steps.crates-auth.outputs.token", "secrets.CRATES_TOKEN")),
+      /Publish Cargo with OIDC must not reference long-lived registry secrets/,
+    ],
+    [
+      "long-lived npm secret in OIDC publication",
+      replaceWorkflowStep(workflow, "Publish npm with OIDC, native packages first", (step) =>
+        step.replace("        shell: bash\n", "        env:\n          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}\n        shell: bash\n")),
+      /Publish npm with OIDC, native packages first must not reference long-lived registry secrets/,
+    ],
+  ];
+
+  for (const [name, mutated, message] of mutations) {
+    assert.throws(() => assertRegistryReleasePolicy(mutated), message, name);
+  }
 });
 
 test("release requires a verified signed tag", () => {
@@ -141,6 +475,7 @@ test("release requires a verified signed tag", () => {
   assert.match(workflow, /\.object\.type == "tag"/);
   assert.match(workflow, /\.verification\.verified == true/);
   assert.match(release, /git tag -s /);
+  assert.match(release, /git tag -s -m "Typerlude v\$version" "v\$version"/);
 });
 
 test("Make release rejects command-line VERSION without evaluating Make functions", () => {
@@ -175,7 +510,7 @@ function run(root, command, args, options = {}) {
 }
 
 function releaseFailureFixture(failure) {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-release-test-"));
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-release-test-"));
   const remote = path.join(temporary, "origin.git");
   const root = path.join(temporary, "repo");
   const fakeBin = path.join(temporary, "bin");
@@ -200,10 +535,10 @@ function releaseFailureFixture(failure) {
     console.log(version);
   `);
   fs.writeFileSync(path.join(root, "scripts/verify-package.mjs"), "");
-  fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\nname = \"typeul\"\nversion = \"1.0.0\"\n");
+  fs.writeFileSync(path.join(root, "Cargo.toml"), "[package]\nname = \"typerlude\"\nversion = \"1.0.0\"\n");
   fs.writeFileSync(path.join(root, "Cargo.lock"), "version = 3\n");
   fs.writeFileSync(path.join(root, "package.json"), JSON.stringify({
-    name: "@baba9811/typeul",
+    name: "typerlude",
     version: "1.0.0",
     optionalDependencies: Object.fromEntries(packageNames.map((name) => [name, "1.0.0"])),
   }, null, 2));

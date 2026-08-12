@@ -4,6 +4,7 @@ use std::{
     fs,
     io::{ErrorKind, Write},
     path::{Path, PathBuf},
+    process::{Command, Stdio},
     sync::{
         Arc, Barrier,
         atomic::{AtomicBool, AtomicU64, Ordering},
@@ -12,7 +13,7 @@ use std::{
     time::{Duration, Instant},
 };
 use time::{OffsetDateTime, macros::date};
-use typeul::{
+use typerlude::{
     config::Settings,
     i18n::initial_ui_language,
     model::{Language, PracticeKind},
@@ -27,7 +28,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-storage-{}-{}",
+            "typerlude-storage-{}-{}",
             std::process::id(),
             NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed)
         ));
@@ -71,7 +72,7 @@ fn fixture_session(id: &str) -> SessionRecord {
 
 #[test]
 fn override_keeps_every_path_under_one_root() {
-    let root = PathBuf::from("portable-typeul");
+    let root = PathBuf::from("portable-typerlude");
     let paths = AppPaths::from_override(root.clone());
 
     assert_eq!(paths.config, root.join("config.toml"));
@@ -79,6 +80,44 @@ fn override_keeps_every_path_under_one_root() {
     assert_eq!(paths.content, root.join("content"));
     assert_eq!(paths.themes, root.join("themes"));
     assert_eq!(paths.update_cache, root.join("cache/update.json"));
+}
+
+#[test]
+fn discovery_uses_typerlude_home_and_project_directories() {
+    let root = TestDir::new();
+    let home = root.path().join("typerlude-home");
+    let overridden = Command::new(env!("CARGO_BIN_EXE_typerlude"))
+        .arg("paths")
+        .env("TYPERLUDE_HOME", &home)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(overridden.status.success());
+    assert!(
+        String::from_utf8_lossy(&overridden.stdout).contains(home.to_str().unwrap()),
+        "{}",
+        String::from_utf8_lossy(&overridden.stdout)
+    );
+
+    let expected = directories::ProjectDirs::from("", "", "typerlude")
+        .unwrap()
+        .config_dir()
+        .join("config.toml");
+    let legacy_home = root.path().join("legacy-home");
+    let legacy_home_key = ["TYPE", "UL_HOME"].concat();
+    let discovered = Command::new(env!("CARGO_BIN_EXE_typerlude"))
+        .arg("paths")
+        .env_remove("TYPERLUDE_HOME")
+        .env(legacy_home_key, legacy_home)
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(discovered.status.success());
+    assert!(
+        String::from_utf8_lossy(&discovered.stdout).contains(expected.to_str().unwrap()),
+        "{}",
+        String::from_utf8_lossy(&discovered.stdout)
+    );
 }
 
 #[test]

@@ -3,17 +3,17 @@
 [English](content-packs.md) | [한국어](content-packs.ko.md)
 
 Use a content pack when you want a reusable collection with searchable metadata and explicit
-provenance. For one-off practice, `typeul FILE` is simpler.
+provenance. For one-off practice, `typerlude FILE` is simpler.
 
 ## Add a pack
 
-Validate before installing. Typeul uses the same schema, NFC, duplicate, provenance, and license
+Validate before installing. Typerlude uses the same schema, NFC, duplicate, provenance, and license
 checks at validation and startup, and never overwrites an existing pack.
 
 ```bash
-typeul content validate my-pack.toml
-typeul content add my-pack.toml
-typeul content list
+typerlude content validate my-pack.toml
+typerlude content add my-pack.toml
+typerlude content list
 ```
 
 Minimal example:
@@ -55,8 +55,8 @@ follow every license condition.
 ## Disable a pack
 
 ```bash
-typeul content disable my-pack
+typerlude content disable my-pack
 ```
 
-Only user packs can be disabled. Typeul moves the accepted file into `content/disabled/` without
-overwriting an existing entry. Run `typeul paths` to find that directory.
+Only user packs can be disabled. Typerlude moves the accepted file into `content/disabled/` without
+overwriting an existing entry. Run `typerlude paths` to find that directory.

@@ -6,7 +6,7 @@ use std::{
     process::Command,
     sync::atomic::{AtomicU64, Ordering},
 };
-use typeul::{
+use typerlude::{
     i18n::{TextKey, initial_ui_language, text},
     model::Language,
     theme::{ThemeCatalog, ThemeSpec, parse_theme},
@@ -19,7 +19,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new(name: &str) -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-ui-foundation-{name}-{}-{}",
+            "typerlude-ui-foundation-{name}-{}-{}",
             std::process::id(),
             NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed)
         ));
@@ -64,6 +64,11 @@ fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
     for &key in TextKey::ALL {
         let korean = text(Language::Ko, key);
         let english = text(Language::En, key);
+        if key == TextKey::AppTitle {
+            assert_eq!(korean, "Typerlude");
+            assert_eq!(english, "Typerlude");
+            continue;
+        }
         assert!(!korean.trim().is_empty(), "Korean {key:?}");
         assert!(!english.trim().is_empty(), "English {key:?}");
         assert_ne!(korean, english, "{key:?}");

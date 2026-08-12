@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { pathToFileURL } from "node:url";
 
-const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
+const { nativePackages } = createRequire(import.meta.url)("../bin/typerlude.js");
 const versionPattern = /^\d+\.\d+\.\d+$/;
-const rootPackageName = "@baba9811/typeul";
+const rootPackageName = "typerlude";
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -19,10 +20,10 @@ function cargoPackageVersion(cargoToml) {
 
 function cargoLockVersion(cargoLock) {
   const records = cargoLock.split(/^\[\[package\]\]\s*$/m)
-    .filter((packageRecord) => /^name\s*=\s*"typeul"\s*$/m.test(packageRecord));
-  if (records.length !== 1) throw new Error("Cargo.lock must contain exactly one typeul package");
+    .filter((packageRecord) => /^name\s*=\s*"typerlude"\s*$/m.test(packageRecord));
+  if (records.length !== 1) throw new Error("Cargo.lock must contain exactly one typerlude package");
   const version = records[0].match(/^version\s*=\s*"([^"]+)"\s*$/m)?.[1];
-  if (!version) throw new Error("Cargo.lock typeul package is missing version");
+  if (!version) throw new Error("Cargo.lock typerlude package is missing version");
   return version;
 }
 
@@ -34,7 +35,7 @@ export function readVersions(root) {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
-  const expectedDirectories = nativePackages.map(({ directory }) => directory).sort();
+  const expectedDirectories = nativePackages.map(({ name }) => name).sort();
   const expectedNames = nativePackages.map(({ name }) => name).sort();
 
   if (rootPackage.name !== rootPackageName) {
@@ -52,10 +53,10 @@ export function readVersions(root) {
     ["Cargo.lock", cargoLockVersion(cargoLock)],
     ["package.json", rootPackage.version],
   ];
-  for (const { directory, name } of nativePackages) {
-    const manifest = readJson(path.join(root, "npm", directory, "package.json"));
-    if (manifest.name !== name) throw new Error(`npm/${directory}/package.json has name ${manifest.name}`);
-    records.push([`npm/${directory}/package.json`, manifest.version]);
+  for (const { name } of nativePackages) {
+    const manifest = readJson(path.join(root, "npm", name, "package.json"));
+    if (manifest.name !== name) throw new Error(`npm/${name}/package.json has name ${manifest.name}`);
+    records.push([`npm/${name}/package.json`, manifest.version]);
     records.push([`package.json optionalDependencies.${name}`, rootPackage.optionalDependencies[name]]);
   }
   return records;
@@ -76,6 +77,10 @@ export function validateVersions(records, optionalTag) {
   return version;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+export function isDirectExecution(moduleUrl, argv1) {
+  return argv1 !== undefined && moduleUrl === pathToFileURL(path.resolve(argv1)).href;
+}
+
+if (isDirectExecution(import.meta.url, process.argv[1])) {
   console.log(validateVersions(readVersions(process.cwd()), process.argv[2]));
 }

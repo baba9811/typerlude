@@ -4,9 +4,9 @@ title = "Korean Long Texts"
 language = "ko"
 
 [source]
-author = "Typeul contributors"
-source_id = "typeul-ko-texts-v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude-ko-texts-v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -22,9 +22,9 @@ text = """처음부터 완벽한 문장을 만들겠다고 마음먹으면 손�
 
 고칠 자리를 남겨 둔 글은 실패한 글이 아니다. 다음 생각이 들어올 문이 있는 글이다. 한 번 쉬었다 돌아오면 불필요한 말은 덜어 내고, 흐린 부분에는 구체적인 장면을 보탤 수 있다. 수정은 처음의 부족함을 숨기는 일이 아니라 생각이 제 모양을 찾도록 돕는 과정이다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-essay-room-to-revise:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-essay-room-to-revise:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -42,9 +42,9 @@ text = """창문을 닦는 날에는 유리부터 문지르기 쉽지만, 먼저
 
 깨끗해진 창은 대단한 변화를 만들지 않는다. 다만 바깥의 나뭇가지와 건너편 지붕이 전보다 또렷하게 보인다. 손을 쓴 결과가 바로 드러나는 일은 복잡한 하루에 조용한 마침표를 찍어 준다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-essay-window-routine:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-essay-window-routine:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -62,9 +62,9 @@ text = """비가 그친 저녁, 민서는 우체국 대기 의자 밑에서 파�
 
 할머니는 우산을 펼쳐 살피고는 아이에게 손잡이를 맡겼다. 두 사람은 좁은 우산 아래 나란히 서서 우체국을 나섰다. 민서는 분실물 표에 돌려준 시각을 적고 창밖을 보았다. 맑아진 골목 끝에서 파란 원 하나가 천천히 멀어지고 있었다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-fiction-blue-umbrella:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-fiction-blue-umbrella:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -82,9 +82,9 @@ text = """마을 텃밭의 봄 준비가 끝날 무렵, 서랍 뒤에서 누런 
 
 초여름에 주황빛 꽃이 피자 오래전 텃밭을 돌보던 사람이 금잔화라고 알려 주었다. 그는 씨앗을 받은 날을 기억했지만 봉투에 이름 쓰는 일은 잊었다며 웃었다. 가을이 되자 수현은 새 씨앗을 받아 품종과 날짜를 또렷이 적었다. 마지막 봉투는 그렇게 다음 봉투들의 시작이 되었다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-fiction-last-seed:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-fiction-last-seed:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -108,9 +108,9 @@ text = """빠른 대답이 늘 친절한 것은 아니다. 잠시 생각한 뒤 
 
 끝까지 해낸 일만 기록할 필요는 없다. 멈춘 이유를 적어 두면 다음 시작은 같은 자리에서 헤매지 않는다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-aphorism-daily-bearings:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-aphorism-daily-bearings:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -128,9 +128,9 @@ text = """한마을에 성품이 다른 형제가 살았다. 형 놀부는 넉�
 
 흥부는 형의 실패를 비웃지 않고 사람들을 불러 함께 집을 정돈했다. 놀부는 자신이 얻으려 한 것이 보상이 아니라 남의 몫이었다는 사실을 뒤늦게 깨달았다. 그는 동생에게 사과하고 창고를 열어 마을과 곡식을 나누었다. 두 형제의 형편은 하루아침에 같아지지 않았지만, 그날부터 도움을 주고받는 문은 닫히지 않았다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-retelling-heungbu-nolbu:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-retelling-heungbu-nolbu:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false
@@ -148,9 +148,9 @@ text = """산마을의 오누이는 장에 간 어머니를 기다리고 있었�
 
 하늘에 닿은 오누이는 세상을 비출 일을 맡았다. 처음에는 동생이 밤을 두려워했으나 누이가 곁에서 지켜 주겠다고 약속하자 서로의 자리를 정할 수 있었다. 한 아이는 낮을 밝히는 해가 되고 다른 아이는 어둠을 살피는 달이 되었다. 두 빛은 번갈아 산마을의 지붕과 숲길을 비추었다."""
 [items.source]
-author = "Typeul contributors"
-source_id = "typeul:ko-text-retelling-sun-moon-siblings:v1.0.0"
-source_url = "https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/ko-texts.toml"
+author = "Typerlude contributors"
+source_id = "typerlude:ko-text-retelling-sun-moon-siblings:v1.0.0"
+source_url = "https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/ko-texts.toml"
 license = "CC0-1.0"
 license_url = "https://creativecommons.org/publicdomain/zero/1.0/"
 modified = false

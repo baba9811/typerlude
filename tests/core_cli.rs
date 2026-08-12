@@ -12,7 +12,7 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use typeul::{
+use typerlude::{
     VERSION,
     app::CustomTextSource,
     cli::{Command, ContentCommand, Exit, PracticeArgs, Startup, is_input_error, parse_args, run},
@@ -27,7 +27,7 @@ struct TestDir(PathBuf);
 impl TestDir {
     fn new(name: &str) -> Self {
         let path = std::env::temp_dir().join(format!(
-            "typeul-cli-{name}-{}-{}",
+            "typerlude-cli-{name}-{}-{}",
             std::process::id(),
             NEXT_TEST_DIR.fetch_add(1, Ordering::Relaxed)
         ));
@@ -51,20 +51,18 @@ impl Drop for TestDir {
 }
 
 fn binary(root: &Path, args: &[&str]) -> Output {
-    ProcessCommand::new(env!("CARGO_BIN_EXE_typeul"))
+    ProcessCommand::new(env!("CARGO_BIN_EXE_typerlude"))
         .args(args)
-        .env("TYPEUL_HOME", root)
-        .env("TYPEUL_TEST", "1")
+        .env("TYPERLUDE_HOME", root)
         .stdin(Stdio::null())
         .output()
         .unwrap()
 }
 
 fn piped_binary(root: &Path, args: &[&str], input: &[u8]) -> Output {
-    let mut child = ProcessCommand::new(env!("CARGO_BIN_EXE_typeul"))
+    let mut child = ProcessCommand::new(env!("CARGO_BIN_EXE_typerlude"))
         .args(args)
-        .env("TYPEUL_HOME", root)
-        .env("TYPEUL_TEST", "1")
+        .env("TYPERLUDE_HOME", root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -268,10 +266,12 @@ fn version_help_licenses_and_paths_are_headless() {
 
     let version = binary(&home, &["--version"]);
     assert!(version.status.success());
-    assert_eq!(stdout(&version).trim(), format!("typeul {VERSION}"));
+    assert_eq!(env!("CARGO_PKG_NAME"), "typerlude");
+    assert_eq!(stdout(&version).trim(), format!("typerlude {VERSION}"));
 
     let help = binary(&home, &["--help"]);
     assert!(help.status.success());
+    assert!(stdout(&help).starts_with("Usage:\n  typerlude\n"));
     for command in ["quick", "content add", "paths", "licenses", "update"] {
         assert!(stdout(&help).contains(command), "{command}");
     }
@@ -279,7 +279,7 @@ fn version_help_licenses_and_paths_are_headless() {
     let licenses = binary(&home, &["licenses"]);
     assert!(licenses.status.success());
     for text in [
-        "Typeul software: MIT",
+        "Typerlude software: MIT",
         "THIRD_PARTY_NOTICES.md",
         "CC0 1.0 Universal",
         "Attribution 2.0 France",
@@ -302,6 +302,32 @@ fn version_help_licenses_and_paths_are_headless() {
         assert!(paths.contains(expected.to_str().unwrap()), "{expected:?}");
     }
     assert!(!home.exists());
+}
+
+#[test]
+fn production_sources_do_not_expose_legacy_product_identifiers() {
+    fn check(path: &Path, lower: &str, upper: &str, title: &str) {
+        for entry in fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                check(&path, lower, upper, title);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                let source = fs::read_to_string(&path).unwrap();
+                assert!(!source.contains(lower), "{}", path.display());
+                assert!(!source.contains(upper), "{}", path.display());
+                assert!(!source.contains(title), "{}", path.display());
+            }
+        }
+    }
+
+    let lower = ["type", "ul"].concat();
+    let title = ["Type", "ul"].concat();
+    check(
+        Path::new("src"),
+        &lower,
+        &lower.to_ascii_uppercase(),
+        &title,
+    );
 }
 
 #[test]
@@ -548,7 +574,7 @@ fn smoke_escapes_controls_in_config_and_session_warning_paths() {
 
 #[cfg(unix)]
 #[test]
-fn paths_escape_controls_in_typeul_home() {
+fn paths_escape_controls_in_typerlude_home() {
     let root = TestDir::new("paths-control-home");
     let home = root.path().join("home\u{1b}]0;paths\u{7}");
 
@@ -989,7 +1015,7 @@ fn stale_content_lock_is_reused_but_a_live_lock_excludes_mutation() {
     let home = root.home();
     let content = home.join("content");
     fs::create_dir_all(&content).unwrap();
-    let lock_path = content.join(".typeul-content.lock");
+    let lock_path = content.join(".typerlude-content.lock");
     fs::write(&lock_path, []).unwrap();
     let first = root.path().join("first.toml");
     fs::write(&first, pack("first-lock", "first-lock-item", "lockword")).unwrap();
@@ -1034,7 +1060,7 @@ fn content_mutation_rejects_a_symlink_lock_file() {
     fs::create_dir_all(&content).unwrap();
     let outside = root.path().join("outside-lock");
     fs::write(&outside, b"do not touch").unwrap();
-    symlink(&outside, content.join(".typeul-content.lock")).unwrap();
+    symlink(&outside, content.join(".typerlude-content.lock")).unwrap();
     let candidate = root.path().join("candidate.toml");
     fs::write(&candidate, pack("lock-link", "lock-link-item", "linkword")).unwrap();
 
@@ -1075,11 +1101,10 @@ fn concurrent_adds_with_different_pack_ids_cannot_commit_one_item_twice() {
     assert!(status.success());
 
     let spawn = |path: &Path| {
-        ProcessCommand::new(env!("CARGO_BIN_EXE_typeul"))
+        ProcessCommand::new(env!("CARGO_BIN_EXE_typerlude"))
             .args(["content", "add"])
             .arg(path)
-            .env("TYPEUL_HOME", &home)
-            .env("TYPEUL_TEST", "1")
+            .env("TYPERLUDE_HOME", &home)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

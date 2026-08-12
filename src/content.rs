@@ -688,7 +688,7 @@ difficulty = 2
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("typeul-{name}-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("typerlude-{name}-{}-{nonce}", std::process::id()));
         fs::create_dir_all(&path).unwrap();
         path
     }

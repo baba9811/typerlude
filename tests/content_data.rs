@@ -5,7 +5,7 @@ use std::{
     path::Path,
     process::Command,
 };
-use typeul::{
+use typerlude::{
     content::{ContentCatalog, ContentKind, ContentPack, parse_pack, validate_pack},
     model::Language,
 };
@@ -33,6 +33,47 @@ fn every_bundled_practice_text_uses_direct_keyboard_characters() {
                 item.id, character as u32
             );
         }
+    }
+}
+
+#[test]
+fn tracked_text_has_no_stale_product_identifier() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new("git")
+        .current_dir(root)
+        .args(["ls-files", "-z"])
+        .output()
+        .expect("git must be executable");
+    assert!(
+        output.status.success(),
+        "git ls-files failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let old_brand = ["Type", "ul"].concat();
+    let old_name = old_brand.to_ascii_lowercase();
+    let old_uppercase_name = old_brand.to_ascii_uppercase();
+    let old_repository = ["baba9811/", old_name.as_str()].concat();
+    let old_korean_brand = ["타이", "플"].concat();
+    for path in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+    {
+        let path = std::str::from_utf8(path).expect("tracked paths must be UTF-8");
+        let contents = fs::read(root.join(path)).unwrap();
+        if contents.contains(&0) {
+            continue;
+        }
+        let contents = String::from_utf8(contents).expect("tracked text must be UTF-8");
+        assert!(
+            !contents.contains(&old_name)
+                && !contents.contains(&old_brand)
+                && !contents.contains(&old_uppercase_name)
+                && !contents.contains(&old_repository)
+                && !contents.contains(&old_korean_brand),
+            "stale product identifier in {path}"
+        );
     }
 }
 
@@ -140,16 +181,16 @@ fn bundled_word_packs_match_the_reviewed_5b1_contract() {
 #[test]
 fn word_packs_have_exact_project_cc0_provenance_and_unique_catalog_keys() {
     for (file_name, pack_id, source_id) in [
-        ("ko-words.toml", "ko-words", "typeul-ko-words-v1.0.0"),
-        ("en-words.toml", "en-words", "typeul-en-words-v1.0.0"),
+        ("ko-words.toml", "ko-words", "typerlude-ko-words-v1.0.0"),
+        ("en-words.toml", "en-words", "typerlude-en-words-v1.0.0"),
     ] {
         let pack = load_pack(file_name);
         assert_eq!(pack.id, pack_id);
-        assert_eq!(pack.source.author, "Typeul contributors");
+        assert_eq!(pack.source.author, "Typerlude contributors");
         assert_eq!(pack.source.source_id, source_id);
         assert_eq!(
             pack.source.source_url,
-            format!("https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/{file_name}")
+            format!("https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/{file_name}")
         );
         assert_eq!(pack.source.license, "CC0-1.0");
         assert_eq!(
@@ -349,9 +390,9 @@ fn text_packs_have_exact_item_level_provenance() {
     {
         let pack = load_pack(file_name);
         let repository_url =
-            format!("https://github.com/baba9811/typeul/blob/v1.0.0/assets/content/{file_name}");
-        assert_eq!(pack.source.author, "Typeul contributors");
-        assert_eq!(pack.source.source_id, format!("typeul-{pack_id}-v1.0.0"));
+            format!("https://github.com/baba9811/typerlude/blob/v1.0.0/assets/content/{file_name}");
+        assert_eq!(pack.source.author, "Typerlude contributors");
+        assert_eq!(pack.source.source_id, format!("typerlude-{pack_id}-v1.0.0"));
         assert_eq!(pack.source.source_url, repository_url);
         assert_eq!(pack.source.license, "CC0-1.0");
         assert_eq!(
@@ -378,10 +419,10 @@ fn text_packs_have_exact_item_level_provenance() {
                 assert_eq!(item.source.license_url, constitution_license_url);
                 assert_eq!(item.text, constitution_text);
             } else {
-                assert_eq!(item.source.author, "Typeul contributors", "{}", item.id);
+                assert_eq!(item.source.author, "Typerlude contributors", "{}", item.id);
                 assert_eq!(
                     item.source.source_id,
-                    format!("typeul:{}:v1.0.0", item.id),
+                    format!("typerlude:{}:v1.0.0", item.id),
                     "{}",
                     item.id
                 );
@@ -612,7 +653,7 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 #[test]
 fn complete_release_catalog_has_exact_counts_unique_nfc_content_and_no_warnings() {
     let absent_user_dir = std::env::temp_dir().join(format!(
-        "typeul-no-user-content-{}-{}",
+        "typerlude-no-user-content-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -817,8 +858,8 @@ fn third_party_rust_license_report_covers_locked_supported_target_graph() {
 
     let html = fs::read_to_string(root.join("THIRD_PARTY_LICENSES.html"))
         .expect("THIRD_PARTY_LICENSES.html must be readable UTF-8");
-    assert!(html.contains("<title>Typeul third-party Rust licenses</title>"));
-    assert!(html.contains("<h1>Typeul third-party Rust licenses</h1>"));
+    assert!(html.contains("<title>Typerlude third-party Rust licenses</title>"));
+    assert!(html.contains("<h1>Typerlude third-party Rust licenses</h1>"));
     validate_dependency_license_html(&html, &expected_crates)
         .unwrap_or_else(|error| panic!("invalid THIRD_PARTY_LICENSES.html: {error}"));
 }
@@ -839,7 +880,7 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
 
     for required in [
         "Rust and JavaScript software is licensed under the MIT License",
-        "Practice data written by Typeul contributors is released under CC0 1.0 Universal",
+        "Practice data written by Typerlude contributors is released under CC0 1.0 Universal",
         "Third-party material keeps the license or public-domain status stated below",
     ] {
         assert!(collapsed_notice.contains(required));
@@ -932,7 +973,7 @@ fn notice_matches_every_frozen_tatoeba_and_public_domain_provenance_fact() {
         .flat_map(|pack| pack.resolve_items().unwrap())
         .filter(|item| item.tags.iter().any(|tag| tag == "retelling"))
     {
-        assert_eq!(item.source.author, "Typeul contributors");
+        assert_eq!(item.source.author, "Typerlude contributors");
         assert_eq!(item.source.license, "CC0-1.0");
         assert!(notice.contains(&item.id));
         assert!(collapsed_notice.contains(&collapse_whitespace(item.title.as_deref().unwrap())));

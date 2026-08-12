@@ -40,10 +40,10 @@ impl AppPaths {
     }
 
     pub fn discover() -> Result<Self> {
-        if let Some(root) = std::env::var_os("TYPEUL_HOME").filter(|value| !value.is_empty()) {
+        if let Some(root) = std::env::var_os("TYPERLUDE_HOME").filter(|value| !value.is_empty()) {
             return Ok(Self::from_override(root.into()));
         }
-        let dirs = ProjectDirs::from("", "", "typeul")
+        let dirs = ProjectDirs::from("", "", "typerlude")
             .context("unable to resolve the user data directory")?;
         Ok(Self {
             config: dirs.config_dir().join("config.toml"),
@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn no_replace_rename_moves_one_name_and_preserves_collisions() {
         let cleanup = std::env::temp_dir().join(format!(
-            "typeul-no-replace-{}-{}",
+            "typerlude-no-replace-{}-{}",
             std::process::id(),
             fastrand::u64(..)
         ));

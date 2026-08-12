@@ -5,8 +5,8 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
-const { nativePackages } = createRequire(import.meta.url)("../bin/typeul.js");
-const packages = [...nativePackages, { directory: "typeul", name: "@baba9811/typeul" }];
+const { nativePackages } = createRequire(import.meta.url)("../bin/typerlude.js");
+const packages = [...nativePackages, { name: "typerlude" }];
 const registry = "https://registry.npmjs.org/";
 
 function defaultRunNpm(args, capture) {
@@ -78,9 +78,9 @@ export function publishNpmPackages({
 }) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`invalid release version: ${version}`);
 
-  for (const { directory, name: packageName } of packages) {
+  for (const { name: packageName } of packages) {
     const spec = `${packageName}@${version}`;
-    const tarball = path.resolve(distDir, `${directory}-${version}.tgz`);
+    const tarball = path.resolve(distDir, `${packageName}-${version}.tgz`);
     if (!fs.lstatSync(tarball).isFile()) throw new Error(`missing npm tarball for ${spec}`);
     const local = localIntegrity(tarball);
     const remote = remoteIntegrity(packageName, version, runNpm);

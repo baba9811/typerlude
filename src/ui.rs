@@ -1157,8 +1157,8 @@ fn render_result(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyl
         lines.push(Line::from(format!(
             "{}: {}",
             match language {
-                Language::Ko => "Typeul 상대 등급",
-                Language::En => "Typeul relative grade",
+                Language::Ko => "Typerlude 상대 등급",
+                Language::En => "Typerlude relative grade",
             },
             grade_name(grade)
         )));
@@ -1821,8 +1821,8 @@ fn render_content_detail(frame: &mut Frame<'_>, app: &App, area: Rect, styles: T
         ]);
     }
     lines.extend([
-        Line::from("typeul content add PACK.toml · typeul content validate PACK.toml"),
-        Line::from("typeul content disable PACK_ID · typeul licenses"),
+        Line::from("typerlude content add PACK.toml · typerlude content validate PACK.toml"),
+        Line::from("typerlude content disable PACK_ID · typerlude licenses"),
     ]);
     lines.push(Line::from(if summary.built_in {
         match language {
@@ -2050,15 +2050,15 @@ fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles
     };
     lines.extend([
         Line::from(""),
-        Line::from("typeul quick|keys|words|sentence|long|test"),
-        Line::from("typeul stats|history|themes"),
-        Line::from("typeul content list"),
-        Line::from("typeul content add PACK.toml"),
-        Line::from("typeul content validate [PACK.toml]"),
-        Line::from("typeul content disable PACK_ID"),
-        Line::from("typeul paths|licenses|update"),
-        Line::from("typeul --help|--version|--smoke"),
-        Line::from("typeul FILE | typeul practice FILE | cat FILE | typeul"),
+        Line::from("typerlude quick|keys|words|sentence|long|test"),
+        Line::from("typerlude stats|history|themes"),
+        Line::from("typerlude content list"),
+        Line::from("typerlude content add PACK.toml"),
+        Line::from("typerlude content validate [PACK.toml]"),
+        Line::from("typerlude content disable PACK_ID"),
+        Line::from("typerlude paths|licenses|update"),
+        Line::from("typerlude --help|--version|--smoke"),
+        Line::from("typerlude FILE | typerlude practice FILE | cat FILE | typerlude"),
     ]);
     frame.render_widget(Paragraph::new(lines).style(styles.base), inner);
 }
