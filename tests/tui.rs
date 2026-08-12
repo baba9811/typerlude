@@ -1526,6 +1526,26 @@ fn themes_lists_all_five_validated_builtin_ids() {
 }
 
 #[test]
+fn focused_theme_previews_without_saving_and_escape_reverts() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    app.settings.theme = "default".into();
+    app.warnings.clear();
+    app.open(Screen::Themes);
+    press(&mut app, KeyCode::Tab, 4, now);
+
+    let preview = draw(&app, 80, 24);
+    let nord = app.themes.get("nord").unwrap().styles().unwrap();
+    assert_role_style(&preview.buffer[(70, 18)], nord.base);
+    assert_eq!(app.settings.theme, "default");
+
+    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    let reverted = draw(&app, 80, 24);
+    let default = app.themes.get("default").unwrap().styles().unwrap();
+    assert_role_style(&reverted.buffer[(70, 18)], default.base);
+}
+
+#[test]
 fn weak_keys_renders_derived_attempts_and_accuracy() {
     let (_root, mut app) = fixture_app();
     let mut session = result_view("weak-key-session").session;

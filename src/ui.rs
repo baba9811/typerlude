@@ -121,9 +121,17 @@ fn practice_scroll(area: Rect, active: &ActivePractice) -> usize {
 }
 
 fn selected_styles(app: &App) -> Option<ThemeStyles> {
-    app.themes
-        .get(&app.settings.theme)
+    let preview = (app.screen() == Screen::Themes)
+        .then(|| app.themes.ids().nth(app.focus()))
+        .flatten();
+    preview
+        .and_then(|id| app.themes.get(id))
         .and_then(|theme| theme.styles().ok())
+        .or_else(|| {
+            app.themes
+                .get(&app.settings.theme)
+                .and_then(|theme| theme.styles().ok())
+        })
         .or_else(|| {
             app.themes
                 .get("default")
