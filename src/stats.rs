@@ -67,16 +67,15 @@ pub fn summarize<'a>(sessions: impl IntoIterator<Item = &'a SessionRecord>) -> O
     let mut duration_ms = 0_u64;
     let mut attempted = 0_u128;
     let mut weighted_accuracy = 0.0;
-    let mut kpm = 0.0;
-    let mut wpm = 0.0;
 
     for session in sessions {
         overview.sessions += 1;
+        let count = overview.sessions as f64;
         duration_ms = duration_ms.saturating_add(session.duration_ms);
         attempted += u128::from(session.attempted_units);
         weighted_accuracy += session.accuracy * session.attempted_units as f64;
-        kpm += session.kpm;
-        wpm += session.wpm;
+        overview.kpm.average += (session.kpm - overview.kpm.average) / count;
+        overview.wpm.average += (session.wpm - overview.wpm.average) / count;
         overview.kpm.best = overview.kpm.best.max(session.kpm);
         overview.wpm.best = overview.wpm.best.max(session.wpm);
     }
@@ -87,10 +86,6 @@ pub fn summarize<'a>(sessions: impl IntoIterator<Item = &'a SessionRecord>) -> O
     } else {
         weighted_accuracy / attempted as f64
     };
-    if overview.sessions != 0 {
-        overview.kpm.average = kpm / overview.sessions as f64;
-        overview.wpm.average = wpm / overview.sessions as f64;
-    }
     overview
 }
 
@@ -144,8 +139,9 @@ pub fn progress(
         let point = totals.entry(session.local_date).or_default();
         point.duration_ms = point.duration_ms.saturating_add(session.duration_ms);
         point.sessions += 1;
-        point.kpm += session.kpm;
-        point.wpm += session.wpm;
+        let count = point.sessions as f64;
+        point.kpm += (session.kpm - point.kpm) / count;
+        point.wpm += (session.wpm - point.wpm) / count;
         point.attempted += u128::from(session.attempted_units);
         point.weighted_accuracy += session.accuracy * session.attempted_units as f64;
     }
@@ -154,8 +150,8 @@ pub fn progress(
         .into_iter()
         .map(|(date, total)| ProgressPoint {
             date,
-            kpm: total.kpm / total.sessions as f64,
-            wpm: total.wpm / total.sessions as f64,
+            kpm: total.kpm,
+            wpm: total.wpm,
             accuracy: if total.attempted == 0 {
                 0.0
             } else {
@@ -369,6 +365,23 @@ mod tests {
     }
 
     #[test]
+    fn overview_averages_extreme_finite_speeds_without_overflow() {
+        let mut first = session("first", date!(2026 - 08 - 07), Language::En);
+        first.kpm = f64::MAX;
+        first.wpm = f64::MAX;
+        let mut second = session("second", date!(2026 - 08 - 07), Language::En);
+        second.kpm = f64::MAX;
+        second.wpm = f64::MAX;
+
+        let overview = summarize([&first, &second]);
+
+        assert_eq!(overview.kpm.average, f64::MAX);
+        assert_eq!(overview.wpm.average, f64::MAX);
+        assert_eq!(overview.kpm.best, f64::MAX);
+        assert_eq!(overview.wpm.best, f64::MAX);
+    }
+
+    #[test]
     fn overview_weights_stored_accuracy_by_attempts_not_final_correct_units() {
         let mut small = session("small", date!(2026 - 08 - 07), Language::En);
         small.attempted_units = 1;
@@ -509,6 +522,22 @@ mod tests {
         assert_eq!(words[0].wpm, 30.0);
         assert_eq!(words[0].accuracy, 0.0);
         assert_eq!(words[0].minutes, 1.0);
+    }
+
+    #[test]
+    fn progress_averages_extreme_finite_speeds_without_overflow() {
+        let today = date!(2026 - 08 - 07);
+        let mut first = session("first", today, Language::En);
+        first.kpm = f64::MAX;
+        first.wpm = f64::MAX;
+        let mut second = session("second", today, Language::En);
+        second.kpm = f64::MAX;
+        second.wpm = f64::MAX;
+
+        let points = progress(&[first, second], Range::Days7, today, Language::En, None);
+
+        assert_eq!(points[0].kpm, f64::MAX);
+        assert_eq!(points[0].wpm, f64::MAX);
     }
 
     #[test]
