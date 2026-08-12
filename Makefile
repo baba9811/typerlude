@@ -32,7 +32,7 @@ package-check: test licenses
 
 pty-smoke:
 	cargo build --release --locked
-	python3 scripts/pty-smoke.py target/release/typeul
+	python3 scripts/pty-smoke.py target/release/typerlude
 
 release:
 	@scripts/release.sh

@@ -23,7 +23,7 @@ async function loadPublisher() {
 }
 
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-publish-npm-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-publish-npm-"));
   const version = "1.2.3";
   for (const [packageName, tarballName] of expectedPackages) {
     fs.writeFileSync(path.join(root, `${tarballName}-${version}.tgz`), `tarball:${packageName}`);

@@ -57,7 +57,7 @@ test("rejects invalid fixture layouts", () => {
     ["wrong root package name", (root) => {
       const file = path.join(root, "package.json");
       const pkg = JSON.parse(fs.readFileSync(file));
-      pkg.name = "typeul";
+      pkg.name = "not-typerlude";
       fs.writeFileSync(file, JSON.stringify(pkg));
     }, /root npm package/],
     ["missing manifest", (root) => fs.rmSync(path.join(root, "npm", packageDirectories[0]), { recursive: true }), /Native manifests/],
@@ -126,13 +126,44 @@ test("ignores a branch ref when no release tag is supplied", () => {
   assert.equal(result.stdout, `${version}\n`);
 });
 
-test("release uses Cargo OIDC independently from npm bootstrap", () => {
+test("CI and release use the complete Typerlude native artifact family", () => {
+  const ci = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+
+  for (const source of [ci, workflow]) {
+    const matrixPackages = [...source.matchAll(/^\s+package: (typerlude-[^\s]+)$/gm)].map((match) => match[1]);
+    assert.deepEqual(matrixPackages.sort(), packageNames.toSorted());
+    assert.equal((source.match(/^\s+executable: typerlude(?:\.exe)?$/gm) ?? []).length, 6);
+    assert.match(source, /archive[_Rr]oot[^\n]*typerlude-/);
+    assert.match(source, /artifacts[\\/]typerlude-/);
+    assert.doesNotMatch(source, /typeul/i);
+  }
+
+  assert.match(fs.readFileSync("Makefile", "utf8"), /target\/release\/typerlude/);
+});
+
+test("one registry bootstrap switch gates both token paths before ordered publication", () => {
+  const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
+  const bootstrapSwitches = [...workflow.matchAll(/vars\.([A-Z][A-Z0-9_]*BOOTSTRAP)/g)]
+    .map((match) => match[1]);
+
+  assert.deepEqual([...new Set(bootstrapSwitches)], ["TYPERLUDE_REGISTRY_BOOTSTRAP"]);
+  assert.match(workflow, /TYPERLUDE_REGISTRY_BOOTSTRAP must be empty or 1/);
+  assert.doesNotMatch(workflow, /TYPEUL_(?:NPM_)?BOOTSTRAP/);
+  assert.match(workflow, /CARGO_REGISTRY_TOKEN: \$\{\{ secrets\.CRATES_TOKEN \}\}/);
+  assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
+  assert.match(workflow, /Publish Cargo bootstrap[\s\S]*if: steps\.cargo-version\.outputs\.publish == 'true' && vars\.TYPERLUDE_REGISTRY_BOOTSTRAP == '1'[\s\S]*cargo publish --locked/);
+  assert.match(workflow, /Publish npm bootstrap, native packages first[\s\S]*publish-npm-packages\.mjs "\$version" --provenance/);
+  assert.match(workflow, /publish-npm:\n\s+needs: publish-cargo/);
+});
+
+test("normal registry publication remains OIDC-only", () => {
   const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
   assert.match(workflow, /rust-lang\/crates-io-auth-action@/);
   assert.match(workflow, /Verify Cargo package again[\s\S]*cargo package --locked[\s\S]*cargo publish --dry-run --locked/);
-  assert.doesNotMatch(workflow, /Publish Cargo bootstrap|secrets\.CRATES_TOKEN|TYPEUL_BOOTSTRAP/);
-  assert.match(workflow, /TYPEUL_NPM_BOOTSTRAP/);
-  assert.match(workflow, /Publish npm bootstrap, native packages first/);
+  assert.match(workflow, /Authenticate with crates\.io[\s\S]*if: vars\.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'/);
+  assert.match(workflow, /Publish Cargo with OIDC[\s\S]*if: vars\.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'/);
+  assert.match(workflow, /Publish npm with OIDC, native packages first[\s\S]*if: vars\.TYPERLUDE_REGISTRY_BOOTSTRAP != '1'/);
 });
 
 test("release requires a verified signed tag", () => {
@@ -141,6 +172,7 @@ test("release requires a verified signed tag", () => {
   assert.match(workflow, /\.object\.type == "tag"/);
   assert.match(workflow, /\.verification\.verified == true/);
   assert.match(release, /git tag -s /);
+  assert.match(release, /git tag -s -m "Typerlude v\$version" "v\$version"/);
 });
 
 test("Make release rejects command-line VERSION without evaluating Make functions", () => {
@@ -175,7 +207,7 @@ function run(root, command, args, options = {}) {
 }
 
 function releaseFailureFixture(failure) {
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "typeul-release-test-"));
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-release-test-"));
   const remote = path.join(temporary, "origin.git");
   const root = path.join(temporary, "repo");
   const fakeBin = path.join(temporary, "bin");
