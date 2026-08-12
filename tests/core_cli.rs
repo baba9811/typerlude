@@ -306,21 +306,28 @@ fn version_help_licenses_and_paths_are_headless() {
 
 #[test]
 fn production_sources_do_not_expose_legacy_product_identifiers() {
-    fn check(path: &Path, lower: &str, upper: &str) {
+    fn check(path: &Path, lower: &str, upper: &str, title: &str) {
         for entry in fs::read_dir(path).unwrap() {
             let path = entry.unwrap().path();
             if path.is_dir() {
-                check(&path, lower, upper);
+                check(&path, lower, upper, title);
             } else if path.extension().is_some_and(|extension| extension == "rs") {
                 let source = fs::read_to_string(&path).unwrap();
                 assert!(!source.contains(lower), "{}", path.display());
                 assert!(!source.contains(upper), "{}", path.display());
+                assert!(!source.contains(title), "{}", path.display());
             }
         }
     }
 
     let lower = ["type", "ul"].concat();
-    check(Path::new("src"), &lower, &lower.to_ascii_uppercase());
+    let title = ["Type", "ul"].concat();
+    check(
+        Path::new("src"),
+        &lower,
+        &lower.to_ascii_uppercase(),
+        &title,
+    );
 }
 
 #[test]
