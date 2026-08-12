@@ -103,9 +103,12 @@ fn discovery_uses_typerlude_home_and_project_directories() {
         .unwrap()
         .config_dir()
         .join("config.toml");
+    let legacy_home = root.path().join("legacy-home");
+    let legacy_home_key = ["TYPE", "UL_HOME"].concat();
     let discovered = Command::new(env!("CARGO_BIN_EXE_typerlude"))
         .arg("paths")
         .env_remove("TYPERLUDE_HOME")
+        .env(legacy_home_key, legacy_home)
         .stdin(Stdio::null())
         .output()
         .unwrap();

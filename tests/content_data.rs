@@ -54,7 +54,11 @@ fn tracked_text_has_no_stale_product_identifier() {
     let old_name = old_brand.to_ascii_lowercase();
     let old_uppercase_name = old_brand.to_ascii_uppercase();
     let old_repository = ["baba9811/", old_name.as_str()].concat();
-    for path in output.stdout.split(|byte| *byte == 0).filter(|path| !path.is_empty()) {
+    for path in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+    {
         let path = std::str::from_utf8(path).expect("tracked paths must be UTF-8");
         let contents = fs::read(root.join(path)).unwrap();
         if contents.contains(&0) {
