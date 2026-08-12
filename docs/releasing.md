@@ -20,6 +20,16 @@ gh run rerun "$run_id" --failed --repo baba9811/typerlude
 gh run watch "$run_id" --repo baba9811/typerlude --exit-status
 ```
 
+If GitHub cannot rerun that run and a fresh resume run is required, select the same tag as both
+the workflow ref and input:
+
+```bash
+tag=v1.0.0
+gh workflow run release.yml --repo baba9811/typerlude --ref "$tag" -f tag="$tag"
+```
+
+Never select a branch while supplying a different tag input.
+
 For each of the seven packages, in native-package order with `typerlude` last, the workflow queries
 only `https://registry.npmjs.org/`. A structured npm `E404` means the version is absent and the
 exact local tarball is published. If the version exists, the workflow computes that tarball's
@@ -94,18 +104,28 @@ Actions cannot read it. After filling its value, upload it without printing it:
 (
   set +x
   set -euo pipefail
-  source .env
+  trap 'unset CRATES_TOKEN NPM_TOKEN' EXIT
+  unset CRATES_TOKEN NPM_TOKEN
+  chmod 600 .env
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      CRATES_TOKEN=*) CRATES_TOKEN="${line#CRATES_TOKEN=}" ;;
+      NPM_TOKEN=*) NPM_TOKEN="${line#NPM_TOKEN=}" ;;
+    esac
+  done < .env
   : "${CRATES_TOKEN:?fill CRATES_TOKEN in .env}"
   : "${NPM_TOKEN:?fill NPM_TOKEN in .env}"
   printf '%s' "$CRATES_TOKEN" | gh secret set CRATES_TOKEN --env release --repo baba9811/typerlude
   printf '%s' "$NPM_TOKEN" | gh secret set NPM_TOKEN --env release --repo baba9811/typerlude
   gh variable set TYPERLUDE_REGISTRY_BOOTSTRAP --body 1 --env release --repo baba9811/typerlude
-  rm -- .env
+  unset CRATES_TOKEN NPM_TOKEN
 )
 ```
 
 Cargo requires `CRATES_TOKEN` and npm requires `NPM_TOKEN` only while
-`TYPERLUDE_REGISTRY_BOOTSTRAP=1`. Values are never printed.
+`TYPERLUDE_REGISTRY_BOOTSTRAP=1`. Values are never printed. Keep the mode-`600` `.env` until the
+verified deletion and revocation steps below; it is the recovery source if bootstrap upload or
+publication must be resumed.
 
 GitHub does not reveal, copy, or transfer secret values between repositories. Never reuse a
 Practicode credential.
@@ -170,40 +190,73 @@ GitHub-hosted runner, Node 22.14.0+, npm 11.5.1+, and `id-token: write`. Normal 
 creates provenance automatically. The one-time token-authenticated bootstrap explicitly passes
 `--provenance` so bootstrap releases receive the same public GitHub Actions attestations.
 
-## 6. Verify, remove bootstrap, and prove OIDC / 검증·삭제·OIDC 확인
+## 6. Verify bootstrap and remove temporary access / bootstrap 검증·삭제
 
-Verify all published material before removing temporary access:
+Verify the first public 1.0.0 publication before removing temporary access:
 
 ```bash
-cargo info typerlude@1.0.1
+version=1.0.0
+cargo info "typerlude@$version"
 for package in \
   typerlude typerlude-darwin-arm64 typerlude-darwin-x64 typerlude-linux-arm64 \
   typerlude-linux-x64 typerlude-win32-arm64-msvc \
   typerlude-win32-x64-msvc; do
-  npm view "$package@1.0.1" name version repository dist.integrity dist.attestations --json
+  npm view "$package@$version" name version repository dist.integrity dist.attestations --json
 done
-gh release view v1.0.1 --repo baba9811/typerlude --json isDraft,isImmutable,assets,url
+gh release view "v$version" --repo baba9811/typerlude --json isDraft,isImmutable,assets,url
 temporary="$(mktemp -d)"
-gh release download v1.0.1 --repo baba9811/typerlude --dir "$temporary"
+gh release download "v$version" --repo baba9811/typerlude --dir "$temporary"
 (cd "$temporary" && sha256sum --check SHA256SUMS)
 ```
 
 Also inspect [crates.io/typerlude](https://crates.io/crates/typerlude), all seven npm package pages and
-their provenance records, and the [v1.0.1 release](https://github.com/baba9811/typerlude/releases/tag/v1.0.1).
+their provenance records, and the [v1.0.0 release](https://github.com/baba9811/typerlude/releases/tag/v1.0.0).
 Confirm the release has exactly 13 payload files plus `SHA256SUMS`, and manually inspect at least
 one tar.gz, one zip, the Cargo crate, the root npm tarball, and a native npm tarball.
 
-Then, in this order:
+Then perform the Task 8 credential cleanup in this order:
 
-1. Delete environment variable `TYPERLUDE_REGISTRY_BOOTSTRAP`.
-2. Delete Typerlude environment secrets `CRATES_TOKEN` and `NPM_TOKEN`.
-3. Revoke both bootstrap tokens; confirm neither remains active.
-4. For the next synchronized semver tag, require both registry jobs to succeed through OIDC with
-   no registry token secret. Re-run the registry version,
-   provenance, checksum, asset-closure, and public-release checks above for that version.
+1. Delete environment variable `TYPERLUDE_REGISTRY_BOOTSTRAP`, then confirm it is absent from the
+   `release` environment.
+2. Delete Typerlude environment secrets `CRATES_TOKEN` and `NPM_TOKEN`, then confirm both names are
+   absent from the `release` environment.
+3. Revoke both bootstrap tokens at their registries and confirm neither remains active.
+4. Verify the GitHub secrets and variable are absent, and verify both registry tokens are revoked.
+   Only then delete the retained local credential file:
 
-Do not restore a long-lived token as an OIDC fallback. If either trusted-publisher binding is
-wrong, fix the registry configuration and rerun only after checking partial publication state.
+   ```bash
+   test -f .env
+   rm -- .env
+   test ! -e .env
+   ```
+
+Do not delete `.env` earlier, and do not restore a long-lived token as an OIDC fallback. If either
+trusted-publisher binding is wrong, fix the registry configuration and recheck partial publication
+state before continuing.
+
+## 7. Prove OIDC-only publication / OIDC 전용 배포 확인
+
+Publish and verify the OIDC-only 1.0.1 proof release only after the cleanup above:
+
+```bash
+version=1.0.1
+VERSION="$version" make release
+cargo info "typerlude@$version"
+for package in \
+  typerlude typerlude-darwin-arm64 typerlude-darwin-x64 typerlude-linux-arm64 \
+  typerlude-linux-x64 typerlude-win32-arm64-msvc \
+  typerlude-win32-x64-msvc; do
+  npm view "$package@$version" name version repository dist.integrity dist.attestations --json
+done
+gh release view "v$version" --repo baba9811/typerlude --json isDraft,isImmutable,assets,url
+temporary="$(mktemp -d)"
+gh release download "v$version" --repo baba9811/typerlude --dir "$temporary"
+(cd "$temporary" && sha256sum --check SHA256SUMS)
+```
+
+Require both registry jobs to succeed through OIDC with no registry token secret. Recheck all
+seven npm provenance records, the Cargo version, checksum, exact asset closure, and the public
+[v1.0.1 release](https://github.com/baba9811/typerlude/releases/tag/v1.0.1).
 
 Primary references: [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/),
 [crates.io Trusted Publishing](https://crates.io/docs/trusted-publishing),

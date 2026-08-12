@@ -13,6 +13,11 @@ import {
 } from "./verify-package.mjs";
 
 const sourceRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const permittedRootScripts = {
+  test: "node --test tests/launcher.test.js scripts/import-tatoeba.test.mjs scripts/check-versions.test.mjs scripts/stage-platform-package.test.mjs scripts/publish-npm-packages.test.mjs && node scripts/check-versions.mjs",
+  "test:launcher": "node --test tests/launcher.test.js",
+  "package-check": "node scripts/verify-package.mjs",
+};
 
 function listFiles(root, prefix = "") {
   return fs.readdirSync(path.join(root, prefix), { withFileTypes: true })
@@ -243,21 +248,23 @@ test("pack records require the exact versioned file and mode allowlist", () => {
   }
 });
 
-test("packed manifests reject private packages and lifecycle install scripts", () => {
+test("packed manifests require the exact root scripts and no native scripts", () => {
   const manifest = {
     name: "typerlude",
     version: "1.0.0",
     files: ["bin/typerlude.js", "LICENSE"],
-    scripts: { test: "node --test" },
+    scripts: permittedRootScripts,
   };
   validatePackedManifest(manifest, {
     name: "typerlude",
     version: "1.0.0",
     files: ["bin/typerlude.js", "LICENSE"],
+    scripts: permittedRootScripts,
   });
   for (const [change, message] of [
     [(value) => { value.private = true; }, /private/],
-    [(value) => { value.scripts.install = "node install.js"; }, /install/],
+    [(value) => { value.scripts.preversion = "node lifecycle.js"; }, /scripts/],
+    [(value) => { delete value.scripts["test:launcher"]; }, /scripts/],
     [(value) => { value.files.push("src"); }, /files/],
     [(value) => { value.files = ["bin/typerlude.js\nLICENSE"]; }, /files/],
   ]) {
@@ -267,8 +274,19 @@ test("packed manifests reject private packages and lifecycle install scripts", (
       name: "typerlude",
       version: "1.0.0",
       files: ["bin/typerlude.js", "LICENSE"],
+      scripts: permittedRootScripts,
     }), message);
   }
+
+  const native = { name: "typerlude-linux-x64", version: "1.0.0", files: ["typerlude"] };
+  validatePackedManifest(native, { ...native, scripts: null });
+  native.scripts = { test: "node --test" };
+  assert.throws(() => validatePackedManifest(native, {
+    name: native.name,
+    version: native.version,
+    files: native.files,
+    scripts: null,
+  }), /scripts/);
 });
 
 test("packed manifests pin platform selectors and the root native dependency closure", () => {

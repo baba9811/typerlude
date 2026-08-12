@@ -54,6 +54,7 @@ fn tracked_text_has_no_stale_product_identifier() {
     let old_name = old_brand.to_ascii_lowercase();
     let old_uppercase_name = old_brand.to_ascii_uppercase();
     let old_repository = ["baba9811/", old_name.as_str()].concat();
+    let old_korean_brand = ["타이", "플"].concat();
     for path in output
         .stdout
         .split(|byte| *byte == 0)
@@ -69,7 +70,8 @@ fn tracked_text_has_no_stale_product_identifier() {
             !contents.contains(&old_name)
                 && !contents.contains(&old_brand)
                 && !contents.contains(&old_uppercase_name)
-                && !contents.contains(&old_repository),
+                && !contents.contains(&old_repository)
+                && !contents.contains(&old_korean_brand),
             "stale product identifier in {path}"
         );
     }

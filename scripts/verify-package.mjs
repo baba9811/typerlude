@@ -16,10 +16,11 @@ const rootManifestFiles = [
   "bin/typerlude.js", "LICENSE", "README.md", "README.ko.md", "THIRD_PARTY_NOTICES.md",
   "THIRD_PARTY_LICENSES.html", "assets/licenses",
 ];
-const lifecycleScripts = new Set([
-  "preinstall", "install", "postinstall", "prepare", "prepack", "postpack",
-  "prepublish", "prepublishOnly",
-]);
+const permittedRootScripts = {
+  test: "node --test tests/launcher.test.js scripts/import-tatoeba.test.mjs scripts/check-versions.test.mjs scripts/stage-platform-package.test.mjs scripts/publish-npm-packages.test.mjs && node scripts/check-versions.mjs",
+  "test:launcher": "node --test tests/launcher.test.js",
+  "package-check": "node scripts/verify-package.mjs",
+};
 
 function regularFile(value, label) {
   const resolved = path.resolve(value);
@@ -191,13 +192,7 @@ export function validatePackedManifest(manifest, expected) {
   if (manifest.name !== expected.name) throw new Error(`packed manifest name must be ${expected.name}`);
   if (manifest.version !== expected.version) throw new Error(`packed manifest version must be ${expected.version}`);
   if (Object.hasOwn(manifest, "private")) throw new Error("packed manifest must not be private");
-  if (manifest.scripts !== undefined
-      && (typeof manifest.scripts !== "object" || Array.isArray(manifest.scripts))) {
-    throw new Error("packed manifest scripts must be an object");
-  }
-  for (const name of Object.keys(manifest.scripts ?? {})) {
-    if (lifecycleScripts.has(name)) throw new Error(`packed manifest must not contain ${name} script`);
-  }
+  if (Object.hasOwn(expected, "scripts")) exactObject(manifest.scripts, expected.scripts, "scripts");
   exactArray(manifest.files, expected.files, "packed manifest files");
   if (expected.os !== undefined) exactArray(manifest.os, [expected.os], "packed manifest os");
   if (expected.cpu !== undefined) exactArray(manifest.cpu, [expected.cpu], "packed manifest cpu");
@@ -284,8 +279,8 @@ export function validateNativeManifests(rootValue, version) {
   const root = realDirectory(rootValue, "package root");
   const npm = realDirectory(path.join(root, "npm"), "native manifest directory");
   const expectedNames = supportedPairs.map(([os, cpu]) => {
-    const [name, , directory = name] = packageFor(os, cpu);
-    return directory;
+    const [name] = packageFor(os, cpu);
+    return name;
   }).sort();
   const actualNames = fs.readdirSync(npm, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink())
@@ -293,16 +288,16 @@ export function validateNativeManifests(rootValue, version) {
     .sort();
   exactArray(actualNames, expectedNames, "source native manifest directories");
   for (const [os, cpu] of supportedPairs) {
-    const [name, executable, directory = name] = packageFor(os, cpu);
-    const manifest = readJson(path.join(npm, directory, "package.json"), `${directory} manifest`);
+    const [name, executable] = packageFor(os, cpu);
+    const manifest = readJson(path.join(npm, name, "package.json"), `${name} manifest`);
     try {
       validatePackedManifest(manifest, {
         name, version, files: [executable, ...legalRoots, "licenses"], os, cpu,
         bin: null, dependencies: {}, optionalDependencies: {}, peerDependencies: {},
-        peerDependenciesMeta: {},
+        peerDependenciesMeta: {}, scripts: null,
       });
     } catch (error) {
-      throw new Error(`${directory}: ${error.message}`);
+      throw new Error(`${name}: ${error.message}`);
     }
   }
 }
@@ -406,13 +401,14 @@ export function verifyTarballs(rootTgzValue, platformTgzValue, expectedVersion) 
     name: rootPackageName, version: expectedVersion, files: rootManifestFiles,
     bin: { typerlude: "bin/typerlude.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
+    scripts: permittedRootScripts,
   });
   const platformManifestFiles = [executable, ...legalRoots, "licenses"];
   const platformManifest = readJson(path.join(platformPackageDir, "package.json"), "installed platform manifest");
   validatePackedManifest(platformManifest, {
     name: platformName, version: expectedVersion, files: platformManifestFiles,
     os: process.platform, cpu: process.arch, bin: null, dependencies: {},
-    optionalDependencies: {}, peerDependencies: {}, peerDependenciesMeta: {},
+    optionalDependencies: {}, peerDependencies: {}, peerDependenciesMeta: {}, scripts: null,
   });
 
   const home = path.join(temporary, "typerlude-home");
@@ -446,13 +442,14 @@ function main() {
   const root = fs.realpathSync(process.cwd());
   const expectedVersion = validateVersions(readVersions(root));
   validateNativeManifests(root, expectedVersion);
-  const [platformName, executable, platformDirectory = platformName] = packageFor(process.platform, process.arch);
-  const platformDir = path.join(root, "npm", platformDirectory);
+  const [platformName, executable] = packageFor(process.platform, process.arch);
+  const platformDir = path.join(root, "npm", platformName);
   const rootManifest = readJson(path.join(root, "package.json"), "root manifest");
   validatePackedManifest(rootManifest, {
     name: rootPackageName, version: expectedVersion, files: rootManifestFiles,
     bin: { typerlude: "bin/typerlude.js" }, dependencies: {},
     optionalDependencies: nativeDependencies(expectedVersion), peerDependencies: {}, peerDependenciesMeta: {},
+    scripts: permittedRootScripts,
   });
   const temporary = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "typerlude-package-")));
   try {
@@ -468,7 +465,7 @@ function main() {
       throw new Error(`release --smoke returned ${JSON.stringify(directSmoke)}`);
     }
 
-    const staged = stagePlatform(platformDir, binary, path.join(temporary, "staged", platformDirectory));
+    const staged = stagePlatform(platformDir, binary, path.join(temporary, "staged", platformName));
     const platformFiles = new Map([
       ["package.json", 0o644], [executable, process.platform === "win32" ? null : 0o755],
       ...legalRoots.map((name) => [name, 0o644]),

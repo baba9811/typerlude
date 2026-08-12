@@ -471,7 +471,7 @@ fn buffer_text(buffer: &Buffer) -> String {
 
 fn required_label(screen: Screen, language: Language) -> &'static str {
     match (screen, language) {
-        (Screen::Home, Language::Ko) => "타이플",
+        (Screen::Home, Language::Ko) => "Typerlude",
         (Screen::Home, Language::En) => "Typerlude",
         (Screen::ModeSelect, Language::Ko) => "빠른 연습",
         (Screen::ModeSelect, Language::En) => "Quick practice",

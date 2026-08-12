@@ -1,6 +1,12 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { packageFor } = require("../bin/typerlude.js");
+const { nativePackages, packageFor } = require("../bin/typerlude.js");
+
+test("native package records contain only the runtime mapping", () => {
+  for (const item of nativePackages) {
+    assert.deepEqual(Object.keys(item).sort(), ["arch", "executable", "name", "platform"]);
+  }
+});
 
 test("maps every supported native pair", () => {
   assert.deepEqual(packageFor("darwin", "arm64"), ["typerlude-darwin-arm64", "typerlude"]);

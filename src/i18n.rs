@@ -147,7 +147,7 @@ impl TextKey {
 pub const fn text(language: Language, key: TextKey) -> &'static str {
     match language {
         Language::Ko => match key {
-            TextKey::AppTitle => "타이플",
+            TextKey::AppTitle => "Typerlude",
             TextKey::HomeQuick => "빠른 연습",
             TextKey::HomeKeys => "키 연습",
             TextKey::HomeWords => "단어 연습",
