@@ -30,6 +30,7 @@ use typerlude::{
     theme::ThemeCatalog,
     ui::{practice_cursor, render},
 };
+use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
@@ -289,13 +290,18 @@ fn mode_for(kind: PracticeKind) -> PracticeMode {
 }
 
 fn request(kind: PracticeKind, language: Language, target: &str, stop: StopRule) -> ModeRequest {
+    let target_len = target.graphemes(true).count();
     ModeRequest {
         kind,
         language,
         target: target.into(),
         mode: mode_for(kind),
         stop,
-        item_ends: vec![1, target.chars().count()],
+        item_ends: if target_len > 1 {
+            vec![1, target_len]
+        } else {
+            vec![target_len]
+        },
         content_ids: vec!["first-item".into(), "second-item".into()],
     }
 }
@@ -2639,7 +2645,7 @@ fn practice_shows_observed_input_language_and_preserves_scoring() {
         request(
             PracticeKind::Words,
             Language::En,
-            "abc",
+            "abcd",
             StopRule::TargetEnd,
         ),
         start,
@@ -2982,6 +2988,11 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
         start,
     )
     .unwrap();
+    app.handle_event(
+        key_with(KeyCode::Backspace, KeyModifiers::NONE, KeyEventKind::Repeat),
+        start,
+    )
+    .unwrap();
     app.handle_event(key(KeyCode::Char('a')), start).unwrap();
     app.handle_event(
         key_with(KeyCode::Char('B'), KeyModifiers::SHIFT, KeyEventKind::Press),
@@ -2991,7 +3002,7 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
     let before_pause = app.active_practice().unwrap().engine.metrics(start);
     assert_eq!(before_pause.attempted_units, 3);
     assert_eq!(before_pause.errors, 1);
-    assert_eq!(before_pause.backspaces, 1);
+    assert_eq!(before_pause.backspaces, 2);
 
     app.handle_event(
         key_with(
@@ -3050,7 +3061,7 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
     assert_eq!(session.attempted_units, 4);
     assert_eq!(session.correct_units, 3);
     assert_eq!(session.errors, 1);
-    assert_eq!(session.backspaces, 1);
+    assert_eq!(session.backspaces, 2);
 
     let (_korean_root, mut korean) = fixture_app();
     korean.settings.ui_language = Language::Ko;
@@ -3069,6 +3080,41 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
         .handle_event(Event::Paste("비공개".into()), start)
         .unwrap();
     assert_eq!(korean.practice_status(), Some("붙여넣기 무시됨"));
+}
+
+#[test]
+fn errors_do_not_block_item_progress_and_backspace_reopens_the_previous_line() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Sentence,
+            language: Language::En,
+            target: "ab cd".into(),
+            mode: PracticeMode::Sentence {
+                completed: 0,
+                last_item: None,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![3, 5],
+            content_ids: vec!["first".into(), "second".into()],
+        },
+        start,
+    )
+    .unwrap();
+
+    type_text(&mut app, "ax", start);
+    app.handle_event(key(KeyCode::Enter), start).unwrap();
+    assert_catalog_progress(&app, 1);
+    assert_eq!(app.active_practice().unwrap().engine.cursor(), 3);
+
+    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    assert_eq!(app.active_practice().unwrap().engine.cursor(), 3);
+    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.engine.cursor(), 2);
+    assert_eq!(active.engine.metrics(start).errors, 2);
+    assert_catalog_progress(&app, 1);
 }
 
 #[test]

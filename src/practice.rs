@@ -98,12 +98,7 @@ impl PracticeEngine {
         if target_ends.is_empty() {
             bail!("practice target cannot be empty");
         }
-        if item_ends.last().copied() != Some(target_ends.len())
-            || item_ends.first().copied() == Some(0)
-            || item_ends.windows(2).any(|ends| ends[0] >= ends[1])
-        {
-            bail!("practice item boundaries must be ordered and cover the target");
-        }
+        validate_item_ends(item_ends, target_ends.len())?;
         let line_ends = logical_line_ends(kind, &target, &target_ends, item_ends)?;
 
         Ok(Self {
@@ -342,7 +337,12 @@ impl PracticeEngine {
         (self.best_rolling_kpm, self.best_rolling_wpm)
     }
 
-    pub fn extend_target(&mut self, separator: &str, target: &str) -> Result<()> {
+    pub fn extend_target(
+        &mut self,
+        separator: &str,
+        target: &str,
+        item_ends: &[usize],
+    ) -> Result<()> {
         if self.finalized_at.is_some() {
             bail!("cannot extend finalized practice");
         }
@@ -353,12 +353,19 @@ impl PracticeEngine {
         let extension = format!("{}{target}", normalize_nfc(separator));
         let ends = grapheme_ends(&extension, self.target.len())?;
         let extension_len = ends.len();
+        let target_len = UnicodeSegmentation::graphemes(target.as_str(), true).count();
+        let separator_len = extension_len.saturating_sub(target_len);
+        validate_item_ends(item_ends, target_len)?;
+        let extension_item_ends = item_ends
+            .iter()
+            .map(|end| separator_len.saturating_add(*end))
+            .collect::<Vec<_>>();
         let extension_byte_ends = grapheme_ends(&extension, 0)?;
         let extension_lines = logical_line_ends(
             self.kind,
             &extension,
             &extension_byte_ends,
-            &[extension_len],
+            &extension_item_ends,
         )?;
         let offset = self.target_ends.len();
         self.target.push_str(&extension);
@@ -543,6 +550,16 @@ fn logical_line_ends(
         item_start = item_end;
     }
     Ok(lines)
+}
+
+fn validate_item_ends(item_ends: &[usize], target_len: usize) -> Result<()> {
+    if item_ends.last().copied() != Some(target_len)
+        || item_ends.first().copied() == Some(0)
+        || item_ends.windows(2).any(|ends| ends[0] >= ends[1])
+    {
+        bail!("practice item boundaries must be ordered and cover the target");
+    }
+    Ok(())
 }
 
 fn append_line_segment(
@@ -956,7 +973,7 @@ mod tests {
         assert!(engine.target_complete());
         assert!(engine.toggle_pause(start + Duration::from_secs(10)));
         assert!(engine.toggle_pause(start + Duration::from_secs(40)));
-        engine.extend_target(" ", "e\u{301}").unwrap();
+        engine.extend_target(" ", "e\u{301}", &[1]).unwrap();
         assert!(!engine.target_complete());
         assert_eq!(
             engine
@@ -994,7 +1011,7 @@ mod tests {
             .collect::<Vec<_>>();
         let metrics_before = engine.metrics(start + Duration::from_secs(10));
 
-        assert!(engine.extend_target(" ", "").is_err());
+        assert!(engine.extend_target(" ", "", &[]).is_err());
         assert_eq!(
             engine
                 .target_cells()
@@ -1009,7 +1026,7 @@ mod tests {
 
         let frozen = engine.finalize(start + Duration::from_secs(10));
         assert_eq!(engine.metrics(start + Duration::from_secs(60)), frozen);
-        assert!(engine.extend_target(" ", "c").is_err());
+        assert!(engine.extend_target(" ", "c", &[1]).is_err());
         assert_eq!(
             engine.input("b", start + Duration::from_secs(60)),
             InputOutcome::Finished

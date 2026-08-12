@@ -542,10 +542,15 @@ impl ActivePractice {
     }
 
     pub fn long_scroll(&self) -> Option<LongScroll> {
-        let PracticeMode::Long { paragraph, .. } = self.mode else {
+        let PracticeMode::Long { .. } = self.mode else {
             return None;
         };
         let total_paragraphs = self.item_ends.len();
+        let position = self
+            .engine
+            .current_line_range()
+            .map_or_else(|| self.engine.cursor(), |range| range.start);
+        let paragraph = self.item_ends.partition_point(|&end| end <= position);
         Some(LongScroll {
             active_paragraph: paragraph.saturating_add(1).min(total_paragraphs),
             total_paragraphs,
@@ -821,10 +826,11 @@ impl App {
             StopRule::ActiveTime(duration) => Some(duration),
             StopRule::TargetEnd | StopRule::Items(_) => None,
         };
-        let engine = PracticeEngine::new(
+        let engine = PracticeEngine::new_for_items(
             request.language,
             request.kind,
             request.target.as_str(),
+            &request.item_ends,
             limit,
         )?;
         let metrics = engine.metrics(now);
@@ -1508,13 +1514,7 @@ impl App {
                 if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
             {
                 if let Some(active) = self.practice.as_mut() {
-                    let floor = active
-                        .next_item
-                        .checked_sub(1)
-                        .and_then(|index| active.item_ends.get(index))
-                        .copied()
-                        .unwrap_or(0);
-                    if active.engine.cursor() > floor && active.engine.backspace() {
+                    if active.engine.backspace() {
                         active.live_metrics = active.engine.metrics(now);
                         active.current_item_delta =
                             Some(item_delta(&active.item_metrics, &active.live_metrics));
@@ -1531,7 +1531,7 @@ impl App {
                 if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
-                self.input_practice("\n", now)?;
+                self.submit_practice_line(now)?;
             }
             _ => {}
         }
@@ -1539,16 +1539,27 @@ impl App {
     }
 
     fn input_practice(&mut self, text: &str, now: Instant) -> Result<()> {
+        self.apply_practice_input(Some(text), now)
+    }
+
+    fn submit_practice_line(&mut self, now: Instant) -> Result<()> {
+        self.apply_practice_input(None, now)
+    }
+
+    fn apply_practice_input(&mut self, text: Option<&str>, now: Instant) -> Result<()> {
         let Some(active) = self.practice.as_mut() else {
             return Ok(());
         };
-        if let Some(language) = input_language(text) {
+        if let Some(language) = text.and_then(input_language) {
             active.observed_input_language = Some(language);
         }
         let wall_now = OffsetDateTime::now_utc();
         let attempted_before = active.engine.attempted_units();
         let errors_before = active.live_metrics.errors;
-        active.engine.input(text, now);
+        match text {
+            Some(text) => active.engine.input(text, now),
+            None => active.engine.submit_line(now),
+        };
         if active.started_at_utc.is_none() && active.engine.attempted_units() > attempted_before {
             active.started_at_utc = Some(wall_now);
         }
@@ -1569,13 +1580,7 @@ impl App {
         let mut advanced = false;
         if let Some(active) = self.practice.as_mut() {
             while let Some(end) = active.item_ends.get(active.next_item).copied() {
-                if active.engine.cursor() < end
-                    || !active
-                        .engine
-                        .target_cells()
-                        .take(end)
-                        .all(|(_, entered)| entered == Some(true))
-                {
+                if active.engine.cursor() < end {
                     break;
                 }
 
@@ -1642,10 +1647,12 @@ impl App {
         };
         let separator_len = UnicodeSegmentation::graphemes(stream.separator, true).count();
         let offset = active.engine.target_len() + separator_len;
+        active
+            .engine
+            .extend_target(stream.separator, &target, &relative_ends)?;
         if let Some(end) = active.item_ends.last_mut() {
             *end += separator_len;
         }
-        active.engine.extend_target(stream.separator, &target)?;
         active
             .item_ends
             .extend(relative_ends.into_iter().map(|end| offset + end));
