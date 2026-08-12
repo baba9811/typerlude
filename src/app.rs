@@ -18,7 +18,6 @@ use crate::{
     update::UpdateNotice,
 };
 use anyhow::{Result, anyhow, bail};
-use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fs,
@@ -28,6 +27,68 @@ use std::{
 };
 use time::{Date, OffsetDateTime, UtcOffset};
 use unicode_segmentation::UnicodeSegmentation;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InputEvent {
+    Key(KeyInput),
+    Paste,
+    Ignored,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyInput {
+    pub key: Key,
+    pub modifiers: KeyModifiers,
+    pub kind: KeyKind,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Key {
+    BackTab,
+    Backspace,
+    Char(char),
+    Down,
+    Enter,
+    Esc,
+    Left,
+    Right,
+    Tab,
+    Up,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyKind {
+    Press,
+    Repeat,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct KeyModifiers {
+    pub shift: bool,
+    pub control: bool,
+    pub other: bool,
+}
+
+impl KeyModifiers {
+    pub const NONE: Self = Self {
+        shift: false,
+        control: false,
+        other: false,
+    };
+    pub const SHIFT: Self = Self {
+        shift: true,
+        ..Self::NONE
+    };
+    pub const CONTROL: Self = Self {
+        control: true,
+        ..Self::NONE
+    };
+    pub const OTHER: Self = Self {
+        other: true,
+        ..Self::NONE
+    };
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Screen {
@@ -1326,14 +1387,12 @@ impl App {
         Ok(())
     }
 
-    pub fn handle_event(&mut self, event: Event, now: Instant) -> Result<()> {
+    pub fn handle_event(&mut self, event: InputEvent, now: Instant) -> Result<()> {
         let update_notice_was_visible = self.update_notice.is_some();
         let quit = matches!(
             &event,
-            Event::Key(key)
-                if key.kind != KeyEventKind::Release
-                    && matches!(key.code, KeyCode::Char('c' | 'C'))
-                    && key.modifiers.contains(KeyModifiers::CONTROL)
+            InputEvent::Key(key)
+                if matches!(key.key, Key::Char('c' | 'C')) && key.modifiers.control
         );
         let was_practicing = self.screen == Screen::Practice;
         let tick = self.tick(now);
@@ -1346,7 +1405,7 @@ impl App {
             return Ok(());
         }
         match event {
-            Event::Paste(_) if self.screen == Screen::Practice => {
+            InputEvent::Paste if self.screen == Screen::Practice => {
                 if let Some(active) = self.practice.as_mut()
                     && !(active.kind() == PracticeKind::Test && active.leave_confirmation())
                 {
@@ -1356,7 +1415,7 @@ impl App {
                     ));
                 }
             }
-            Event::Key(key) if key.kind != KeyEventKind::Release => {
+            InputEvent::Key(key) => {
                 self.handle_key(key, now, update_notice_was_visible)?;
             }
             _ => {}
@@ -1366,7 +1425,7 @@ impl App {
 
     fn handle_key(
         &mut self,
-        key: KeyEvent,
+        key: KeyInput,
         now: Instant,
         update_notice_was_visible: bool,
     ) -> Result<()> {
@@ -1374,28 +1433,28 @@ impl App {
             return self.handle_practice_key(key, now);
         }
 
-        if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::NONE {
+        if key.key == Key::Char('q') && key.modifiers == KeyModifiers::NONE {
             self.quit = true;
             return Ok(());
         }
-        if key.code == KeyCode::Char('?')
+        if key.key == Key::Char('?')
             && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT)
         {
             self.open(Screen::Help);
             return Ok(());
         }
         if matches!(self.screen, Screen::Home | Screen::Result)
-            && key.kind == KeyEventKind::Press
+            && key.kind == KeyKind::Press
             && key.modifiers == KeyModifiers::NONE
             && update_notice_was_visible
             && self.update_notice.is_some()
         {
-            match key.code {
-                KeyCode::Char('l') => {
+            match key.key {
+                Key::Char('l') => {
                     self.update_notice = None;
                     return Ok(());
                 }
-                KeyCode::Char('s') => {
+                Key::Char('s') => {
                     let latest = self
                         .update_notice
                         .as_ref()
@@ -1413,33 +1472,33 @@ impl App {
             }
         }
 
-        match key.code {
-            KeyCode::Esc => self.escape(),
-            KeyCode::Tab | KeyCode::Down if self.screen != Screen::Practice => self.move_focus(1),
-            KeyCode::BackTab | KeyCode::Up if self.screen != Screen::Practice => {
+        match key.key {
+            Key::Esc => self.escape(),
+            Key::Tab | Key::Down if self.screen != Screen::Practice => self.move_focus(1),
+            Key::BackTab | Key::Up if self.screen != Screen::Practice => {
                 self.move_focus(-1);
             }
-            KeyCode::Char('j')
+            Key::Char('j')
                 if self.screen != Screen::Practice && key.modifiers == KeyModifiers::NONE =>
             {
                 self.move_focus(1);
             }
-            KeyCode::Char('k')
+            Key::Char('k')
                 if self.screen != Screen::Practice && key.modifiers == KeyModifiers::NONE =>
             {
                 self.move_focus(-1);
             }
-            KeyCode::Left if key.modifiers == KeyModifiers::NONE => self.adjust(-1),
-            KeyCode::Right if key.modifiers == KeyModifiers::NONE => self.adjust(1),
-            KeyCode::Char('d')
+            Key::Left if key.modifiers == KeyModifiers::NONE => self.adjust(-1),
+            Key::Right if key.modifiers == KeyModifiers::NONE => self.adjust(1),
+            Key::Char('d')
                 if self.screen == Screen::ContentDetail
-                    && key.kind == KeyEventKind::Press
+                    && key.kind == KeyKind::Press
                     && key.modifiers == KeyModifiers::NONE =>
             {
                 self.disable_selected_content();
             }
-            KeyCode::Enter if key.modifiers == KeyModifiers::NONE => self.enter(now)?,
-            KeyCode::Char('r')
+            Key::Enter if key.modifiers == KeyModifiers::NONE => self.enter(now)?,
+            Key::Char('r')
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
                 if let Some(request) = self.retry_request.clone() {
@@ -1460,7 +1519,7 @@ impl App {
                     }
                 }
             }
-            KeyCode::Char('n')
+            Key::Char('n')
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
                 self.start_next(now)?;
@@ -1470,13 +1529,13 @@ impl App {
         Ok(())
     }
 
-    fn handle_practice_key(&mut self, key: KeyEvent, now: Instant) -> Result<()> {
+    fn handle_practice_key(&mut self, key: KeyInput, now: Instant) -> Result<()> {
         if self
             .practice
             .as_ref()
             .is_some_and(|active| active.kind() == PracticeKind::Test)
         {
-            if key.kind == KeyEventKind::Press && key.code == KeyCode::Esc {
+            if key.kind == KeyKind::Press && key.key == Key::Esc {
                 if let Some(active) = self.practice.as_mut() {
                     active.leave_confirmation = !active.leave_confirmation;
                 }
@@ -1487,8 +1546,8 @@ impl App {
                 .as_ref()
                 .is_some_and(ActivePractice::leave_confirmation)
             {
-                if key.kind == KeyEventKind::Press
-                    && key.code == KeyCode::Char('q')
+                if key.kind == KeyKind::Press
+                    && key.key == Key::Char('q')
                     && key.modifiers == KeyModifiers::NONE
                 {
                     let attempted = self
@@ -1507,9 +1566,9 @@ impl App {
             }
         }
 
-        let pause = key.kind == KeyEventKind::Press
-            && (key.code == KeyCode::Esc
-                || (matches!(key.code, KeyCode::Char('p' | 'P'))
+        let pause = key.kind == KeyKind::Press
+            && (key.key == Key::Esc
+                || (matches!(key.key, Key::Char('p' | 'P'))
                     && key.modifiers == KeyModifiers::CONTROL));
         if pause {
             if let Some(active) = self.practice.as_mut()
@@ -1524,8 +1583,8 @@ impl App {
             return Ok(());
         };
         if active.engine.is_paused() {
-            if key.kind == KeyEventKind::Press
-                && key.code == KeyCode::Char('q')
+            if key.kind == KeyKind::Press
+                && key.key == Key::Char('q')
                 && key.modifiers == KeyModifiers::NONE
             {
                 let confirmed = active.leave_confirmation;
@@ -1544,10 +1603,8 @@ impl App {
             }
             return Ok(());
         }
-        match key.code {
-            KeyCode::Backspace
-                if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
-            {
+        match key.key {
+            Key::Backspace if matches!(key.kind, KeyKind::Press | KeyKind::Repeat) => {
                 if let Some(active) = self.practice.as_mut()
                     && active.engine.backspace()
                 {
@@ -1556,14 +1613,14 @@ impl App {
                         Some(item_delta(&active.item_metrics, &active.live_metrics));
                 }
             }
-            KeyCode::Char(character)
-                if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
+            Key::Char(character)
+                if matches!(key.kind, KeyKind::Press | KeyKind::Repeat)
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
                 self.input_practice(character.encode_utf8(&mut [0; 4]), now)?;
             }
-            KeyCode::Enter
-                if matches!(key.kind, KeyEventKind::Press | KeyEventKind::Repeat)
+            Key::Enter
+                if matches!(key.kind, KeyKind::Press | KeyKind::Repeat)
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
                 self.submit_practice_line(now)?;

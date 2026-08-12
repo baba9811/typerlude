@@ -1,6 +1,3 @@
-use crossterm::event::{
-    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent, MouseEventKind,
-};
 use ratatui::{
     Terminal,
     backend::TestBackend,
@@ -18,8 +15,9 @@ use std::{
 use time::{Date, OffsetDateTime, UtcOffset};
 use typerlude::{
     app::{
-        App, CustomTextSource, Grade, ItemDelta, ModeRequest, PracticeMode, QuickOptions,
-        QuickSource, ResultView, Screen, StopRule, grade, key_sequence, key_stages,
+        App, CustomTextSource, Grade, InputEvent, ItemDelta, Key, KeyInput, KeyKind, KeyModifiers,
+        ModeRequest, PracticeMode, QuickOptions, QuickSource, ResultView, Screen, StopRule, grade,
+        key_sequence, key_stages,
     },
     config::Settings,
     content::{ContentCatalog, ContentKind},
@@ -78,24 +76,28 @@ fn local_today() -> Date {
         .date()
 }
 
-fn key(code: KeyCode) -> Event {
-    key_with(code, KeyModifiers::NONE, KeyEventKind::Press)
+fn key(code: Key) -> InputEvent {
+    key_with(code, KeyModifiers::NONE, KeyKind::Press)
 }
 
-fn key_with(code: KeyCode, modifiers: KeyModifiers, kind: KeyEventKind) -> Event {
-    Event::Key(KeyEvent::new_with_kind(code, modifiers, kind))
+fn key_with(code: Key, modifiers: KeyModifiers, kind: KeyKind) -> InputEvent {
+    InputEvent::Key(KeyInput {
+        key: code,
+        modifiers,
+        kind,
+    })
 }
 
 fn open_mode_options(app: &mut App, index: usize, now: Instant) {
     for _ in 0..index {
-        app.handle_event(key(KeyCode::Tab), now).unwrap();
+        app.handle_event(key(Key::Tab), now).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
     assert_eq!(app.screen(), Screen::ModeOptions);
     assert_eq!(app.focus(), 0);
 }
 
-fn press(app: &mut App, code: KeyCode, count: usize, now: Instant) {
+fn press(app: &mut App, code: Key, count: usize, now: Instant) {
     for _ in 0..count {
         app.handle_event(key(code), now).unwrap();
     }
@@ -111,24 +113,24 @@ fn launch_mode_options(
 ) {
     open_mode_options(app, mode, now);
     if language == Language::Ko {
-        press(app, KeyCode::Right, 1, now);
+        press(app, Key::Right, 1, now);
     }
     let mut focus = 0;
     for &(row, count) in changes {
-        press(app, KeyCode::Tab, row - focus, now);
-        press(app, KeyCode::Right, count, now);
+        press(app, Key::Tab, row - focus, now);
+        press(app, Key::Right, count, now);
         focus = row;
     }
-    press(app, KeyCode::Tab, start - focus, now);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    press(app, Key::Tab, start - focus, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
 }
 
 fn type_text(app: &mut App, value: &str, now: Instant) {
     for character in value.chars() {
         let code = if character == '\n' {
-            KeyCode::Enter
+            Key::Enter
         } else {
-            KeyCode::Char(character)
+            Key::Char(character)
         };
         app.handle_event(key(code), now).unwrap();
     }
@@ -220,13 +222,13 @@ fn assert_result_next_unavailable_and_retry_exact(app: &mut App, now: Instant) {
     assert!(output.contains("Esc: Menu"), "{output}");
     assert!(!output.contains("n: Next"), "{output}");
 
-    app.handle_event(key(KeyCode::Char('n')), now + Duration::from_secs(2))
+    app.handle_event(key(Key::Char('n')), now + Duration::from_secs(2))
         .unwrap();
     assert_eq!(app.screen(), Screen::Result);
     assert_eq!(app.result, result);
     assert_eq!(app.retry_request(), Some(&request));
 
-    app.handle_event(key(KeyCode::Char('r')), now + Duration::from_secs(3))
+    app.handle_event(key(Key::Char('r')), now + Duration::from_secs(3))
         .unwrap();
     assert_eq!(app.screen(), Screen::Practice);
     assert_eq!(app.retry_request(), Some(&request));
@@ -563,7 +565,7 @@ fn every_screen_renders_its_bilingual_identity_at_supported_sizes() {
 fn home_renders_exactly_ten_actions_and_marks_the_focused_one() {
     let (_root, mut app) = fixture_app();
     for _ in 0..3 {
-        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+        app.handle_event(key(Key::Tab), Instant::now()).unwrap();
     }
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
@@ -598,10 +600,10 @@ fn every_home_practice_action_opens_its_matching_mode_options() {
         let (_root, mut app) = fixture_app();
         app.warnings.clear();
         for _ in 0..index {
-            app.handle_event(key(KeyCode::Tab), now).unwrap();
+            app.handle_event(key(Key::Tab), now).unwrap();
         }
 
-        app.handle_event(key(KeyCode::Enter), now).unwrap();
+        app.handle_event(key(Key::Enter), now).unwrap();
         assert_eq!(app.screen(), Screen::ModeOptions, "{kind:?}");
         assert_eq!(app.focus(), 0, "{kind:?}");
         assert!(app.active_practice().is_none(), "{kind:?}");
@@ -742,26 +744,26 @@ fn mode_options_reach_every_documented_quick_key_word_and_test_choice() {
 
     let (_root, mut quick) = fixture_app();
     open_mode_options(&mut quick, 0, now);
-    press(&mut quick, KeyCode::BackTab, 1, now);
+    press(&mut quick, Key::BackTab, 1, now);
     assert_eq!(quick.focus(), 4);
-    press(&mut quick, KeyCode::Tab, 1, now);
+    press(&mut quick, Key::Tab, 1, now);
     assert_eq!(quick.focus(), 0);
-    quick.handle_event(key(KeyCode::Esc), now).unwrap();
+    quick.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(quick.screen(), Screen::Home);
 
     let (_root, mut key_app) = fixture_app();
     open_mode_options(&mut key_app, 1, now);
-    press(&mut key_app, KeyCode::Tab, 1, now);
+    press(&mut key_app, Key::Tab, 1, now);
     press(
         &mut key_app,
-        KeyCode::Right,
+        Key::Right,
         key_stages(Language::En).len() - 1,
         now,
     );
-    press(&mut key_app, KeyCode::BackTab, 1, now);
-    press(&mut key_app, KeyCode::Right, 1, now);
-    press(&mut key_app, KeyCode::Tab, 4, now);
-    key_app.handle_event(key(KeyCode::Enter), now).unwrap();
+    press(&mut key_app, Key::BackTab, 1, now);
+    press(&mut key_app, Key::Right, 1, now);
+    press(&mut key_app, Key::Tab, 4, now);
+    key_app.handle_event(key(Key::Enter), now).unwrap();
     assert_eq!(
         key_app.active_practice().unwrap().mode,
         PracticeMode::Key {
@@ -789,9 +791,9 @@ fn long_options_render_metadata_and_launch_every_filtered_item() {
             let (_root, mut app) = fixture_app();
             open_mode_options(&mut app, 4, now);
             if language == Language::Ko {
-                press(&mut app, KeyCode::Right, 1, now);
+                press(&mut app, Key::Right, 1, now);
             }
-            press(&mut app, KeyCode::Tab, index + 1, now);
+            press(&mut app, Key::Tab, index + 1, now);
 
             let output = buffer_text(&draw(&app, 80, 24).buffer);
             assert!(
@@ -819,7 +821,7 @@ fn long_options_render_metadata_and_launch_every_filtered_item() {
                 assert!(output.contains(tag), "{output}");
             }
 
-            app.handle_event(key(KeyCode::Enter), now).unwrap();
+            app.handle_event(key(Key::Enter), now).unwrap();
             let active = app.active_practice().unwrap();
             assert_eq!(active.engine.language(), language);
             assert_eq!(
@@ -848,16 +850,16 @@ fn long_options_render_metadata_and_launch_every_filtered_item() {
         )
     };
     open_mode_options(&mut app, 4, now);
-    press(&mut app, KeyCode::Tab, english_count, now);
-    press(&mut app, KeyCode::BackTab, english_count, now);
-    press(&mut app, KeyCode::Right, 1, now);
+    press(&mut app, Key::Tab, english_count, now);
+    press(&mut app, Key::BackTab, english_count, now);
+    press(&mut app, Key::Right, 1, now);
     assert!(buffer_text(&draw(&app, 80, 24).buffer).contains(&expected));
 
     let (_root, mut empty) = fixture_app();
     empty.content = ContentCatalog::default();
     open_mode_options(&mut empty, 4, now);
-    press(&mut empty, KeyCode::Tab, 1, now);
-    empty.handle_event(key(KeyCode::Enter), now).unwrap();
+    press(&mut empty, Key::Tab, 1, now);
+    empty.handle_event(key(Key::Enter), now).unwrap();
     assert_eq!(empty.screen(), Screen::ModeOptions);
     assert!(empty.active_practice().is_none());
 }
@@ -879,7 +881,7 @@ fn long_options_keep_the_focused_tail_and_metadata_visible_with_warnings() {
 
     let now = Instant::now();
     open_mode_options(&mut app, 4, now);
-    press(&mut app, KeyCode::Tab, index + 1, now);
+    press(&mut app, Key::Tab, index + 1, now);
     let output = buffer_text(&draw(&app, 80, 24).buffer);
 
     for visible in [
@@ -907,7 +909,7 @@ fn long_options_keep_the_focused_tail_and_metadata_visible_with_warnings() {
     }
     assert!(!output.contains("Viewport item 00"), "{output}");
 
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
     assert_eq!(
         app.active_practice().unwrap().mode,
         PracticeMode::Long {
@@ -1194,21 +1196,19 @@ fn content_detail_pages_through_pack_and_every_unique_item_provenance() {
         .position(|pack| pack.id == "en-sentences")
         .unwrap();
     for _ in 0..index {
-        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+        app.handle_event(key(Key::Tab), Instant::now()).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), Instant::now())
-        .unwrap();
+    app.handle_event(key(Key::Enter), Instant::now()).unwrap();
 
     let first = buffer_text(&draw(&app, 120, 40).buffer);
     assert!(first.contains("Provenance 1/121"), "{first}");
     assert!(first.contains("tatoeba:331259"), "{first}");
-    app.handle_event(key(KeyCode::Down), Instant::now())
-        .unwrap();
+    app.handle_event(key(Key::Down), Instant::now()).unwrap();
     let second = buffer_text(&draw(&app, 120, 40).buffer);
     assert!(second.contains("Provenance 2/121"), "{second}");
     assert!(second.contains("tatoeba:337215"), "{second}");
-    app.handle_event(key(KeyCode::Up), Instant::now()).unwrap();
-    app.handle_event(key(KeyCode::Up), Instant::now()).unwrap();
+    app.handle_event(key(Key::Up), Instant::now()).unwrap();
+    app.handle_event(key(Key::Up), Instant::now()).unwrap();
     let pack = buffer_text(&draw(&app, 120, 40).buffer);
     assert!(pack.contains("Provenance 121/121"), "{pack}");
     assert!(pack.contains("scope: pack"), "{pack}");
@@ -1230,11 +1230,10 @@ fn content_detail_keeps_provenance_license_and_status_visible_with_a_warning() {
         .position(|pack| pack.id == "en-sentences")
         .unwrap();
     for _ in 0..index {
-        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+        app.handle_event(key(Key::Tab), Instant::now()).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), Instant::now())
-        .unwrap();
-    app.handle_event(key(KeyCode::Up), Instant::now()).unwrap();
+    app.handle_event(key(Key::Enter), Instant::now()).unwrap();
+    app.handle_event(key(Key::Up), Instant::now()).unwrap();
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     for value in [
@@ -1688,18 +1687,18 @@ fn goal_arrows_snap_minimum_and_off_grid_values_in_the_pressed_direction() {
     app.settings.daily_minutes = 6;
     app.open(Screen::Goals);
 
-    app.handle_event(key(KeyCode::Left), now).unwrap();
+    app.handle_event(key(Key::Left), now).unwrap();
     assert_eq!(app.settings.target_kpm, 500);
-    press(&mut app, KeyCode::Tab, 1, now);
-    app.handle_event(key(KeyCode::Right), now).unwrap();
+    press(&mut app, Key::Tab, 1, now);
+    app.handle_event(key(Key::Right), now).unwrap();
     assert_eq!(app.settings.target_wpm, 5);
-    press(&mut app, KeyCode::Tab, 1, now);
-    app.handle_event(key(KeyCode::Right), now).unwrap();
+    press(&mut app, Key::Tab, 1, now);
+    app.handle_event(key(Key::Right), now).unwrap();
     assert_eq!(app.settings.target_accuracy, 97.5);
-    press(&mut app, KeyCode::Tab, 1, now);
-    app.handle_event(key(KeyCode::Left), now).unwrap();
+    press(&mut app, Key::Tab, 1, now);
+    app.handle_event(key(Key::Left), now).unwrap();
     assert_eq!(app.settings.daily_minutes, 5);
-    app.handle_event(key(KeyCode::Right), now).unwrap();
+    app.handle_event(key(Key::Right), now).unwrap();
     assert_eq!(app.settings.daily_minutes, 10);
 }
 
@@ -1721,14 +1720,14 @@ fn focused_theme_previews_without_saving_and_escape_reverts() {
     app.settings.theme = "default".into();
     app.warnings.clear();
     app.open(Screen::Themes);
-    press(&mut app, KeyCode::Tab, 4, now);
+    press(&mut app, Key::Tab, 4, now);
 
     let preview = draw(&app, 80, 24);
     let nord = app.themes.get("nord").unwrap().styles().unwrap();
     assert_role_style(&preview.buffer[(70, 18)], nord.base);
     assert_eq!(app.settings.theme, "default");
 
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     let reverted = draw(&app, 80, 24);
     let default = app.themes.get("default").unwrap().styles().unwrap();
     assert_role_style(&reverted.buffer[(70, 18)], default.base);
@@ -1958,15 +1957,15 @@ fn settings_actions_edit_every_requested_field_and_survive_reload() {
     for focus in [0, 1, 3, 4, 5, 6, 7, 8] {
         app.open(Screen::Settings);
         for _ in 0..focus {
-            app.handle_event(key(KeyCode::Tab), now).unwrap();
+            app.handle_event(key(Key::Tab), now).unwrap();
         }
-        app.handle_event(key(KeyCode::Enter), now).unwrap();
+        app.handle_event(key(Key::Enter), now).unwrap();
     }
     app.open(Screen::Themes);
     for _ in 0..4 {
-        app.handle_event(key(KeyCode::Tab), now).unwrap();
+        app.handle_event(key(Key::Tab), now).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
 
     let loaded = Settings::load(&app.paths).unwrap().value;
     assert_eq!(loaded.language, Language::Ko);
@@ -1986,9 +1985,9 @@ fn modified_enter_cannot_change_or_persist_navigation_screen_state() {
     let before = app.settings.clone();
     app.open(Screen::Settings);
 
-    for modifiers in [KeyModifiers::ALT, KeyModifiers::CONTROL] {
+    for modifiers in [KeyModifiers::OTHER, KeyModifiers::CONTROL] {
         app.handle_event(
-            key_with(KeyCode::Enter, modifiers, KeyEventKind::Press),
+            key_with(Key::Enter, modifiers, KeyKind::Press),
             Instant::now(),
         )
         .unwrap();
@@ -2035,10 +2034,9 @@ fn content_packs_group_provenance_and_disable_only_users_after_confirmation() {
         .position(|summary| summary.id == "user-pack")
         .unwrap();
     for _ in 0..user_index {
-        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+        app.handle_event(key(Key::Tab), Instant::now()).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), Instant::now())
-        .unwrap();
+    app.handle_event(key(Key::Enter), Instant::now()).unwrap();
     assert_eq!(app.screen(), Screen::ContentDetail);
     assert_eq!(app.selected_content_pack(), Some("user-pack"));
     let detail = buffer_text(&draw(&app, 120, 40).buffer);
@@ -2056,11 +2054,11 @@ fn content_packs_group_provenance_and_disable_only_users_after_confirmation() {
         assert!(detail.contains(value), "missing {value:?}: {detail}");
     }
 
-    app.handle_event(key(KeyCode::Char('d')), Instant::now())
+    app.handle_event(key(Key::Char('d')), Instant::now())
         .unwrap();
     assert!(source.exists());
     assert!(buffer_text(&draw(&app, 120, 40).buffer).contains("Press d again"));
-    app.handle_event(key(KeyCode::Char('d')), Instant::now())
+    app.handle_event(key(Key::Char('d')), Instant::now())
         .unwrap();
     assert!(!source.exists());
     assert!(paths.content.join("disabled/user-pack.toml").exists());
@@ -2087,10 +2085,9 @@ fn content_packs_group_provenance_and_disable_only_users_after_confirmation() {
         .position(|summary| summary.id == "user-pack")
         .unwrap();
     for _ in 0..disabled_index {
-        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+        app.handle_event(key(Key::Tab), Instant::now()).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), Instant::now())
-        .unwrap();
+    app.handle_event(key(Key::Enter), Instant::now()).unwrap();
     let disabled_detail = buffer_text(&draw(&app, 120, 40).buffer);
     for value in [
         "Test author",
@@ -2111,11 +2108,10 @@ fn content_packs_group_provenance_and_disable_only_users_after_confirmation() {
         .position(|summary| summary.built_in)
         .unwrap();
     for _ in 0..built_in_index {
-        app.handle_event(key(KeyCode::Tab), Instant::now()).unwrap();
+        app.handle_event(key(Key::Tab), Instant::now()).unwrap();
     }
-    app.handle_event(key(KeyCode::Enter), Instant::now())
-        .unwrap();
-    app.handle_event(key(KeyCode::Char('d')), Instant::now())
+    app.handle_event(key(Key::Enter), Instant::now()).unwrap();
+    app.handle_event(key(Key::Char('d')), Instant::now())
         .unwrap();
     assert!(
         app.warnings
@@ -2398,12 +2394,12 @@ fn escape_returns_to_the_parent_and_nested_help_returns_to_its_opener() {
         "Help must not parent itself"
     );
 
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(app.screen(), Screen::Settings);
     assert_eq!(app.parent(), Screen::Home);
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(app.screen(), Screen::Home);
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert!(app.should_quit());
 
     let (_root, mut nested) = fixture_app();
@@ -2417,10 +2413,10 @@ fn escape_returns_to_the_parent_and_nested_help_returns_to_its_opener() {
         "a screen must not parent itself"
     );
     nested.open(Screen::Help);
-    nested.handle_event(key(KeyCode::Esc), now).unwrap();
+    nested.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(nested.screen(), Screen::Stats);
     assert_eq!(nested.parent(), Screen::Settings);
-    nested.handle_event(key(KeyCode::Esc), now).unwrap();
+    nested.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(nested.screen(), Screen::Settings);
 }
 
@@ -2429,22 +2425,22 @@ fn escape_restores_the_departure_focus_at_every_nested_level() {
     let (_root, mut app) = fixture_app();
     let now = Instant::now();
 
-    press(&mut app, KeyCode::Tab, 6, now);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
-    press(&mut app, KeyCode::Tab, 3, now);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    press(&mut app, Key::Tab, 6, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
+    press(&mut app, Key::Tab, 3, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!((app.screen(), app.focus()), (Screen::Stats, 3));
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!((app.screen(), app.focus()), (Screen::Home, 6));
 
     app.open(Screen::Settings);
-    press(&mut app, KeyCode::Tab, 2, now);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    press(&mut app, Key::Tab, 2, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
     app.open(Screen::Help);
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!((app.screen(), app.focus()), (Screen::Themes, 0));
-    app.handle_event(key(KeyCode::Esc), now).unwrap();
+    app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!((app.screen(), app.focus()), (Screen::Settings, 2));
 }
 
@@ -2454,7 +2450,7 @@ fn result_escape_always_returns_home() {
     app.open(Screen::Settings);
     app.open(Screen::Result);
 
-    app.handle_event(key(KeyCode::Esc), Instant::now()).unwrap();
+    app.handle_event(key(Key::Esc), Instant::now()).unwrap();
 
     assert_eq!(app.screen(), Screen::Home);
     assert_eq!(app.parent(), Screen::Home);
@@ -2466,11 +2462,7 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
         let (_root, mut app) = fixture_app();
         app.open(screen);
         app.handle_event(
-            key_with(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL,
-                KeyEventKind::Press,
-            ),
+            key_with(Key::Char('c'), KeyModifiers::CONTROL, KeyKind::Press),
             Instant::now(),
         )
         .unwrap();
@@ -2479,27 +2471,20 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
 
     let (_root, mut released) = fixture_app();
     released
-        .handle_event(
-            key_with(
-                KeyCode::Char('c'),
-                KeyModifiers::CONTROL,
-                KeyEventKind::Release,
-            ),
-            Instant::now(),
-        )
+        .handle_event(InputEvent::Ignored, Instant::now())
         .unwrap();
     assert!(!released.should_quit());
 
     let (_root, mut outside) = fixture_app();
     outside
-        .handle_event(key(KeyCode::Char('q')), Instant::now())
+        .handle_event(key(Key::Char('q')), Instant::now())
         .unwrap();
     assert!(outside.should_quit());
 
     let (_root, mut repeat) = fixture_app();
     repeat
         .handle_event(
-            key_with(KeyCode::Char('q'), KeyModifiers::NONE, KeyEventKind::Repeat),
+            key_with(Key::Char('q'), KeyModifiers::NONE, KeyKind::Repeat),
             Instant::now(),
         )
         .unwrap();
@@ -2508,7 +2493,7 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
     let (_root, mut modified) = fixture_app();
     modified
         .handle_event(
-            key_with(KeyCode::Char('q'), KeyModifiers::ALT, KeyEventKind::Press),
+            key_with(Key::Char('q'), KeyModifiers::OTHER, KeyKind::Press),
             Instant::now(),
         )
         .unwrap();
@@ -2517,13 +2502,12 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
     let (_root, mut help) = fixture_app();
     help.open(Screen::Stats);
     help.handle_event(
-        key_with(KeyCode::Char('?'), KeyModifiers::SHIFT, KeyEventKind::Press),
+        key_with(Key::Char('?'), KeyModifiers::SHIFT, KeyKind::Press),
         Instant::now(),
     )
     .unwrap();
     assert_eq!(help.screen(), Screen::Help);
-    help.handle_event(key(KeyCode::Esc), Instant::now())
-        .unwrap();
+    help.handle_event(key(Key::Esc), Instant::now()).unwrap();
     assert_eq!(help.screen(), Screen::Stats);
 
     let (_root, mut practice) = fixture_app();
@@ -2540,7 +2524,7 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
         .unwrap();
     for (index, printable) in ['q', '?', 'j', 'k'].into_iter().enumerate() {
         practice
-            .handle_event(key(KeyCode::Char(printable)), Instant::now())
+            .handle_event(key(Key::Char(printable)), Instant::now())
             .unwrap();
         assert_eq!(practice.screen(), Screen::Practice);
         assert_eq!(practice.focus(), 0);
@@ -2562,19 +2546,19 @@ fn focus_keys_wrap_and_home_enter_opens_the_exact_static_action() {
     let (_root, mut app) = fixture_app();
     let now = Instant::now();
 
-    app.handle_event(key(KeyCode::BackTab), now).unwrap();
+    app.handle_event(key(Key::BackTab), now).unwrap();
     assert_eq!(app.focus(), 9);
-    app.handle_event(key(KeyCode::Enter), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
     assert_eq!(app.screen(), Screen::Settings);
     assert_eq!(app.focus(), 0);
 
-    for backward in [KeyCode::Up, KeyCode::Char('k')] {
+    for backward in [Key::Up, Key::Char('k')] {
         app.open(Screen::Home);
         app.handle_event(key(backward), now).unwrap();
         assert_eq!(app.focus(), 9);
     }
 
-    for forward in [KeyCode::Tab, KeyCode::Down, KeyCode::Char('j')] {
+    for forward in [Key::Tab, Key::Down, Key::Char('j')] {
         app.open(Screen::Home);
         for _ in 0..10 {
             app.handle_event(key(forward), now).unwrap();
@@ -2582,11 +2566,7 @@ fn focus_keys_wrap_and_home_enter_opens_the_exact_static_action() {
         assert_eq!(app.focus(), 0);
     }
 
-    app.handle_event(
-        key_with(KeyCode::Down, KeyModifiers::NONE, KeyEventKind::Release),
-        now,
-    )
-    .unwrap();
+    app.handle_event(InputEvent::Ignored, now).unwrap();
     assert_eq!(app.focus(), 0);
 }
 
@@ -2602,19 +2582,7 @@ fn non_key_events_do_not_change_domain_state() {
     let before_request = app.retry_request().unwrap().clone();
     let before_metrics = app.active_practice().unwrap().engine.metrics(now);
 
-    for event in [
-        Event::FocusGained,
-        Event::FocusLost,
-        Event::Resize(1, 1),
-        Event::Mouse(MouseEvent {
-            kind: MouseEventKind::Moved,
-            column: 3,
-            row: 4,
-            modifiers: KeyModifiers::NONE,
-        }),
-    ] {
-        app.handle_event(event, now).unwrap();
-    }
+    app.handle_event(InputEvent::Ignored, now).unwrap();
 
     assert_eq!(app.screen(), Screen::Practice);
     assert_eq!(app.parent(), Screen::Home);
@@ -2684,7 +2652,7 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
         app.active_practice().unwrap().observed_input_language(),
         None
     );
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
     let active = app.active_practice().unwrap();
     assert_eq!(active.observed_input_language(), Some(Language::En));
     assert!(!active.engine.is_finished(start + Duration::from_secs(4)));
@@ -2692,7 +2660,7 @@ fn active_time_limit_is_passed_to_the_engine_and_retry_is_exact() {
 
     app.open(Screen::Result);
     app.result = Some(result_view("stale-retry-result"));
-    app.handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(6))
+    app.handle_event(key(Key::Char('r')), start + Duration::from_secs(6))
         .unwrap();
 
     assert_eq!(app.screen(), Screen::Practice);
@@ -2729,7 +2697,7 @@ fn practice_shows_observed_input_language_and_preserves_scoring() {
     );
     assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("Practice EN · Input —"));
 
-    app.handle_event(key(KeyCode::Char('한')), start).unwrap();
+    app.handle_event(key(Key::Char('한')), start).unwrap();
     assert_eq!(
         app.active_practice().unwrap().observed_input_language(),
         Some(Language::Ko)
@@ -2747,13 +2715,13 @@ fn practice_shows_observed_input_language_and_preserves_scoring() {
     assert_role_style(warning, styles.error);
 
     let attempted = app.active_practice().unwrap().engine.attempted_units();
-    app.handle_event(key(KeyCode::Char('!')), start).unwrap();
+    app.handle_event(key(Key::Char('!')), start).unwrap();
     assert_eq!(
         app.active_practice().unwrap().observed_input_language(),
         Some(Language::Ko)
     );
     assert!(app.active_practice().unwrap().engine.attempted_units() > attempted);
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
     assert_eq!(
         app.active_practice().unwrap().observed_input_language(),
         Some(Language::En)
@@ -2772,9 +2740,7 @@ fn practice_shows_observed_input_language_and_preserves_scoring() {
             start,
         )
         .unwrap();
-    korean
-        .handle_event(key(KeyCode::Char('한')), start)
-        .unwrap();
+    korean.handle_event(key(Key::Char('한')), start).unwrap();
     let output = buffer_text(&draw(&korean, 80, 24).buffer);
     assert!(output.contains("연습 EN · 입력 한글 ⚠"), "{output}");
 }
@@ -2820,7 +2786,7 @@ fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
         );
         let expected_request = expected.retry_request().unwrap().clone();
 
-        app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(2))
+        app.handle_event(key(Key::Char('n')), start + Duration::from_secs(2))
             .unwrap();
 
         assert_eq!(app.screen(), Screen::Practice);
@@ -2838,7 +2804,7 @@ fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
                 start + Duration::from_secs(5),
             );
             let second_request = second.retry_request().unwrap().clone();
-            app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(5))
+            app.handle_event(key(Key::Char('n')), start + Duration::from_secs(5))
                 .unwrap();
             assert_eq!(app.retry_request(), Some(&second_request));
         }
@@ -2864,7 +2830,7 @@ fn result_next_timed_quick_skips_stream_seeds_consumed_before_result() {
         .start_quick(options.clone(), 25, start + Duration::from_secs(2))
         .unwrap();
     let expected_request = expected.retry_request().unwrap().clone();
-    app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(2))
+    app.handle_event(key(Key::Char('n')), start + Duration::from_secs(2))
         .unwrap();
     assert_eq!(app.retry_request(), Some(&expected_request));
 
@@ -2875,7 +2841,7 @@ fn result_next_timed_quick_skips_stream_seeds_consumed_before_result() {
         .start_quick(options.clone(), 26, start + Duration::from_secs(5))
         .unwrap();
     let second_request = second.retry_request().unwrap().clone();
-    app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(5))
+    app.handle_event(key(Key::Char('n')), start + Duration::from_secs(5))
         .unwrap();
     assert_eq!(app.retry_request(), Some(&second_request));
 
@@ -2884,7 +2850,7 @@ fn result_next_timed_quick_skips_stream_seeds_consumed_before_result() {
     let initial_request = retry.retry_request().unwrap().clone();
     finish_after_timed_quick_extension(&mut retry, start);
     retry
-        .handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(2))
+        .handle_event(key(Key::Char('r')), start + Duration::from_secs(2))
         .unwrap();
     assert_eq!(retry.screen(), Screen::Practice);
     assert_eq!(retry.retry_request(), Some(&initial_request));
@@ -2913,7 +2879,7 @@ fn result_next_moves_to_the_next_long_item_and_wraps() {
         let expected_request = expected.retry_request().unwrap().clone();
         let expected_metadata = expected.long_metadata().unwrap().clone();
 
-        app.handle_event(key(KeyCode::Char('n')), start + Duration::from_secs(2))
+        app.handle_event(key(Key::Char('n')), start + Duration::from_secs(2))
             .unwrap();
 
         assert_eq!(app.retry_request(), Some(&expected_request));
@@ -2962,7 +2928,7 @@ fn invalid_start_is_transactional_for_all_owned_state() {
     );
     app.result = Some(result_view("preserved"));
     app.open(Screen::Settings);
-    app.handle_event(key(KeyCode::Tab), now).unwrap();
+    app.handle_event(key(Key::Tab), now).unwrap();
 
     let screen = app.screen();
     let parent = app.parent();
@@ -3027,21 +2993,9 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
     )
     .unwrap();
 
+    app.handle_event(InputEvent::Ignored, start).unwrap();
     app.handle_event(
-        key_with(
-            KeyCode::Char('x'),
-            KeyModifiers::NONE,
-            KeyEventKind::Release,
-        ),
-        start,
-    )
-    .unwrap();
-    app.handle_event(
-        key_with(
-            KeyCode::Char('z'),
-            KeyModifiers::CONTROL,
-            KeyEventKind::Press,
-        ),
+        key_with(Key::Char('z'), KeyModifiers::CONTROL, KeyKind::Press),
         start,
     )
     .unwrap();
@@ -3054,20 +3008,20 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
         0
     );
 
-    app.handle_event(key(KeyCode::Char('x')), start).unwrap();
+    app.handle_event(key(Key::Char('x')), start).unwrap();
     app.handle_event(
-        key_with(KeyCode::Backspace, KeyModifiers::NONE, KeyEventKind::Repeat),
+        key_with(Key::Backspace, KeyModifiers::NONE, KeyKind::Repeat),
         start,
     )
     .unwrap();
     app.handle_event(
-        key_with(KeyCode::Backspace, KeyModifiers::NONE, KeyEventKind::Repeat),
+        key_with(Key::Backspace, KeyModifiers::NONE, KeyKind::Repeat),
         start,
     )
     .unwrap();
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
     app.handle_event(
-        key_with(KeyCode::Char('B'), KeyModifiers::SHIFT, KeyEventKind::Press),
+        key_with(Key::Char('B'), KeyModifiers::SHIFT, KeyKind::Press),
         start,
     )
     .unwrap();
@@ -3077,28 +3031,23 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
     assert_eq!(before_pause.backspaces, 2);
 
     app.handle_event(
-        key_with(
-            KeyCode::Char('p'),
-            KeyModifiers::CONTROL,
-            KeyEventKind::Press,
-        ),
+        key_with(Key::Char('p'), KeyModifiers::CONTROL, KeyKind::Press),
         start,
     )
     .unwrap();
     assert!(app.active_practice().unwrap().engine.is_paused());
     assert!(buffer_text(&draw(&app, 80, 24).buffer).contains("Resume"));
-    app.handle_event(key(KeyCode::Char('c')), start).unwrap();
-    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    app.handle_event(key(Key::Char('c')), start).unwrap();
+    app.handle_event(key(Key::Backspace), start).unwrap();
     assert_eq!(
         app.active_practice().unwrap().engine.metrics(start),
         before_pause
     );
 
-    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    app.handle_event(key(Key::Esc), start).unwrap();
     assert!(!app.active_practice().unwrap().engine.is_paused());
     let paste_at = start + Duration::from_secs(1);
-    app.handle_event(Event::Paste("private-paste".into()), paste_at)
-        .unwrap();
+    app.handle_event(InputEvent::Paste, paste_at).unwrap();
     let after_paste = app.active_practice().unwrap().engine.metrics(paste_at);
     assert_eq!(after_paste.correct_units, before_pause.correct_units);
     assert_eq!(after_paste.attempted_units, before_pause.attempted_units);
@@ -3124,7 +3073,7 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
     assert!(sanitized.contains("visible-status"));
 
     app.handle_event(
-        key_with(KeyCode::Char('c'), KeyModifiers::NONE, KeyEventKind::Repeat),
+        key_with(Key::Char('c'), KeyModifiers::NONE, KeyKind::Repeat),
         paste_at + Duration::from_secs(4),
     )
     .unwrap();
@@ -3148,9 +3097,7 @@ fn practice_events_route_text_backspace_pause_paste_and_expiry() {
             start,
         )
         .unwrap();
-    korean
-        .handle_event(Event::Paste("비공개".into()), start)
-        .unwrap();
+    korean.handle_event(InputEvent::Paste, start).unwrap();
     assert_eq!(korean.practice_status(), Some("붙여넣기 무시됨"));
 }
 
@@ -3176,17 +3123,17 @@ fn errors_do_not_block_item_progress_and_backspace_reopens_the_previous_line() {
     .unwrap();
 
     type_text(&mut app, "ax", start);
-    app.handle_event(key(KeyCode::Enter), start).unwrap();
+    app.handle_event(key(Key::Enter), start).unwrap();
     assert_catalog_progress(&app, 1);
     assert_eq!(app.active_practice().unwrap().engine.cursor(), 3);
 
-    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    app.handle_event(key(Key::Backspace), start).unwrap();
     assert_eq!(app.active_practice().unwrap().engine.cursor(), 3);
     let reopened = draw(&app, 80, 24);
     let styles = app.themes.get("default").unwrap().styles().unwrap();
     assert_eq!(reopened.buffer[(4, 2)].symbol(), "·");
     assert_role_style(&reopened.buffer[(4, 2)], styles.error);
-    app.handle_event(key(KeyCode::Backspace), start).unwrap();
+    app.handle_event(key(Key::Backspace), start).unwrap();
     let active = app.active_practice().unwrap();
     assert_eq!(active.engine.cursor(), 2);
     assert_eq!(active.engine.metrics(start).errors, 2);
@@ -3207,14 +3154,11 @@ fn practice_rejects_modified_enter() {
         now,
     )
     .unwrap();
-    app.handle_event(key(KeyCode::Char('a')), now).unwrap();
+    app.handle_event(key(Key::Char('a')), now).unwrap();
 
-    for modifiers in [KeyModifiers::ALT, KeyModifiers::CONTROL] {
-        app.handle_event(
-            key_with(KeyCode::Enter, modifiers, KeyEventKind::Press),
-            now,
-        )
-        .unwrap();
+    for modifiers in [KeyModifiers::OTHER, KeyModifiers::CONTROL] {
+        app.handle_event(key_with(Key::Enter, modifiers, KeyKind::Press), now)
+            .unwrap();
     }
 
     let active = app.active_practice().unwrap();
@@ -3241,12 +3185,8 @@ fn typing_tests_refuse_both_pause_keys() {
     assert!(footer.contains("Esc: Leave"), "{footer}");
 
     for pause in [
-        key(KeyCode::Esc),
-        key_with(
-            KeyCode::Char('p'),
-            KeyModifiers::CONTROL,
-            KeyEventKind::Press,
-        ),
+        key(Key::Esc),
+        key_with(Key::Char('p'), KeyModifiers::CONTROL, KeyKind::Press),
     ] {
         app.handle_event(pause, start).unwrap();
         assert_eq!(app.screen(), Screen::Practice);
@@ -3268,8 +3208,8 @@ fn typing_test_escape_then_q_persists_one_attempted_session() {
         start,
     )
     .unwrap();
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
-    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Esc), start).unwrap();
 
     let confirmation = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(confirmation.contains("Q: Confirm"), "{confirmation}");
@@ -3278,15 +3218,14 @@ fn typing_test_escape_then_q_persists_one_attempted_session() {
     assert!(!app.active_practice().unwrap().engine.is_paused());
 
     let before_confirmation_input = app.active_practice().unwrap().engine.metrics(start);
-    app.handle_event(key(KeyCode::Char('b')), start).unwrap();
-    app.handle_event(key(KeyCode::Backspace), start).unwrap();
-    app.handle_event(Event::Paste("private paste".into()), start)
-        .unwrap();
+    app.handle_event(key(Key::Char('b')), start).unwrap();
+    app.handle_event(key(Key::Backspace), start).unwrap();
+    app.handle_event(InputEvent::Paste, start).unwrap();
     let active = app.active_practice().unwrap();
     assert_eq!(active.engine.metrics(start), before_confirmation_input);
     assert!(app.practice_status().is_none());
 
-    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    app.handle_event(key(Key::Char('q')), start).unwrap();
 
     assert_eq!(app.screen(), Screen::Result);
     assert!(app.result.is_some());
@@ -3301,7 +3240,7 @@ fn typing_test_escape_then_q_persists_one_attempted_session() {
         .collect::<Vec<_>>();
     assert_eq!(session_files.len(), 1);
 
-    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    app.handle_event(key(Key::Char('q')), start).unwrap();
     assert_eq!(app.sessions.len(), 1);
     assert_eq!(
         fs::read_dir(&app.paths.sessions)
@@ -3333,8 +3272,8 @@ fn empty_typing_test_escape_then_q_returns_home_without_a_session() {
     )
     .unwrap();
 
-    app.handle_event(key(KeyCode::Esc), start).unwrap();
-    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    app.handle_event(key(Key::Esc), start).unwrap();
+    app.handle_event(key(Key::Char('q')), start).unwrap();
 
     assert_eq!(app.screen(), Screen::Home);
     assert!(app.result.is_none());
@@ -3357,20 +3296,16 @@ fn typing_test_second_escape_cancels_leave_confirmation() {
     )
     .unwrap();
 
-    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    app.handle_event(key(Key::Esc), start).unwrap();
     assert!(app.active_practice().unwrap().leave_confirmation());
-    app.handle_event(key(KeyCode::Esc), start).unwrap();
+    app.handle_event(key(Key::Esc), start).unwrap();
     assert!(!app.active_practice().unwrap().leave_confirmation());
     app.handle_event(
-        key_with(
-            KeyCode::Char('p'),
-            KeyModifiers::CONTROL,
-            KeyEventKind::Press,
-        ),
+        key_with(Key::Char('p'), KeyModifiers::CONTROL, KeyKind::Press),
         start,
     )
     .unwrap();
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
 
     let active = app.active_practice().unwrap();
     assert!(!active.engine.is_paused());
@@ -3391,9 +3326,9 @@ fn a_deadline_crossing_key_is_consumed_instead_of_becoming_a_result_command() {
         start,
     )
     .unwrap();
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
 
-    app.handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(1))
+    app.handle_event(key(Key::Char('r')), start + Duration::from_secs(1))
         .unwrap();
 
     assert_eq!(app.screen(), Screen::Result);
@@ -3412,13 +3347,9 @@ fn a_deadline_crossing_key_is_consumed_instead_of_becoming_a_result_command() {
         start,
     )
     .unwrap();
-    quit.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    quit.handle_event(key(Key::Char('a')), start).unwrap();
     quit.handle_event(
-        key_with(
-            KeyCode::Char('c'),
-            KeyModifiers::CONTROL,
-            KeyEventKind::Press,
-        ),
+        key_with(Key::Char('c'), KeyModifiers::CONTROL, KeyKind::Press),
         start + Duration::from_secs(1),
     )
     .unwrap();
@@ -3448,13 +3379,10 @@ fn active_time_finishes_from_tick_not_from_target_exhaustion_and_saves_privately
     .unwrap();
 
     let before = OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000;
-    app.handle_event(key(KeyCode::Char('p')), start).unwrap();
+    app.handle_event(key(Key::Char('p')), start).unwrap();
     let after = OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000;
-    app.handle_event(
-        Event::Paste("private paste material".into()),
-        start + Duration::from_secs(1),
-    )
-    .unwrap();
+    app.handle_event(InputEvent::Paste, start + Duration::from_secs(1))
+        .unwrap();
     assert_eq!(app.screen(), Screen::Practice);
     app.tick(start + Duration::from_secs(4)).unwrap();
     assert_eq!(app.screen(), Screen::Practice);
@@ -3553,9 +3481,9 @@ fn zero_attempt_finish_is_transactional_and_save_failure_stays_in_result() {
             start,
         )
         .unwrap();
-    failed.handle_event(key(KeyCode::Char('λ')), start).unwrap();
+    failed.handle_event(key(Key::Char('λ')), start).unwrap();
     failed
-        .handle_event(key(KeyCode::Char('β')), start + Duration::from_secs(1))
+        .handle_event(key(Key::Char('β')), start + Duration::from_secs(1))
         .unwrap();
 
     assert_eq!(failed.screen(), Screen::Result);
@@ -3646,13 +3574,10 @@ fn result_uses_same_language_mode_history_goals_and_relative_grade_boundaries() 
         start,
     )
     .unwrap();
-    app.handle_event(key(KeyCode::Char('a')), start).unwrap();
+    app.handle_event(key(Key::Char('a')), start).unwrap();
     for character in ['b', 'c', 'd', 'e'] {
-        app.handle_event(
-            key(KeyCode::Char(character)),
-            start + Duration::from_secs(60),
-        )
-        .unwrap();
+        app.handle_event(key(Key::Char(character)), start + Duration::from_secs(60))
+            .unwrap();
     }
 
     let result = app.result.as_ref().unwrap();
@@ -3857,7 +3782,7 @@ fn public_progress_counters_saturate() {
             now,
         )
         .unwrap();
-        app.handle_event(key(KeyCode::Char('a')), now).unwrap();
+        app.handle_event(key(Key::Char('a')), now).unwrap();
 
         match &app.active_practice().unwrap().mode {
             PracticeMode::Quick { completed } | PracticeMode::Sentence { completed, .. } => {
@@ -3902,7 +3827,7 @@ fn words_and_sentences_advance_from_engine_boundaries_without_resetting_it() {
     type_text(&mut words, "tx", start + Duration::from_secs(1));
     assert_eq!(words.word_progress(), (1, 0));
     words
-        .handle_event(key(KeyCode::Backspace), start + Duration::from_secs(2))
+        .handle_event(key(Key::Backspace), start + Duration::from_secs(2))
         .unwrap();
     type_text(&mut words, "wo", start + Duration::from_secs(2));
     assert_eq!(words.screen(), Screen::Result);
@@ -3980,7 +3905,7 @@ fn timed_quick_extends_before_exhaustion_and_item_quick_stops_exactly() {
     timed.tick(start + Duration::from_secs(120)).unwrap();
     assert_eq!(timed.screen(), Screen::Result);
     timed
-        .handle_event(key(KeyCode::Char('r')), start + Duration::from_secs(121))
+        .handle_event(key(Key::Char('r')), start + Duration::from_secs(121))
         .unwrap();
     assert_eq!(timed.active_practice().unwrap().content_ids, initial_ids);
     let retry_prefix = timed
@@ -4240,17 +4165,13 @@ fn paused_q_confirms_early_leave_and_saves_only_after_an_attempt() {
         )
         .unwrap();
     type_text(&mut attempted, "a", start);
-    attempted.handle_event(key(KeyCode::Esc), start).unwrap();
-    attempted
-        .handle_event(key(KeyCode::Char('q')), start)
-        .unwrap();
+    attempted.handle_event(key(Key::Esc), start).unwrap();
+    attempted.handle_event(key(Key::Char('q')), start).unwrap();
     assert_eq!(attempted.screen(), Screen::Practice);
     assert!(buffer_text(&draw(&attempted, 80, 24).buffer).contains("Resume: Esc / Ctrl+P"));
     assert!(buffer_text(&draw(&attempted, 80, 24).buffer).contains("again"));
     assert!(attempted.sessions.is_empty());
-    attempted
-        .handle_event(key(KeyCode::Char('q')), start)
-        .unwrap();
+    attempted.handle_event(key(Key::Char('q')), start).unwrap();
     assert_eq!(attempted.screen(), Screen::Result);
     assert_eq!(attempted.sessions.len(), 1);
 
@@ -4261,9 +4182,9 @@ fn paused_q_confirms_early_leave_and_saves_only_after_an_attempt() {
             start,
         )
         .unwrap();
-    empty.handle_event(key(KeyCode::Esc), start).unwrap();
-    empty.handle_event(key(KeyCode::Char('q')), start).unwrap();
-    empty.handle_event(key(KeyCode::Char('q')), start).unwrap();
+    empty.handle_event(key(Key::Esc), start).unwrap();
+    empty.handle_event(key(Key::Char('q')), start).unwrap();
+    empty.handle_event(key(Key::Char('q')), start).unwrap();
     assert_eq!(empty.screen(), Screen::Home);
     assert!(empty.result.is_none());
     assert!(empty.sessions.is_empty());
@@ -4401,7 +4322,7 @@ fn key_keyboard_and_finger_guide_follow_settings_and_shift_state() {
             .count()
             >= 2
     );
-    app.handle_event(key(KeyCode::Char('A')), start).unwrap();
+    app.handle_event(key(Key::Char('A')), start).unwrap();
     let active = app.active_practice().unwrap();
     assert_eq!(active.engine.attempted_units(), 1);
     assert_eq!(active.engine.intended_keys().get(&'a'), Some(&[1, 0]));
@@ -4573,10 +4494,10 @@ fn long_text_filters_metadata_tracks_paragraphs_and_centers_the_cursor() {
         assert!(output.contains(marker), "missing {marker}: {output}");
     }
     assert_eq!(drawn.cursor.unwrap().1, 2);
-    app.handle_event(key(KeyCode::Esc), start).unwrap();
-    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
-    app.handle_event(key(KeyCode::Char('q')), start).unwrap();
-    app.handle_event(key(KeyCode::Char('r')), start).unwrap();
+    app.handle_event(key(Key::Esc), start).unwrap();
+    app.handle_event(key(Key::Char('q')), start).unwrap();
+    app.handle_event(key(Key::Char('q')), start).unwrap();
+    app.handle_event(key(Key::Char('r')), start).unwrap();
     assert_eq!(app.long_metadata().unwrap().title, "The Gettysburg Address");
 }
 
@@ -4624,7 +4545,7 @@ fn custom_long_text_is_memory_only_and_uses_safe_content_ids() {
     app.settings.ui_language = Language::En;
 
     for second in 0..=30 {
-        app.handle_event(key(KeyCode::Char('a')), start + Duration::from_secs(second))
+        app.handle_event(key(Key::Char('a')), start + Duration::from_secs(second))
             .unwrap();
     }
     let result = app
@@ -4703,15 +4624,15 @@ fn typing_test_uses_long_texts_and_exposes_random_or_selected_content() {
     open_mode_options(&mut options, 5, start);
     let random_options = buffer_text(&draw(&options, 80, 24).buffer);
     assert!(random_options.contains("Text: Random"), "{random_options}");
-    press(&mut options, KeyCode::Tab, 2, start);
-    press(&mut options, KeyCode::Right, 1, start);
+    press(&mut options, Key::Tab, 2, start);
+    press(&mut options, Key::Right, 1, start);
     let selected_options = buffer_text(&draw(&options, 80, 24).buffer);
     assert!(
         selected_options.contains(&selected_title),
         "{selected_options}"
     );
-    press(&mut options, KeyCode::Tab, 1, start);
-    options.handle_event(key(KeyCode::Enter), start).unwrap();
+    press(&mut options, Key::Tab, 1, start);
+    options.handle_event(key(Key::Enter), start).unwrap();
     let active = options.active_practice().unwrap();
     assert_eq!(active.content_ids, [selected_id]);
     assert_eq!(
