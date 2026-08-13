@@ -97,7 +97,7 @@ pub enum Exit {
     Launch(Startup),
 }
 
-pub(super) fn input_error(message: impl Into<String>) -> anyhow::Error {
+fn input_error(message: impl Into<String>) -> anyhow::Error {
     user_error::input_error(message)
 }
 
