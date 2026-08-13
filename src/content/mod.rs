@@ -700,7 +700,11 @@ difficulty = 2
 
     #[test]
     fn valid_attributed_pack_resolves_source_defaults() {
-        let pack = parse_pack(include_str!("../assets/content/ko-sentences.toml")).unwrap();
+        let pack = parse_pack(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/content/ko-sentences.toml"
+        )))
+        .unwrap();
         assert!(validate_pack(&pack).is_empty());
         let item = pack.resolve_items().unwrap().remove(0);
         assert_eq!(item.source.license, "CC-BY-2.0-FR");
@@ -1260,9 +1264,12 @@ retrieved_at = "2026-08-07"
         let dir = temp_dir("item-conflict");
         fs::write(
             dir.join("conflict.toml"),
-            include_str!("../assets/content/ko-sentences.toml")
-                .replace("id = \"ko-sentences\"", "id = \"other-pack\"")
-                .replace("title = \"Korean Sentences\"", "title = \"Other Pack\""),
+            include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/assets/content/ko-sentences.toml"
+            ))
+            .replace("id = \"ko-sentences\"", "id = \"other-pack\"")
+            .replace("title = \"Korean Sentences\"", "title = \"Other Pack\""),
         )
         .unwrap();
 

@@ -619,30 +619,51 @@ fn print_licenses() {
     println!("Aegukga lyrics: CC-BY-4.0");
     println!("Korean Wikisource editions: CC-BY-SA-4.0");
     println!("Other bundled data: see THIRD_PARTY_NOTICES.md below");
-    println!("\n===== LICENSE =====\n{}", include_str!("../LICENSE"));
+    println!(
+        "\n===== LICENSE =====\n{}",
+        include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/LICENSE"))
+    );
     println!(
         "\n===== THIRD_PARTY_NOTICES.md =====\n{}",
-        include_str!("../THIRD_PARTY_NOTICES.md")
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/THIRD_PARTY_NOTICES.md"
+        ))
     );
     println!(
         "\n===== assets/licenses/CC0-1.0.txt =====\n{}",
-        include_str!("../assets/licenses/CC0-1.0.txt")
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/licenses/CC0-1.0.txt"
+        ))
     );
     println!(
         "\n===== assets/licenses/CC-BY-2.0-FR.txt =====\n{}",
-        include_str!("../assets/licenses/CC-BY-2.0-FR.txt")
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/licenses/CC-BY-2.0-FR.txt"
+        ))
     );
     println!(
         "\n===== assets/licenses/CC-BY-4.0.txt =====\n{}",
-        include_str!("../assets/licenses/CC-BY-4.0.txt")
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/licenses/CC-BY-4.0.txt"
+        ))
     );
     println!(
         "\n===== assets/licenses/CC-BY-SA-4.0.txt =====\n{}",
-        include_str!("../assets/licenses/CC-BY-SA-4.0.txt")
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/licenses/CC-BY-SA-4.0.txt"
+        ))
     );
     println!(
         "\n===== assets/licenses/NORD-MIT.txt =====\n{}",
-        include_str!("../assets/licenses/NORD-MIT.txt")
+        include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/licenses/NORD-MIT.txt"
+        ))
     );
 }
 
