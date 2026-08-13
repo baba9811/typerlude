@@ -277,6 +277,24 @@ fn one_enter_crosses_a_blank_line_run() {
 }
 
 #[test]
+fn an_incomplete_line_submission_also_crosses_a_blank_line_run() {
+    let start = Instant::now();
+    let mut engine =
+        PracticeEngine::new_for_items(Language::En, PracticeKind::Long, "ab\n\nc", &[4, 5], None)
+            .unwrap();
+
+    engine.input("a", start);
+    assert_eq!(engine.submit_line(start), InputOutcome::Accepted);
+
+    assert_eq!(engine.cursor(), 4);
+    assert_eq!(engine.current_line_index(), 2);
+    let metrics = engine.metrics(start);
+    assert_eq!(metrics.attempted_units, 3);
+    assert_eq!(metrics.correct_units, 2);
+    assert_eq!(metrics.errors, 1);
+}
+
+#[test]
 fn backspace_reopens_before_deleting_and_history_never_decreases() {
     let start = Instant::now();
     let mut engine =

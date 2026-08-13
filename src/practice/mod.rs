@@ -170,13 +170,7 @@ impl PracticeEngine {
         }
         if self.target_grapheme(self.input.len()) == Some("\n") {
             let outcome = self.input("\n", now);
-            while self.target_grapheme(self.input.len()) == Some("\n") {
-                self.input.push(Cell {
-                    entered: String::new(),
-                    correct: true,
-                });
-            }
-            self.advance_active_line();
+            self.skip_structural_newlines();
             return if self.target_complete() {
                 InputOutcome::Finished
             } else {
@@ -188,21 +182,24 @@ impl PracticeEngine {
         };
         let attempted_before = self.attempted_units;
         while self.input.len() < line_end {
-            let separator = if self.kind == PracticeKind::Words && self.input.len() + 1 == line_end
-            {
+            let submitted = if self.input.len() + 1 == line_end {
                 self.target_grapheme(self.input.len())
-                    .filter(|target| target.chars().all(char::is_whitespace))
+                    .filter(|target| {
+                        *target == "\n"
+                            || (self.kind == PracticeKind::Words
+                                && target.chars().all(char::is_whitespace))
+                    })
                     .map(str::to_owned)
             } else {
                 None
             };
-            if let Some(separator) = separator {
-                self.record_cell(&separator, true, now);
+            if let Some(submitted) = submitted {
+                self.record_cell(&submitted, true, now);
             } else {
                 self.record_cell("", false, now);
             }
         }
-        self.advance_active_line();
+        self.skip_structural_newlines();
         if self.kind == PracticeKind::Long && self.attempted_units != attempted_before {
             self.record_rolling_sample(now);
         }
@@ -480,6 +477,16 @@ impl PracticeEngine {
         {
             self.active_line += 1;
         }
+    }
+
+    fn skip_structural_newlines(&mut self) {
+        while self.target_grapheme(self.input.len()) == Some("\n") {
+            self.input.push(Cell {
+                entered: String::new(),
+                correct: true,
+            });
+        }
+        self.advance_active_line();
     }
 
     fn record_rolling_sample(&mut self, now: Instant) {
