@@ -2,142 +2,17 @@ use crate::{
     app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers as AppKeyModifiers},
     tui,
 };
-use anyhow::{Context, Result, bail};
-use crossterm::{
-    cursor::Show,
-    event::{
-        self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind,
-        KeyModifiers as CrosstermKeyModifiers,
-    },
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
-use ratatui::{Terminal, backend::CrosstermBackend, layout::Size};
-use std::{
-    io::{self, IsTerminal, Write},
-    panic::{self, PanicHookInfo},
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use anyhow::Result;
+use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers as CrosstermKeyModifiers};
+use ratatui::layout::Size;
+use std::time::Instant;
 
-type PanicHook = dyn for<'a> Fn(&PanicHookInfo<'a>) + Send + Sync + 'static;
-
-struct TerminalGuard {
-    restored: bool,
-    previous_hook: Option<Arc<PanicHook>>,
-}
-
-impl TerminalGuard {
-    fn enter() -> Result<Self> {
-        if !is_interactive_terminal() {
-            bail!("interactive terminal required");
-        }
-        enable_raw_mode().context("failed to enable terminal raw mode")?;
-        let mut guard = Self {
-            restored: false,
-            previous_hook: None,
-        };
-        guard.install_panic_hook();
-        let mut stdout = io::stdout();
-        if let Err(error) = execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Show) {
-            let _ = guard.restore();
-            return Err(error).context("failed to enter the terminal screen");
-        }
-        Ok(guard)
-    }
-
-    fn restore(&mut self) -> io::Result<()> {
-        if self.restored {
-            return Ok(());
-        }
-        let restored = restore_terminal();
-        if !std::thread::panicking()
-            && let Some(previous) = self.previous_hook.take()
-        {
-            drop(panic::take_hook());
-            panic::set_hook(Box::new(move |info| previous(info)));
-        }
-        self.restored = restored.is_ok();
-        restored
-    }
-
-    fn install_panic_hook(&mut self) {
-        let previous = Arc::<PanicHook>::from(panic::take_hook());
-        let prior = Arc::clone(&previous);
-        panic::set_hook(Box::new(move |info| {
-            let _ = restore_terminal();
-            prior(info);
-        }));
-        self.previous_hook = Some(previous);
-    }
-}
-
-impl Drop for TerminalGuard {
-    fn drop(&mut self) {
-        let _ = self.restore();
-    }
-}
-
-pub fn is_interactive_terminal() -> bool {
-    if !io::stdout().is_terminal() {
-        return false;
-    }
-    if io::stdin().is_terminal() {
-        return true;
-    }
-    #[cfg(unix)]
-    {
-        std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("/dev/tty")
-            .is_ok()
-    }
-    #[cfg(not(unix))]
-    {
-        false
-    }
-}
-
-pub fn write_restore_sequence(writer: &mut impl Write) -> io::Result<()> {
-    execute!(writer, DisableBracketedPaste, LeaveAlternateScreen, Show)
-}
-
-fn restore_terminal() -> io::Result<()> {
-    let raw = disable_raw_mode();
-    let mut stdout = io::stdout();
-    let screen = write_restore_sequence(&mut stdout);
-    raw.and(screen)
-}
-
-pub fn run(mut app: App) -> Result<()> {
-    let mut guard = TerminalGuard::enter()?;
-    let backend = CrosstermBackend::new(io::stdout());
-    let mut terminal = Terminal::new(backend).context("failed to initialize terminal drawing")?;
-    let result = (|| -> Result<()> {
-        terminal
-            .draw(|frame| tui::render(frame, &app))
-            .context("failed to draw terminal UI")?;
-        while !app.should_quit() {
-            if event::poll(Duration::from_millis(50)).context("failed to poll terminal input")? {
-                let event = event::read().context("failed to read terminal input")?;
-                let size = terminal.size().context("failed to read terminal size")?;
-                handle_event_at_size(&mut app, event, size, Instant::now())?;
-            } else {
-                app.tick(Instant::now())?;
-            }
-            terminal
-                .draw(|frame| tui::render(frame, &app))
-                .context("failed to draw terminal UI")?;
-        }
-        Ok(())
-    })();
-    drop(terminal);
-    let restored = guard.restore().context("failed to restore terminal state");
-    result.and(restored)
-}
-
-fn handle_event_at_size(app: &mut App, event: Event, size: Size, now: Instant) -> Result<()> {
+pub(super) fn handle_event_at_size(
+    app: &mut App,
+    event: Event,
+    size: Size,
+    now: Instant,
+) -> Result<()> {
     let resized = matches!(event, Event::Resize(..));
     let event = input_event(event);
     let global_quit = matches!(
