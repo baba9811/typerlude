@@ -83,8 +83,8 @@ impl App {
             return self.handle_practice_key(key, now);
         }
 
-        if key.key == Key::Char('q') && key.modifiers == KeyModifiers::NONE {
-            self.quit = true;
+        if key.is_plain_q_command() {
+            self.escape();
             return Ok(());
         }
         if key.key == Key::Char('?')

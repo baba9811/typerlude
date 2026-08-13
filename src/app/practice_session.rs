@@ -28,10 +28,7 @@ impl App {
                 .as_ref()
                 .is_some_and(ActivePractice::leave_confirmation)
             {
-                if key.kind == KeyKind::Press
-                    && key.key == Key::Char('q')
-                    && key.modifiers == KeyModifiers::NONE
-                {
+                if key.kind == KeyKind::Press && key.is_plain_q_command() {
                     let attempted = self
                         .practice
                         .as_ref()
@@ -64,11 +61,9 @@ impl App {
         let Some(active) = self.practice.as_ref() else {
             return Ok(());
         };
+        let practice_kind = active.kind();
         if active.engine.is_paused() {
-            if key.kind == KeyKind::Press
-                && key.key == Key::Char('q')
-                && key.modifiers == KeyModifiers::NONE
-            {
+            if key.kind == KeyKind::Press && key.is_plain_q_command() {
                 let confirmed = active.leave_confirmation;
                 let attempted = active.engine.attempted_units() != 0;
                 if !confirmed {
@@ -94,6 +89,13 @@ impl App {
                     active.current_item_delta =
                         Some(item_delta(&active.item_metrics, &active.live_metrics));
                 }
+            }
+            Key::Char(' ')
+                if practice_kind == PracticeKind::Words
+                    && matches!(key.kind, KeyKind::Press | KeyKind::Repeat)
+                    && key.modifiers == KeyModifiers::NONE =>
+            {
+                self.submit_practice_line(now)?;
             }
             Key::Char(character)
                 if matches!(key.kind, KeyKind::Press | KeyKind::Repeat)

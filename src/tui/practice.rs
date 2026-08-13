@@ -173,8 +173,8 @@ pub(super) fn render_practice(frame: &mut Frame<'_>, app: &App, area: Rect, styl
             footer.push(Line::from(terminal_safe(status)));
         } else if active.engine.is_paused() {
             footer.push(Line::from(match language {
-                Language::Ko => "q: 연습 끝내기",
-                Language::En => "q: Finish practice",
+                Language::Ko => "q / ㅂ: 연습 끝내기",
+                Language::En => "q / ㅂ: Finish practice",
             }));
         }
     }
@@ -633,8 +633,8 @@ const fn current_average(language: Language) -> (&'static str, &'static str) {
 
 const fn leave_confirmation(language: Language) -> &'static str {
     match language {
-        Language::Ko => "끝내려면 q를 다시 누르세요",
-        Language::En => "Press q again to finish",
+        Language::Ko => "끝내려면 q 또는 ㅂ을 다시 누르세요",
+        Language::En => "Press q or ㅂ again to finish",
     }
 }
 
@@ -647,8 +647,8 @@ const fn test_leave_instruction(language: Language) -> &'static str {
 
 const fn test_leave_confirmation(language: Language) -> &'static str {
     match language {
-        Language::Ko => "Q: 확인 · Esc: 취소",
-        Language::En => "Q: Confirm · Esc: Cancel",
+        Language::Ko => "Q / ㅂ: 확인 · Esc: 취소",
+        Language::En => "Q / ㅂ: Confirm · Esc: Cancel",
     }
 }
 

@@ -26,7 +26,7 @@ pub(super) fn handle_event_at_size(
     if matches!(
         event,
         InputEvent::Key(key)
-            if key.key == Key::Char('q') && key.modifiers == AppKeyModifiers::NONE
+            if key.is_plain_q_command()
     ) {
         app.request_quit();
     }
@@ -165,14 +165,17 @@ mod tests {
         handle_event_at_size(&mut app, Event::Resize(80, 24), tiny, now).unwrap();
         assert_eq!(app.screen(), Screen::Home);
 
-        handle_event_at_size(
-            &mut app,
-            key(KeyCode::Char('q'), KeyModifiers::NONE),
-            tiny,
-            now,
-        )
-        .unwrap();
-        assert!(app.should_quit());
+        for command in ['q', 'ㅂ'] {
+            let mut quit = fixture_app();
+            handle_event_at_size(
+                &mut quit,
+                key(KeyCode::Char(command), KeyModifiers::NONE),
+                tiny,
+                now,
+            )
+            .unwrap();
+            assert!(quit.should_quit(), "{command}");
+        }
 
         let mut supported = fixture_app();
         let size = Size::new(80, 24);

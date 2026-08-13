@@ -93,6 +93,27 @@ fn escape_returns_to_the_parent_and_nested_help_returns_to_its_opener() {
 }
 
 #[test]
+fn q_commands_follow_the_escape_hierarchy_in_both_keyboard_layouts() {
+    for command in ['q', 'ㅂ'] {
+        let (_root, mut app) = fixture_app();
+        let now = Instant::now();
+        app.open(Screen::Settings);
+        app.open(Screen::Stats);
+
+        app.handle_event(key(Key::Char(command)), now).unwrap();
+        assert_eq!(app.screen(), Screen::Settings, "{command}");
+        assert!(!app.should_quit(), "{command}");
+
+        app.handle_event(key(Key::Char(command)), now).unwrap();
+        assert_eq!(app.screen(), Screen::Home, "{command}");
+        assert!(!app.should_quit(), "{command}");
+
+        app.handle_event(key(Key::Char(command)), now).unwrap();
+        assert!(app.should_quit(), "{command}");
+    }
+}
+
+#[test]
 fn escape_restores_the_departure_focus_at_every_nested_level() {
     let (_root, mut app) = fixture_app();
     let now = Instant::now();
@@ -169,7 +190,7 @@ fn global_and_printable_shortcuts_obey_screen_and_key_kind() {
             Instant::now(),
         )
         .unwrap();
-    assert!(!modified.should_quit(), "only plain q is global");
+    assert!(!modified.should_quit(), "modified q must not navigate");
 
     let (_root, mut help) = fixture_app();
     help.open(Screen::Stats);

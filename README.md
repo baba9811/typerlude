@@ -32,7 +32,9 @@ Use a UTF-8 interactive terminal. The recommended minimum size is 80×24.
 ## Quick start
 
 Pick a mode, adjust its options, and press `Enter`. Use `Tab`, arrow keys, `j`, or `k` to move;
-`Esc` goes back or pauses supported practice; `q` quits.
+`Esc`, `q`, or `ㅂ` go back, and the same keys quit from Home. During active practice, `Esc`
+pauses or opens leave confirmation while `q` and `ㅂ` remain typing input. In Word practice,
+`Space` or `Enter` submits the current word.
 
 Practice your own text from a file or standard input:
 
