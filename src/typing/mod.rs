@@ -2,9 +2,8 @@ mod hangul;
 
 use crate::model::Language;
 use unicode_normalization::UnicodeNormalization;
-use unicode_segmentation::UnicodeSegmentation;
 
-pub fn normalize_nfc(text: &str) -> String {
+pub(crate) fn normalize_nfc(text: &str) -> String {
     text.nfc().collect()
 }
 
@@ -20,14 +19,7 @@ pub(crate) fn input_language(text: &str) -> Option<Language> {
     })
 }
 
-pub fn split_graphemes(text: &str) -> Vec<String> {
-    normalize_nfc(text)
-        .graphemes(true)
-        .map(str::to_owned)
-        .collect()
-}
-
-pub fn key_units(language: Language, text: &str) -> Vec<char> {
+pub(crate) fn key_units(language: Language, text: &str) -> Vec<char> {
     let normalized = normalize_nfc(text);
     normalized
         .chars()
@@ -44,19 +36,23 @@ pub fn key_units(language: Language, text: &str) -> Vec<char> {
         .collect()
 }
 
-pub fn unit_count(language: Language, text: &str) -> u64 {
+pub(crate) fn unit_count(language: Language, text: &str) -> u64 {
     key_units(language, text).len() as u64
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{input_language, key_units, normalize_nfc, split_graphemes, unit_count};
+    use super::{input_language, key_units, normalize_nfc, unit_count};
     use crate::model::Language;
+    use unicode_segmentation::UnicodeSegmentation;
 
     #[test]
     fn nfc_and_nfd_compare_as_the_same_grapheme() {
         assert_eq!(normalize_nfc("한"), normalize_nfc("한"));
-        assert_eq!(split_graphemes("한글"), vec!["한", "글"]);
+        assert_eq!(
+            normalize_nfc("한글").graphemes(true).collect::<Vec<_>>(),
+            vec!["한", "글"]
+        );
     }
 
     #[test]

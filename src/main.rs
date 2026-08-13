@@ -1,8 +1,8 @@
 use std::io::IsTerminal;
 use typerlude::{
-    cli::{Exit, is_input_error, parse_args, prepare_app, run, stdin_command, terminal_safe},
+    cli::{Exit, is_input_error, parse_args, prepare_app, run, stdin_command},
     storage::AppPaths,
-    terminal,
+    terminal, terminal_safe,
 };
 
 fn main() {

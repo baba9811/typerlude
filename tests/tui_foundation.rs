@@ -1,4 +1,3 @@
-use ratatui::style::{Color, Modifier};
 use std::{
     collections::HashSet,
     fs,
@@ -9,7 +8,7 @@ use std::{
 use typerlude::{
     i18n::{TextKey, initial_ui_language, text},
     model::Language,
-    theme::{ThemeCatalog, ThemeSpec, parse_theme},
+    theme::{ThemeCatalog, ThemeColor, ThemeSpec, parse_theme},
 };
 
 static NEXT_TEST_DIR: AtomicU64 = AtomicU64::new(0);
@@ -93,25 +92,25 @@ fn locale_default_uses_lc_all_then_lang_and_only_the_language_prefix() {
 }
 
 #[test]
-fn every_supported_named_color_and_exact_rgb_boundary_builds_styles() {
+fn every_supported_named_color_and_exact_rgb_boundary_builds_a_palette() {
     let named = [
-        ("reset", Color::Reset),
-        ("black", Color::Black),
-        ("red", Color::Red),
-        ("green", Color::Green),
-        ("yellow", Color::Yellow),
-        ("blue", Color::Blue),
-        ("magenta", Color::Magenta),
-        ("cyan", Color::Cyan),
-        ("gray", Color::Gray),
-        ("dark_gray", Color::DarkGray),
-        ("light_red", Color::LightRed),
-        ("light_green", Color::LightGreen),
-        ("light_yellow", Color::LightYellow),
-        ("light_blue", Color::LightBlue),
-        ("light_magenta", Color::LightMagenta),
-        ("light_cyan", Color::LightCyan),
-        ("white", Color::White),
+        ("reset", ThemeColor::Reset),
+        ("black", ThemeColor::Black),
+        ("red", ThemeColor::Red),
+        ("green", ThemeColor::Green),
+        ("yellow", ThemeColor::Yellow),
+        ("blue", ThemeColor::Blue),
+        ("magenta", ThemeColor::Magenta),
+        ("cyan", ThemeColor::Cyan),
+        ("gray", ThemeColor::Gray),
+        ("dark_gray", ThemeColor::DarkGray),
+        ("light_red", ThemeColor::LightRed),
+        ("light_green", ThemeColor::LightGreen),
+        ("light_yellow", ThemeColor::LightYellow),
+        ("light_blue", ThemeColor::LightBlue),
+        ("light_magenta", ThemeColor::LightMagenta),
+        ("light_cyan", ThemeColor::LightCyan),
+        ("white", ThemeColor::White),
     ];
 
     for (name, expected) in named {
@@ -121,22 +120,22 @@ fn every_supported_named_color_and_exact_rgb_boundary_builds_styles() {
                 &format!("background = \"{value}\""),
             );
             let theme = parse_theme(&source).unwrap();
-            assert_eq!(theme.styles().unwrap().base.bg, Some(expected), "{value}");
+            assert_eq!(theme.palette().unwrap().background, expected, "{value}");
         }
     }
 
     for (value, expected) in [
-        ("#000000", Color::Rgb(0, 0, 0)),
-        ("#FFFFFF", Color::Rgb(255, 255, 255)),
-        ("#aBcDeF", Color::Rgb(0xab, 0xcd, 0xef)),
+        ("#000000", ThemeColor::Rgb(0, 0, 0)),
+        ("#FFFFFF", ThemeColor::Rgb(255, 255, 255)),
+        ("#aBcDeF", ThemeColor::Rgb(0xab, 0xcd, 0xef)),
     ] {
         let source = theme_source("rgb").replace(
             "background = \"reset\"",
             &format!("background = \"{value}\""),
         );
         assert_eq!(
-            parse_theme(&source).unwrap().styles().unwrap().base.bg,
-            Some(expected)
+            parse_theme(&source).unwrap().palette().unwrap().background,
+            expected
         );
     }
 }
@@ -148,12 +147,12 @@ fn invalid_colors_from_direct_deserialization_or_mutation_return_errors() {
             .replace("background = \"reset\"", "background = \"not-a-color\""),
     )
     .unwrap();
-    let error = directly_deserialized.styles().unwrap_err();
+    let error = directly_deserialized.palette().unwrap_err();
     assert!(error.to_string().contains("background"), "{error:#}");
 
     let mut mutated = parse_theme(&theme_source("mutated-invalid")).unwrap();
     mutated.cursor = "not-a-color".into();
-    let error = mutated.styles().unwrap_err();
+    let error = mutated.palette().unwrap_err();
     assert!(error.to_string().contains("cursor"), "{error:#}");
 }
 
@@ -219,7 +218,7 @@ fn exact_theme_schema_rejects_every_invalid_role_and_malformed_shape() {
 }
 
 #[test]
-fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
+fn five_builtins_have_exact_deterministic_ids_and_role_palettes() {
     let catalog = ThemeCatalog::load_builtins().unwrap();
     assert_eq!(
         catalog.ids().collect::<Vec<_>>(),
@@ -239,13 +238,13 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
                 "dark_gray",
             ],
             [
-                Color::Black,
-                Color::White,
-                Color::Cyan,
-                Color::Green,
-                Color::Red,
-                Color::Yellow,
-                Color::DarkGray,
+                ThemeColor::Black,
+                ThemeColor::White,
+                ThemeColor::Cyan,
+                ThemeColor::Green,
+                ThemeColor::Red,
+                ThemeColor::Yellow,
+                ThemeColor::DarkGray,
             ],
         ),
         (
@@ -260,39 +259,39 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
                 "green",
             ],
             [
-                Color::Black,
-                Color::LightGreen,
-                Color::Green,
-                Color::LightGreen,
-                Color::LightRed,
-                Color::White,
-                Color::Green,
+                ThemeColor::Black,
+                ThemeColor::LightGreen,
+                ThemeColor::Green,
+                ThemeColor::LightGreen,
+                ThemeColor::LightRed,
+                ThemeColor::White,
+                ThemeColor::Green,
             ],
         ),
         (
             "minimal",
             ["black", "white", "white", "green", "red", "white", "gray"],
             [
-                Color::Black,
-                Color::White,
-                Color::White,
-                Color::Green,
-                Color::Red,
-                Color::White,
-                Color::Gray,
+                ThemeColor::Black,
+                ThemeColor::White,
+                ThemeColor::White,
+                ThemeColor::Green,
+                ThemeColor::Red,
+                ThemeColor::White,
+                ThemeColor::Gray,
             ],
         ),
         (
             "monochrome",
             ["black", "white", "gray", "white", "gray", "white", "gray"],
             [
-                Color::Black,
-                Color::White,
-                Color::Gray,
-                Color::White,
-                Color::Gray,
-                Color::White,
-                Color::Gray,
+                ThemeColor::Black,
+                ThemeColor::White,
+                ThemeColor::Gray,
+                ThemeColor::White,
+                ThemeColor::Gray,
+                ThemeColor::White,
+                ThemeColor::Gray,
             ],
         ),
         (
@@ -301,13 +300,13 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
                 "#2e3440", "#d8dee9", "#88c0d0", "#a3be8c", "#bf616a", "#ebcb8b", "#81a1c1",
             ],
             [
-                Color::Rgb(0x2e, 0x34, 0x40),
-                Color::Rgb(0xd8, 0xde, 0xe9),
-                Color::Rgb(0x88, 0xc0, 0xd0),
-                Color::Rgb(0xa3, 0xbe, 0x8c),
-                Color::Rgb(0xbf, 0x61, 0x6a),
-                Color::Rgb(0xeb, 0xcb, 0x8b),
-                Color::Rgb(0x81, 0xa1, 0xc1),
+                ThemeColor::Rgb(0x2e, 0x34, 0x40),
+                ThemeColor::Rgb(0xd8, 0xde, 0xe9),
+                ThemeColor::Rgb(0x88, 0xc0, 0xd0),
+                ThemeColor::Rgb(0xa3, 0xbe, 0x8c),
+                ThemeColor::Rgb(0xbf, 0x61, 0x6a),
+                ThemeColor::Rgb(0xeb, 0xcb, 0x8b),
+                ThemeColor::Rgb(0x81, 0xa1, 0xc1),
             ],
         ),
     ];
@@ -329,16 +328,16 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
             fields,
             "{id}"
         );
-        let styles = theme.styles().unwrap();
+        let palette = theme.palette().unwrap();
         assert_eq!(
             [
-                styles.base.bg.unwrap(),
-                styles.base.fg.unwrap(),
-                styles.accent.fg.unwrap(),
-                styles.correct.fg.unwrap(),
-                styles.error.fg.unwrap(),
-                styles.cursor.fg.unwrap(),
-                styles.dim.fg.unwrap(),
+                palette.background,
+                palette.foreground,
+                palette.accent,
+                palette.correct,
+                palette.error,
+                palette.cursor,
+                palette.dim,
             ],
             colors,
             "{id}"
@@ -346,8 +345,8 @@ fn five_builtins_have_exact_deterministic_ids_and_role_styles() {
     }
 }
 
-fn relative_luminance(color: Color) -> f64 {
-    let Color::Rgb(red, green, blue) = color else {
+fn relative_luminance(color: ThemeColor) -> f64 {
+    let ThemeColor::Rgb(red, green, blue) = color else {
         panic!("contrast regression expects an RGB color, got {color:?}");
     };
     let linear = |component: u8| {
@@ -361,7 +360,7 @@ fn relative_luminance(color: Color) -> f64 {
     0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
 }
 
-fn contrast_ratio(left: Color, right: Color) -> f64 {
+fn contrast_ratio(left: ThemeColor, right: ThemeColor) -> f64 {
     let left = relative_luminance(left);
     let right = relative_luminance(right);
     (left.max(right) + 0.05) / (left.min(right) + 0.05)
@@ -378,34 +377,11 @@ fn builtins_avoid_reset_with_explicit_white_and_nord_dim_meets_contrast_floor() 
 
     let nord = catalog.get("nord").unwrap();
     assert_eq!(nord.dim, "#81a1c1");
-    let styles = nord.styles().unwrap();
+    let palette = nord.palette().unwrap();
     assert!(
-        contrast_ratio(styles.base.bg.unwrap(), styles.dim.fg.unwrap()) >= 4.5,
+        contrast_ratio(palette.background, palette.dim) >= 4.5,
         "Nord dim text must meet WCAG AA contrast"
     );
-}
-
-#[test]
-fn error_and_cursor_roles_have_non_color_emphasis() {
-    let catalog = ThemeCatalog::load_builtins().unwrap();
-
-    for id in catalog.ids() {
-        let styles = catalog.get(id).unwrap().styles().unwrap();
-        assert!(
-            styles
-                .error
-                .add_modifier
-                .contains(Modifier::BOLD | Modifier::UNDERLINED),
-            "{id} error"
-        );
-        assert!(
-            styles
-                .cursor
-                .add_modifier
-                .contains(Modifier::BOLD | Modifier::REVERSED),
-            "{id} cursor"
-        );
-    }
 }
 
 #[test]

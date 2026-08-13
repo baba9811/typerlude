@@ -1,10 +1,13 @@
-use crate::{app::App, ui};
+use crate::{
+    app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers as AppKeyModifiers},
+    tui,
+};
 use anyhow::{Context, Result, bail};
 use crossterm::{
     cursor::Show,
     event::{
         self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind,
-        KeyModifiers,
+        KeyModifiers as CrosstermKeyModifiers,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
@@ -19,13 +22,13 @@ use std::{
 
 type PanicHook = dyn for<'a> Fn(&PanicHookInfo<'a>) + Send + Sync + 'static;
 
-pub struct TerminalGuard {
+struct TerminalGuard {
     restored: bool,
     previous_hook: Option<Arc<PanicHook>>,
 }
 
 impl TerminalGuard {
-    pub fn enter() -> Result<Self> {
+    fn enter() -> Result<Self> {
         if !is_interactive_terminal() {
             bail!("interactive terminal required");
         }
@@ -43,7 +46,7 @@ impl TerminalGuard {
         Ok(guard)
     }
 
-    pub fn restore(&mut self) -> io::Result<()> {
+    fn restore(&mut self) -> io::Result<()> {
         if self.restored {
             return Ok(());
         }
@@ -113,7 +116,7 @@ pub fn run(mut app: App) -> Result<()> {
     let mut terminal = Terminal::new(backend).context("failed to initialize terminal drawing")?;
     let result = (|| -> Result<()> {
         terminal
-            .draw(|frame| ui::render(frame, &app))
+            .draw(|frame| tui::render(frame, &app))
             .context("failed to draw terminal UI")?;
         while !app.should_quit() {
             if event::poll(Duration::from_millis(50)).context("failed to poll terminal input")? {
@@ -124,7 +127,7 @@ pub fn run(mut app: App) -> Result<()> {
                 app.tick(Instant::now())?;
             }
             terminal
-                .draw(|frame| ui::render(frame, &app))
+                .draw(|frame| tui::render(frame, &app))
                 .context("failed to draw terminal UI")?;
         }
         Ok(())
@@ -135,36 +138,72 @@ pub fn run(mut app: App) -> Result<()> {
 }
 
 fn handle_event_at_size(app: &mut App, event: Event, size: Size, now: Instant) -> Result<()> {
+    let resized = matches!(event, Event::Resize(..));
+    let event = input_event(event);
     let global_quit = matches!(
         &event,
-        Event::Key(key)
-            if key.kind != KeyEventKind::Release
-                && matches!(key.code, KeyCode::Char('c' | 'C'))
-                && key.modifiers.contains(KeyModifiers::CONTROL)
+        InputEvent::Key(key)
+            if matches!(key.key, Key::Char('c' | 'C')) && key.modifiers.control
     );
-    if ui::supports_size(size.width, size.height)
-        || matches!(event, Event::Resize(..))
-        || global_quit
-    {
+    if tui::supports_size(size.width, size.height) || resized || global_quit {
         return app.handle_event(event, now);
     }
     if matches!(
         event,
-        Event::Key(key)
-            if key.kind != KeyEventKind::Release
-                && key.code == KeyCode::Char('q')
-                && key.modifiers == KeyModifiers::NONE
+        InputEvent::Key(key)
+            if key.key == Key::Char('q') && key.modifiers == AppKeyModifiers::NONE
     ) {
         app.request_quit();
     }
     Ok(())
 }
 
+fn input_event(event: Event) -> InputEvent {
+    let Event::Key(event) = event else {
+        return match event {
+            Event::Paste(_) => InputEvent::Paste,
+            _ => InputEvent::Ignored,
+        };
+    };
+    let kind = match event.kind {
+        KeyEventKind::Press => KeyKind::Press,
+        KeyEventKind::Repeat => KeyKind::Repeat,
+        KeyEventKind::Release => return InputEvent::Ignored,
+    };
+    let key = match event.code {
+        KeyCode::BackTab => Key::BackTab,
+        KeyCode::Backspace => Key::Backspace,
+        KeyCode::Char(character) => Key::Char(character),
+        KeyCode::Down => Key::Down,
+        KeyCode::Enter => Key::Enter,
+        KeyCode::Esc => Key::Esc,
+        KeyCode::Left => Key::Left,
+        KeyCode::Right => Key::Right,
+        KeyCode::Tab => Key::Tab,
+        KeyCode::Up => Key::Up,
+        _ => Key::Other,
+    };
+    InputEvent::Key(KeyInput {
+        key,
+        modifiers: AppKeyModifiers {
+            shift: event.modifiers.contains(CrosstermKeyModifiers::SHIFT),
+            control: event.modifiers.contains(CrosstermKeyModifiers::CONTROL),
+            other: event.modifiers.intersects(
+                CrosstermKeyModifiers::ALT
+                    | CrosstermKeyModifiers::SUPER
+                    | CrosstermKeyModifiers::HYPER
+                    | CrosstermKeyModifiers::META,
+            ),
+        },
+        kind,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::handle_event_at_size;
+    use super::{handle_event_at_size, input_event};
     use crate::{
-        app::{App, Screen},
+        app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers as AppKeyModifiers, Screen},
         config::Settings,
         content::ContentCatalog,
         storage::AppPaths,
@@ -187,6 +226,55 @@ mod tests {
 
     fn key(code: KeyCode, modifiers: KeyModifiers) -> Event {
         Event::Key(KeyEvent::new(code, modifiers))
+    }
+
+    #[test]
+    fn crossterm_events_map_to_app_input_without_paste_payload() {
+        assert_eq!(
+            input_event(Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('a'),
+                KeyModifiers::NONE,
+                crossterm::event::KeyEventKind::Press,
+            ))),
+            InputEvent::Key(KeyInput {
+                key: Key::Char('a'),
+                modifiers: AppKeyModifiers {
+                    shift: false,
+                    control: false,
+                    other: false,
+                },
+                kind: KeyKind::Press,
+            })
+        );
+        assert_eq!(
+            input_event(Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Enter,
+                KeyModifiers::SHIFT | KeyModifiers::ALT,
+                crossterm::event::KeyEventKind::Repeat,
+            ))),
+            InputEvent::Key(KeyInput {
+                key: Key::Enter,
+                modifiers: AppKeyModifiers {
+                    shift: true,
+                    control: false,
+                    other: true,
+                },
+                kind: KeyKind::Repeat,
+            })
+        );
+        assert_eq!(
+            input_event(Event::Key(KeyEvent::new_with_kind(
+                KeyCode::Char('q'),
+                KeyModifiers::NONE,
+                crossterm::event::KeyEventKind::Release,
+            ))),
+            InputEvent::Ignored
+        );
+        assert_eq!(
+            input_event(Event::Paste("private text".into())),
+            InputEvent::Paste
+        );
+        assert_eq!(input_event(Event::FocusGained), InputEvent::Ignored);
     }
 
     #[test]

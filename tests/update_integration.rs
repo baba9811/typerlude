@@ -1,4 +1,3 @@
-use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{Terminal, backend::TestBackend};
 use std::{
     fs,
@@ -9,12 +8,12 @@ use std::{
 };
 use typerlude::{
     VERSION,
-    app::{App, Screen},
+    app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers, Screen},
     config::Settings,
     content::ContentCatalog,
     storage::AppPaths,
     theme::ThemeCatalog,
-    ui::render,
+    tui::render,
     update::{InstallMethod, StableVersion, UpdateCache, UpdateNotice, notice, should_check},
 };
 use unicode_width::UnicodeWidthStr;
@@ -50,6 +49,14 @@ fn fixture_app() -> (TestDir, App) {
         Vec::new(),
     );
     (root, app)
+}
+
+fn key(key: Key) -> InputEvent {
+    InputEvent::Key(KeyInput {
+        key,
+        modifiers: KeyModifiers::NONE,
+        kind: KeyKind::Press,
+    })
 }
 
 fn screen_text(app: &App) -> String {
@@ -140,11 +147,8 @@ fn practice_queues_a_notice_home_and_result_render_it_and_skip_persists() {
     assert!(korean.contains("나중에"), "{korean}");
     assert!(korean.contains("이번 버전 건너뛰기"), "{korean}");
     app.settings.ui_language = typerlude::model::Language::En;
-    app.handle_event(
-        Event::Key(KeyEvent::from(KeyCode::Char('l'))),
-        Instant::now(),
-    )
-    .unwrap();
+    app.handle_event(key(Key::Char('l')), Instant::now())
+        .unwrap();
     assert!(app.update_notice.is_none());
     assert!(!app.paths.config.exists());
 
@@ -159,11 +163,8 @@ fn practice_queues_a_notice_home_and_result_render_it_and_skip_persists() {
         result.contains("npm install -g typerlude · npx typerlude"),
         "{result}"
     );
-    app.handle_event(
-        Event::Key(KeyEvent::from(KeyCode::Char('s'))),
-        Instant::now(),
-    )
-    .unwrap();
+    app.handle_event(key(Key::Char('s')), Instant::now())
+        .unwrap();
     assert!(app.update_notice.is_none());
     assert_eq!(app.settings.skipped_update_version, "1.2.4");
     assert_eq!(
@@ -184,11 +185,8 @@ fn failed_skip_save_preserves_the_notice_and_prior_setting() {
     app.update_notice = Some(update_notice("1.2.3"));
     app.open(Screen::Home);
 
-    app.handle_event(
-        Event::Key(KeyEvent::from(KeyCode::Char('s'))),
-        Instant::now(),
-    )
-    .unwrap();
+    app.handle_event(key(Key::Char('s')), Instant::now())
+        .unwrap();
 
     assert!(app.update_notice.is_some());
     assert!(app.settings.skipped_update_version.is_empty());
@@ -219,11 +217,8 @@ fn the_event_that_receives_a_notice_cannot_skip_it_before_first_render() {
     app.set_update_receiver(receiver);
     sender.send(Some(update_notice("1.2.3"))).unwrap();
 
-    app.handle_event(
-        Event::Key(KeyEvent::from(KeyCode::Char('s'))),
-        Instant::now(),
-    )
-    .unwrap();
+    app.handle_event(key(Key::Char('s')), Instant::now())
+        .unwrap();
 
     assert_eq!(app.update_notice, Some(update_notice("1.2.3")));
     assert!(app.settings.skipped_update_version.is_empty());

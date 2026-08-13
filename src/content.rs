@@ -1,3 +1,5 @@
+mod mutation;
+
 use crate::{
     model::{Difficulty, Language},
     typing::normalize_nfc,
@@ -13,6 +15,8 @@ use std::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
+
+pub(crate) use mutation::{MutationLock, disable_user_pack};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
