@@ -2,81 +2,18 @@ use crate::{
     app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers as AppKeyModifiers},
     tui,
 };
-use anyhow::{Context, Result, bail};
-use crossterm::{
-    cursor::Show,
-    event::{
-        self, DisableBracketedPaste, EnableBracketedPaste, Event, KeyCode, KeyEventKind,
-        KeyModifiers as CrosstermKeyModifiers,
-    },
-    execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
-};
+use anyhow::{Context, Result};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers as CrosstermKeyModifiers};
 use ratatui::{Terminal, backend::CrosstermBackend, layout::Size};
 use std::{
-    io::{self, IsTerminal, Write},
-    panic::{self, PanicHookInfo},
-    sync::Arc,
+    io::{self, IsTerminal},
     time::{Duration, Instant},
 };
 
-type PanicHook = dyn for<'a> Fn(&PanicHookInfo<'a>) + Send + Sync + 'static;
+mod lifecycle;
 
-struct TerminalGuard {
-    restored: bool,
-    previous_hook: Option<Arc<PanicHook>>,
-}
-
-impl TerminalGuard {
-    fn enter() -> Result<Self> {
-        if !is_interactive_terminal() {
-            bail!("interactive terminal required");
-        }
-        enable_raw_mode().context("failed to enable terminal raw mode")?;
-        let mut guard = Self {
-            restored: false,
-            previous_hook: None,
-        };
-        guard.install_panic_hook();
-        let mut stdout = io::stdout();
-        if let Err(error) = execute!(stdout, EnterAlternateScreen, EnableBracketedPaste, Show) {
-            let _ = guard.restore();
-            return Err(error).context("failed to enter the terminal screen");
-        }
-        Ok(guard)
-    }
-
-    fn restore(&mut self) -> io::Result<()> {
-        if self.restored {
-            return Ok(());
-        }
-        let restored = restore_terminal();
-        if !std::thread::panicking()
-            && let Some(previous) = self.previous_hook.take()
-        {
-            drop(panic::take_hook());
-            panic::set_hook(Box::new(move |info| previous(info)));
-        }
-        self.restored = restored.is_ok();
-        restored
-    }
-
-    fn install_panic_hook(&mut self) {
-        let previous = Arc::<PanicHook>::from(panic::take_hook());
-        let prior = Arc::clone(&previous);
-        panic::set_hook(Box::new(move |info| {
-            let _ = restore_terminal();
-            prior(info);
-        }));
-        self.previous_hook = Some(previous);
-    }
-}
-
-impl Drop for TerminalGuard {
-    fn drop(&mut self) {
-        let _ = self.restore();
-    }
-}
+use lifecycle::TerminalGuard;
+pub use lifecycle::write_restore_sequence;
 
 pub fn is_interactive_terminal() -> bool {
     if !io::stdout().is_terminal() {
@@ -97,17 +34,6 @@ pub fn is_interactive_terminal() -> bool {
     {
         false
     }
-}
-
-pub fn write_restore_sequence(writer: &mut impl Write) -> io::Result<()> {
-    execute!(writer, DisableBracketedPaste, LeaveAlternateScreen, Show)
-}
-
-fn restore_terminal() -> io::Result<()> {
-    let raw = disable_raw_mode();
-    let mut stdout = io::stdout();
-    let screen = write_restore_sequence(&mut stdout);
-    raw.and(screen)
 }
 
 pub fn run(mut app: App) -> Result<()> {
