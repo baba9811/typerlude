@@ -41,6 +41,12 @@ pub struct KeyInput {
     pub kind: KeyKind,
 }
 
+impl KeyInput {
+    pub(crate) fn is_plain_q_command(self) -> bool {
+        matches!(self.key, Key::Char('q' | 'ㅂ')) && self.modifiers == KeyModifiers::NONE
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Key {
     BackTab,

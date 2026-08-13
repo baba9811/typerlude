@@ -46,7 +46,7 @@ fn typing_test_escape_then_q_persists_one_attempted_session() {
     app.handle_event(key(Key::Esc), start).unwrap();
 
     let confirmation = buffer_text(&draw(&app, 80, 24).buffer);
-    assert!(confirmation.contains("Q: Confirm"), "{confirmation}");
+    assert!(confirmation.contains("Q / ㅂ: Confirm"), "{confirmation}");
     assert!(confirmation.contains("Esc: Cancel"), "{confirmation}");
     assert!(!confirmation.contains("Pause"), "{confirmation}");
     assert!(!app.active_practice().unwrap().engine.is_paused());
@@ -113,6 +113,30 @@ fn empty_typing_test_escape_then_q_returns_home_without_a_session() {
     assert!(app.result.is_none());
     assert!(app.sessions.is_empty());
     assert!(!app.paths.sessions.exists());
+}
+
+#[test]
+fn korean_q_confirms_leaving_a_typing_test() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+    app.start_mode(
+        request(
+            PracticeKind::Test,
+            Language::Ko,
+            "ㅂ가",
+            StopRule::ActiveTime(Duration::from_secs(60)),
+        ),
+        start,
+    )
+    .unwrap();
+
+    app.handle_event(key(Key::Char('ㅂ')), start).unwrap();
+    assert_eq!(app.active_practice().unwrap().engine.cursor(), 1);
+    app.handle_event(key(Key::Esc), start).unwrap();
+    app.handle_event(key(Key::Char('ㅂ')), start).unwrap();
+
+    assert_eq!(app.screen(), Screen::Result);
+    assert_eq!(app.sessions.len(), 1);
 }
 
 #[test]
@@ -237,11 +261,20 @@ fn selected_test_finishes_when_its_text_ends_before_the_timer() {
     let start = Instant::now();
     let item = app.long_items(Language::En, None)[0];
     let id = item.id.clone();
-    let target = item.text.clone();
     app.start_test(Language::En, Some(300), Some(&id), 7, start)
         .unwrap();
 
-    type_text(&mut app, &target, start);
+    while app.screen() == Screen::Practice {
+        let active = app.active_practice().unwrap();
+        let next = active
+            .engine
+            .target_cells()
+            .nth(active.engine.cursor())
+            .unwrap()
+            .0
+            .to_owned();
+        type_text(&mut app, &next, start);
+    }
 
     assert_eq!(app.screen(), Screen::Result);
     assert_eq!(app.result.as_ref().unwrap().session.content_id, id);

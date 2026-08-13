@@ -170,8 +170,8 @@ fn help_explains_all_keyboard_and_cli_actions_in_both_languages() {
         assert!(output.contains("Shift+Tab"), "{output}");
         assert!(
             output.contains(match language {
-                Language::Ko => "q를 두 번",
-                Language::En => "press q twice",
+                Language::Ko => "q 또는 ㅂ을 두 번",
+                Language::En => "press q or ㅂ twice",
             }),
             "{output}"
         );
@@ -197,7 +197,7 @@ fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
             Language::En,
             [
                 "Non-Test: Esc / Ctrl+P pause",
-                "Test: Esc opens/cancels leave · q confirms",
+                "Test: Esc opens/cancels leave · q or ㅂ confirms",
                 "r: exact target/options",
                 "n: Quick/Words/Sentence/catalog Long only",
             ],
@@ -206,7 +206,7 @@ fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
             Language::Ko,
             [
                 "시험 외: Esc / Ctrl+P 일시 정지",
-                "시험: Esc 나가기 확인 열기/취소 · q 확인",
+                "시험: Esc 나가기 확인 열기/취소 · q 또는 ㅂ으로 확인",
                 "r: 같은 대상/설정",
                 "n: 빠른/단어/문장/카탈로그 긴 글만",
             ],

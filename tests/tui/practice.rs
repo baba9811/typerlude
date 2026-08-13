@@ -1269,3 +1269,29 @@ fn paused_q_confirms_early_leave_and_saves_only_after_an_attempt() {
     assert!(empty.sessions.is_empty());
     assert!(!empty.paths.sessions.exists());
 }
+
+#[test]
+fn korean_q_is_text_while_active_and_a_leave_command_while_paused() {
+    let start = Instant::now();
+    let (_root, mut app) = fixture_app();
+    app.start_mode(
+        request(
+            PracticeKind::Words,
+            Language::Ko,
+            "ㅂ가",
+            StopRule::TargetEnd,
+        ),
+        start,
+    )
+    .unwrap();
+
+    app.handle_event(key(Key::Char('ㅂ')), start).unwrap();
+    assert_eq!(app.active_practice().unwrap().engine.cursor(), 1);
+    assert_eq!(app.active_practice().unwrap().engine.attempted_units(), 1);
+
+    app.handle_event(key(Key::Esc), start).unwrap();
+    app.handle_event(key(Key::Char('ㅂ')), start).unwrap();
+    assert!(app.active_practice().unwrap().leave_confirmation());
+    app.handle_event(key(Key::Char('ㅂ')), start).unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+}
