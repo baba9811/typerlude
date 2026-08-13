@@ -29,8 +29,3 @@
 - Use the narrowest visibility that works: private, then `pub(super)`, then `pub(crate)`, and `pub` only for deliberate package facades.
 - Preserve CLI behavior and output, TUI behavior, terminal restoration, storage schemas, content formats, and bounded/atomic I/O unless a change explicitly requests otherwise.
 - Keep structural moves separate from behavior changes and verify the nearest characterization tests after each move.
-
-## Local Workflow Artifacts
-
-- Treat Superpowers design, specification, plan, review-package, and progress documents as local workflow artifacts.
-- Keep `docs/superpowers/` ignored and untracked unless the user explicitly asks to version a specific artifact.
