@@ -169,14 +169,38 @@ impl PracticeEngine {
             return InputOutcome::Finished;
         }
         if self.target_grapheme(self.input.len()) == Some("\n") {
-            return self.input("\n", now);
+            let outcome = self.input("\n", now);
+            while self.target_grapheme(self.input.len()) == Some("\n") {
+                self.input.push(Cell {
+                    entered: String::new(),
+                    correct: true,
+                });
+            }
+            self.advance_active_line();
+            return if self.target_complete() {
+                InputOutcome::Finished
+            } else {
+                outcome
+            };
         }
         let Some(line_end) = self.current_line_range().map(|range| range.end) else {
             return InputOutcome::Finished;
         };
         let attempted_before = self.attempted_units;
         while self.input.len() < line_end {
-            self.record_cell("", false, now);
+            let separator = if self.kind == PracticeKind::Words && self.input.len() + 1 == line_end
+            {
+                self.target_grapheme(self.input.len())
+                    .filter(|target| target.chars().all(char::is_whitespace))
+                    .map(str::to_owned)
+            } else {
+                None
+            };
+            if let Some(separator) = separator {
+                self.record_cell(&separator, true, now);
+            } else {
+                self.record_cell("", false, now);
+            }
         }
         self.advance_active_line();
         if self.kind == PracticeKind::Long && self.attempted_units != attempted_before {
@@ -209,7 +233,7 @@ impl PracticeEngine {
             .map(|target| unit_count(self.language, target))
             .unwrap_or(0);
         if let Some(cell) = self.input.pop() {
-            if cell.correct {
+            if cell.correct && !cell.entered.is_empty() {
                 self.correct_cells = self.correct_cells.saturating_sub(1);
                 self.correct_units = self.correct_units.saturating_sub(units);
             }

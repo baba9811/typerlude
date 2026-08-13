@@ -64,6 +64,7 @@ impl App {
         let Some(active) = self.practice.as_ref() else {
             return Ok(());
         };
+        let practice_kind = active.kind();
         if active.engine.is_paused() {
             if key.kind == KeyKind::Press
                 && key.key == Key::Char('q')
@@ -94,6 +95,13 @@ impl App {
                     active.current_item_delta =
                         Some(item_delta(&active.item_metrics, &active.live_metrics));
                 }
+            }
+            Key::Char(' ')
+                if practice_kind == PracticeKind::Words
+                    && matches!(key.kind, KeyKind::Press | KeyKind::Repeat)
+                    && key.modifiers == KeyModifiers::NONE =>
+            {
+                self.submit_practice_line(now)?;
             }
             Key::Char(character)
                 if matches!(key.kind, KeyKind::Press | KeyKind::Repeat)

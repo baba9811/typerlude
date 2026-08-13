@@ -919,6 +919,70 @@ fn words_and_sentences_advance_from_engine_boundaries_without_resetting_it() {
 }
 
 #[test]
+fn word_enter_accepts_the_item_separator() {
+    let start = Instant::now();
+    let (_root, mut app) = fixture_app();
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Words,
+            language: Language::Ko,
+            target: "한글 떡".into(),
+            mode: PracticeMode::Words {
+                difficulty: Difficulty::Easy,
+                completed: 0,
+                streak: 0,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![3, 4],
+            content_ids: vec!["한글".into(), "떡".into()],
+        },
+        start,
+    )
+    .unwrap();
+
+    type_text(&mut app, "한글", start);
+    app.handle_event(key(Key::Enter), start).unwrap();
+
+    assert_eq!(app.screen(), Screen::Practice);
+    assert_eq!(app.word_progress(), (1, 1));
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.engine.cursor(), 3);
+    assert_eq!(active.engine.metrics(start).errors, 0);
+}
+
+#[test]
+fn word_space_submits_an_incomplete_item() {
+    let start = Instant::now();
+    let (_root, mut app) = fixture_app();
+    app.start_mode(
+        ModeRequest {
+            kind: PracticeKind::Words,
+            language: Language::En,
+            target: "cat dog".into(),
+            mode: PracticeMode::Words {
+                difficulty: Difficulty::Easy,
+                completed: 0,
+                streak: 0,
+            },
+            stop: StopRule::TargetEnd,
+            item_ends: vec![4, 7],
+            content_ids: vec!["cat".into(), "dog".into()],
+        },
+        start,
+    )
+    .unwrap();
+
+    type_text(&mut app, "c", start);
+    app.handle_event(key(Key::Char(' ')), start).unwrap();
+
+    assert_eq!(app.screen(), Screen::Practice);
+    assert_eq!(app.word_progress(), (1, 0));
+    let active = app.active_practice().unwrap();
+    assert_eq!(active.engine.cursor(), 4);
+    assert_eq!(active.engine.metrics(start).errors, 2);
+}
+
+#[test]
 fn timed_quick_extends_before_exhaustion_and_item_quick_stops_exactly() {
     let start = Instant::now();
     let (_timed_root, mut timed) = fixture_app();
