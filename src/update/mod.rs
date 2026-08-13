@@ -1,8 +1,4 @@
-use crate::{
-    VERSION,
-    config::Settings,
-    storage::{AppPaths, atomic_write},
-};
+use crate::{VERSION, config::Settings, storage::AppPaths};
 use anyhow::{Context, Result, bail};
 use command_group::CommandGroup;
 use directories::BaseDirs;
@@ -11,7 +7,7 @@ use std::{
     env,
     ffi::OsStr,
     fmt, fs,
-    io::{ErrorKind, IsTerminal, Read},
+    io::{ErrorKind, IsTerminal},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -20,11 +16,14 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+mod cache;
+
+use cache::{load_cache, write_cache};
+
 const CACHE_INTERVAL_SECONDS: i64 = 24 * 60 * 60;
 const COMMAND_TIMEOUT: Duration = Duration::from_secs(5);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const MAX_COMMAND_OUTPUT_BYTES: usize = 4 * 1024;
-const MAX_CACHE_BYTES: u64 = 4 * 1024;
 const NPM_REGISTRY: &str = "https://registry.npmjs.org/";
 const CRATES_IO_INDEX: &str = "sparse+https://index.crates.io/";
 
@@ -165,29 +164,6 @@ fn resolve_path(path: PathBuf) -> PathBuf {
         env::current_dir().map_or(path.clone(), |current| current.join(path))
     };
     fs::canonicalize(&path).unwrap_or(path)
-}
-
-fn load_cache(path: &Path) -> Option<UpdateCache> {
-    let metadata = fs::symlink_metadata(path).ok()?;
-    if !metadata.file_type().is_file() || metadata.len() > MAX_CACHE_BYTES {
-        return None;
-    }
-    let mut bytes = Vec::new();
-    fs::File::open(path)
-        .ok()?
-        .take(MAX_CACHE_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .ok()?;
-    if bytes.len() > MAX_CACHE_BYTES as usize {
-        return None;
-    }
-    let cache = serde_json::from_slice::<UpdateCache>(&bytes).ok()?;
-    (cache.schema_version == 1 && cache.latest.parse::<StableVersion>().is_ok()).then_some(cache)
-}
-
-fn write_cache(path: &Path, cache: &UpdateCache) -> Result<()> {
-    let bytes = serde_json::to_vec_pretty(cache).context("failed to serialize update cache")?;
-    atomic_write(path, &bytes).with_context(|| format!("failed to save {}", path.display()))
 }
 
 fn parse_npm_version(output: &str) -> Result<StableVersion> {
