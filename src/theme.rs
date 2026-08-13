@@ -1,7 +1,6 @@
 use crate::storage::LoadWarning;
 use anyhow::{Context, Result, bail};
 use include_dir::{Dir, include_dir};
-use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
 use std::{
     collections::HashSet,
@@ -27,14 +26,37 @@ pub struct ThemeSpec {
     pub dim: String,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct ThemeStyles {
-    pub base: Style,
-    pub accent: Style,
-    pub correct: Style,
-    pub error: Style,
-    pub cursor: Style,
-    pub dim: Style,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ThemeColor {
+    Reset,
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    Gray,
+    DarkGray,
+    LightRed,
+    LightGreen,
+    LightYellow,
+    LightBlue,
+    LightMagenta,
+    LightCyan,
+    White,
+    Rgb(u8, u8, u8),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ThemePalette {
+    pub background: ThemeColor,
+    pub foreground: ThemeColor,
+    pub accent: ThemeColor,
+    pub correct: ThemeColor,
+    pub error: ThemeColor,
+    pub cursor: ThemeColor,
+    pub dim: ThemeColor,
 }
 
 pub struct ThemeCatalog {
@@ -54,21 +76,16 @@ pub fn parse_theme(source: &str) -> Result<ThemeSpec> {
 }
 
 impl ThemeSpec {
-    pub fn styles(&self) -> Result<ThemeStyles> {
+    pub fn palette(&self) -> Result<ThemePalette> {
         self.validate()?;
-        let background = parse_color(&self.background)?;
-        let role = |value: &str| -> Result<Style> {
-            Ok(Style::default().fg(parse_color(value)?).bg(background))
-        };
-        Ok(ThemeStyles {
-            base: Style::default()
-                .fg(parse_color(&self.foreground)?)
-                .bg(background),
-            accent: role(&self.accent)?,
-            correct: role(&self.correct)?,
-            error: role(&self.error)?.add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-            cursor: role(&self.cursor)?.add_modifier(Modifier::BOLD | Modifier::REVERSED),
-            dim: role(&self.dim)?,
+        Ok(ThemePalette {
+            background: parse_color(&self.background)?,
+            foreground: parse_color(&self.foreground)?,
+            accent: parse_color(&self.accent)?,
+            correct: parse_color(&self.correct)?,
+            error: parse_color(&self.error)?,
+            cursor: parse_color(&self.cursor)?,
+            dim: parse_color(&self.dim)?,
         })
     }
 
@@ -211,25 +228,25 @@ fn read_theme(path: &Path) -> Result<String> {
     String::from_utf8(bytes).context("theme is not valid UTF-8")
 }
 
-fn parse_color(value: &str) -> Result<Color> {
+fn parse_color(value: &str) -> Result<ThemeColor> {
     let named = match value.to_ascii_lowercase().as_str() {
-        "reset" => Some(Color::Reset),
-        "black" => Some(Color::Black),
-        "red" => Some(Color::Red),
-        "green" => Some(Color::Green),
-        "yellow" => Some(Color::Yellow),
-        "blue" => Some(Color::Blue),
-        "magenta" => Some(Color::Magenta),
-        "cyan" => Some(Color::Cyan),
-        "gray" => Some(Color::Gray),
-        "dark_gray" | "darkgray" => Some(Color::DarkGray),
-        "light_red" | "lightred" => Some(Color::LightRed),
-        "light_green" | "lightgreen" => Some(Color::LightGreen),
-        "light_yellow" | "lightyellow" => Some(Color::LightYellow),
-        "light_blue" | "lightblue" => Some(Color::LightBlue),
-        "light_magenta" | "lightmagenta" => Some(Color::LightMagenta),
-        "light_cyan" | "lightcyan" => Some(Color::LightCyan),
-        "white" => Some(Color::White),
+        "reset" => Some(ThemeColor::Reset),
+        "black" => Some(ThemeColor::Black),
+        "red" => Some(ThemeColor::Red),
+        "green" => Some(ThemeColor::Green),
+        "yellow" => Some(ThemeColor::Yellow),
+        "blue" => Some(ThemeColor::Blue),
+        "magenta" => Some(ThemeColor::Magenta),
+        "cyan" => Some(ThemeColor::Cyan),
+        "gray" => Some(ThemeColor::Gray),
+        "dark_gray" | "darkgray" => Some(ThemeColor::DarkGray),
+        "light_red" | "lightred" => Some(ThemeColor::LightRed),
+        "light_green" | "lightgreen" => Some(ThemeColor::LightGreen),
+        "light_yellow" | "lightyellow" => Some(ThemeColor::LightYellow),
+        "light_blue" | "lightblue" => Some(ThemeColor::LightBlue),
+        "light_magenta" | "lightmagenta" => Some(ThemeColor::LightMagenta),
+        "light_cyan" | "lightcyan" => Some(ThemeColor::LightCyan),
+        "white" => Some(ThemeColor::White),
         _ => None,
     };
     if let Some(color) = named {
@@ -244,7 +261,7 @@ fn parse_color(value: &str) -> Result<Color> {
     let component = |range| {
         u8::from_str_radix(&rgb[range], 16).map_err(|_| anyhow::anyhow!("invalid RGB color"))
     };
-    Ok(Color::Rgb(
+    Ok(ThemeColor::Rgb(
         component(0..2)?,
         component(2..4)?,
         component(4..6)?,

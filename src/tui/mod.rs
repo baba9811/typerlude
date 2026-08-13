@@ -1,3 +1,6 @@
+mod theme;
+
+use self::theme::{ThemeStyles, styles as theme_styles};
 use crate::{
     app::{
         ActivePractice, App, CustomTextSource, Grade, PracticeMode, QUICK_COUNT_PRESETS,
@@ -11,7 +14,6 @@ use crate::{
         adaptive_candidates, has_key_attempts, history, intended_key_counts, streak, summarize,
         weak_keys,
     },
-    theme::ThemeStyles,
 };
 use ratatui::{
     Frame,
@@ -129,16 +131,16 @@ fn selected_styles(app: &App) -> Option<ThemeStyles> {
         .flatten();
     preview
         .and_then(|id| app.themes.get(id))
-        .and_then(|theme| theme.styles().ok())
+        .and_then(|theme| theme_styles(theme).ok())
         .or_else(|| {
             app.themes
                 .get(&app.settings.theme)
-                .and_then(|theme| theme.styles().ok())
+                .and_then(|theme| theme_styles(theme).ok())
         })
         .or_else(|| {
             app.themes
                 .get("default")
-                .and_then(|theme| theme.styles().ok())
+                .and_then(|theme| theme_styles(theme).ok())
         })
 }
 

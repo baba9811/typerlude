@@ -3,7 +3,7 @@ use ratatui::{
     backend::TestBackend,
     buffer::{Buffer, Cell},
     layout::Rect,
-    style::Style,
+    style::{Color, Modifier, Style},
 };
 use std::{
     collections::{BTreeMap, HashSet},
@@ -518,6 +518,34 @@ fn assert_role_style(cell: &Cell, expected: Style) {
     assert_eq!(cell.modifier, expected.add_modifier);
 }
 
+#[derive(Clone, Copy)]
+struct ExpectedThemeStyles {
+    base: Style,
+    accent: Style,
+    correct: Style,
+    error: Style,
+    cursor: Style,
+    dim: Style,
+}
+
+fn default_styles() -> ExpectedThemeStyles {
+    let role = |color| Style::default().fg(color).bg(Color::Black);
+    ExpectedThemeStyles {
+        base: role(Color::White),
+        accent: role(Color::Cyan),
+        correct: role(Color::Green),
+        error: role(Color::Red).add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        cursor: role(Color::Yellow).add_modifier(Modifier::BOLD | Modifier::REVERSED),
+        dim: role(Color::DarkGray),
+    }
+}
+
+fn nord_base_style() -> Style {
+    Style::default()
+        .fg(Color::Rgb(0xd8, 0xde, 0xe9))
+        .bg(Color::Rgb(0x2e, 0x34, 0x40))
+}
+
 #[test]
 fn engine_exposes_only_the_borrowed_target_render_view() {
     let start = Instant::now();
@@ -986,7 +1014,7 @@ fn practice_uses_role_styles_and_places_the_unicode_input_cursor() {
         .input("한q", start);
 
     let drawn = draw(&app, 80, 24);
-    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let styles = default_styles();
     assert_eq!(drawn.cursor, Some((5, 2)));
     assert_eq!(drawn.buffer[(2, 2)].symbol(), "한");
     assert_role_style(&drawn.buffer[(2, 2)], styles.correct);
@@ -1026,7 +1054,7 @@ fn non_key_practice_separates_actual_input_from_prompt() {
     assert!(output.contains("Prompt"), "{output}");
     assert!(output.contains("hex"), "{output}");
     assert!(output.contains("hello world"), "{output}");
-    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let styles = default_styles();
     let actual_error = drawn
         .buffer
         .content
@@ -1279,12 +1307,7 @@ fn stats_with_multiple_sessions_renders_two_speed_series() {
     assert!(output.contains("Speed trend"), "{output}");
     assert!(output.contains("KPM"), "{output}");
     assert!(output.contains("WPM"), "{output}");
-    let styles = ThemeCatalog::load_builtins()
-        .unwrap()
-        .get("default")
-        .unwrap()
-        .styles()
-        .unwrap();
+    let styles = default_styles();
     let has_braille = |style: Style| {
         drawn.buffer.content.iter().any(|cell| {
             cell.style().fg == style.fg
@@ -1723,13 +1746,12 @@ fn focused_theme_previews_without_saving_and_escape_reverts() {
     press(&mut app, Key::Tab, 4, now);
 
     let preview = draw(&app, 80, 24);
-    let nord = app.themes.get("nord").unwrap().styles().unwrap();
-    assert_role_style(&preview.buffer[(70, 18)], nord.base);
+    assert_role_style(&preview.buffer[(70, 18)], nord_base_style());
     assert_eq!(app.settings.theme, "default");
 
     app.handle_event(key(Key::Esc), now).unwrap();
     let reverted = draw(&app, 80, 24);
-    let default = app.themes.get("default").unwrap().styles().unwrap();
+    let default = default_styles();
     assert_role_style(&reverted.buffer[(70, 18)], default.base);
 }
 
@@ -2299,7 +2321,7 @@ fn unknown_saved_theme_falls_back_to_validated_default_styles() {
     app.settings.theme = "missing-theme".into();
     app.warnings.clear();
     let drawn = draw(&app, 80, 24);
-    let expected = app.themes.get("default").unwrap().styles().unwrap().base;
+    let expected = default_styles().base;
 
     assert_role_style(&drawn.buffer[(70, 18)], expected);
     assert!(buffer_text(&drawn.buffer).contains("Typerlude"));
@@ -2705,7 +2727,7 @@ fn practice_shows_observed_input_language_and_preserves_scoring() {
     let drawn = draw(&app, 80, 24);
     let output = buffer_text(&drawn.buffer);
     assert!(output.contains("Practice EN · Input KO ⚠"), "{output}");
-    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let styles = default_styles();
     let warning = drawn
         .buffer
         .content
@@ -3130,7 +3152,7 @@ fn errors_do_not_block_item_progress_and_backspace_reopens_the_previous_line() {
     app.handle_event(key(Key::Backspace), start).unwrap();
     assert_eq!(app.active_practice().unwrap().engine.cursor(), 3);
     let reopened = draw(&app, 80, 24);
-    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let styles = default_styles();
     assert_eq!(reopened.buffer[(4, 2)].symbol(), "·");
     assert_role_style(&reopened.buffer[(4, 2)], styles.error);
     app.handle_event(key(Key::Backspace), start).unwrap();
@@ -4307,7 +4329,7 @@ fn key_keyboard_and_finger_guide_follow_settings_and_shift_state() {
     }
     assert!(output.contains("Shift"), "{output}");
     assert!(output.contains("Finger: left pinky"), "{output}");
-    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let styles = default_styles();
     assert!(
         visible
             .buffer
@@ -4385,7 +4407,7 @@ fn key_keyboard_maps_shifted_colon_to_the_semicolon_key() {
     let drawn = draw(&app, 80, 24);
     let output = buffer_text(&drawn.buffer);
     assert!(output.contains("Finger: right pinky"), "{output}");
-    let styles = app.themes.get("default").unwrap().styles().unwrap();
+    let styles = default_styles();
     let semicolon = drawn
         .buffer
         .content
@@ -4417,7 +4439,7 @@ fn key_keyboard_includes_every_supported_punctuation_key() {
         )
         .unwrap();
         let drawn = draw(&app, 80, 24);
-        let styles = app.themes.get("default").unwrap().styles().unwrap();
+        let styles = default_styles();
         let highlighted = drawn
             .buffer
             .content
