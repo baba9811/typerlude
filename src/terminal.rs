@@ -22,13 +22,13 @@ use std::{
 
 type PanicHook = dyn for<'a> Fn(&PanicHookInfo<'a>) + Send + Sync + 'static;
 
-pub struct TerminalGuard {
+struct TerminalGuard {
     restored: bool,
     previous_hook: Option<Arc<PanicHook>>,
 }
 
 impl TerminalGuard {
-    pub fn enter() -> Result<Self> {
+    fn enter() -> Result<Self> {
         if !is_interactive_terminal() {
             bail!("interactive terminal required");
         }
@@ -46,7 +46,7 @@ impl TerminalGuard {
         Ok(guard)
     }
 
-    pub fn restore(&mut self) -> io::Result<()> {
+    fn restore(&mut self) -> io::Result<()> {
         if self.restored {
             return Ok(());
         }

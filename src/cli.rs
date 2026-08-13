@@ -6,7 +6,7 @@ use crate::{
         ContentCatalog, ContentError, ContentPack, MAX_CONTENT_BYTES, MutationLock,
         disable_user_pack, parse_pack, read_pack_bytes, validate_pack,
     },
-    diagnostic::{self, format_content_error},
+    diagnostic::{format_content_error, terminal_safe},
     model::{Language, PracticeKind},
     storage::{AppPaths, LoadWarning, atomic_write_new, load_sessions},
     theme::ThemeCatalog,
@@ -108,10 +108,6 @@ fn input_error(message: impl Into<String>) -> anyhow::Error {
 
 pub fn is_input_error(error: &anyhow::Error) -> bool {
     user_error::is_input_error(error)
-}
-
-pub fn terminal_safe(value: &str) -> String {
-    diagnostic::terminal_safe(value)
 }
 
 pub fn parse_args(args: Vec<OsString>) -> Result<Command> {

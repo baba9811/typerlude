@@ -11,8 +11,10 @@ pub mod storage;
 pub mod terminal;
 pub mod theme;
 pub mod tui;
-pub mod typing;
+mod typing;
 pub mod update;
 mod user_error;
+
+pub use diagnostic::terminal_safe;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

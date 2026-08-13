@@ -1,6 +1,6 @@
 use crate::content::ContentError;
 
-pub(crate) fn terminal_safe(value: &str) -> String {
+pub fn terminal_safe(value: &str) -> String {
     let mut safe = String::with_capacity(value.len());
     for character in value.chars() {
         if matches!(character, '\n' | '\t') || !character.is_control() {
