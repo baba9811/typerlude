@@ -1,10 +1,11 @@
+mod content_flow;
+mod result;
+
+pub use self::result::grade;
+use self::{content_flow::collect_content_packs, result::item_delta};
 use crate::{
     config::Settings,
-    content::{
-        ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem, SourceMeta,
-        disable_user_pack, parse_pack, read_pack_bytes, validate_pack,
-    },
-    diagnostic::format_content_error,
+    content::{ContentCatalog, ContentKind, MAX_CONTENT_BYTES, ResolvedItem, SourceMeta},
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     practice::{Metrics, PracticeEngine},
@@ -12,16 +13,14 @@ use crate::{
         KeyAccuracy, ProgressPoint, Range, adaptive_candidates, intended_key_counts, progress,
         weak_keys,
     },
-    storage::{AppPaths, SessionRecord, save_session},
+    storage::{AppPaths, SessionRecord},
     theme::ThemeCatalog,
     typing::input_language,
     update::UpdateNotice,
 };
 use anyhow::{Result, anyhow, bail};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fs,
-    path::Path,
+    collections::{HashMap, HashSet},
     sync::mpsc::{Receiver, TryRecvError},
     time::{Duration, Instant},
 };
@@ -131,18 +130,6 @@ pub enum Grade {
     B,
     C,
     D,
-}
-
-pub fn grade(speed: f64, speed_goal: f64, accuracy: f64, accuracy_goal: f64) -> Grade {
-    if speed >= speed_goal && accuracy >= accuracy_goal {
-        Grade::A
-    } else if speed >= speed_goal * 0.8 && accuracy >= 95.0 {
-        Grade::B
-    } else if speed >= speed_goal * 0.6 && accuracy >= 90.0 {
-        Grade::C
-    } else {
-        Grade::D
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -803,29 +790,6 @@ impl App {
             return Err(error);
         }
         self.change_settings(|settings| settings.theme = id.to_owned())
-    }
-
-    pub fn content_packs(&self) -> &[ContentPackSummary] {
-        &self.content_pack_summaries
-    }
-
-    pub fn selected_content_pack(&self) -> Option<&str> {
-        self.selected_content_pack.as_deref()
-    }
-
-    pub fn content_detail_pack(&self) -> Option<&ContentPackSummary> {
-        self.selected_content_pack
-            .as_deref()
-            .and_then(|id| {
-                self.content_pack_summaries
-                    .iter()
-                    .find(|pack| pack.id == id)
-            })
-            .or_else(|| self.content_pack_summaries.first())
-    }
-
-    pub const fn content_disable_confirmation(&self) -> bool {
-        self.content_disable_confirmation
     }
 
     pub fn set_update_receiver(&mut self, receiver: Receiver<Option<UpdateNotice>>) {
@@ -1845,149 +1809,6 @@ impl App {
         Ok(())
     }
 
-    pub fn finish_practice(&mut self, now: Instant) -> Result<ResultView> {
-        let Some(active) = self.practice.as_ref() else {
-            bail!("no active practice");
-        };
-        if active.engine.metrics(now).attempted_units == 0 {
-            bail!("cannot finish practice without an attempt");
-        }
-
-        let Some(mut active) = self.practice.take() else {
-            bail!("no active practice");
-        };
-        if let Some(stream) = active.stream.clone() {
-            self.retry_stream = Some(stream);
-        }
-        let metrics = active.engine.finalize(now);
-        let language = active.engine.language();
-        let kind = active.kind();
-        let long = (kind == PracticeKind::Long).then(|| {
-            let completed_graphemes = active.engine.cursor();
-            let total_graphemes = active.engine.target_len();
-            let (best_rolling_kpm, best_rolling_wpm) = active.engine.best_rolling_speeds();
-            LongOutcome {
-                best_rolling_kpm,
-                best_rolling_wpm,
-                completed_graphemes,
-                total_graphemes,
-                percent: completed_graphemes.saturating_mul(100) / total_graphemes,
-            }
-        });
-        let started_at = active
-            .started_at_utc
-            .unwrap_or_else(OffsetDateTime::now_utc);
-        let content_id = active
-            .content_ids
-            .first()
-            .cloned()
-            .unwrap_or_else(|| practice_id(kind).into());
-        let long_difficulty = active
-            .long_metadata
-            .as_ref()
-            .and_then(|metadata| metadata.difficulty);
-        let difficulty = match active.mode {
-            PracticeMode::Words { difficulty, .. } => match difficulty {
-                Difficulty::Easy => Some(1),
-                Difficulty::Medium => Some(2),
-                Difficulty::Hard => Some(3),
-                Difficulty::Mixed => None,
-            },
-            PracticeMode::Long { .. } => long_difficulty,
-            _ => None,
-        };
-        let session = SessionRecord::from_result(
-            started_at,
-            language,
-            kind,
-            content_id,
-            difficulty,
-            &metrics,
-            active.engine.intended_keys(),
-        );
-        let speed = session_speed(&session);
-        let comparable = self
-            .sessions
-            .iter()
-            .filter(|prior| prior.language == language && prior.mode == kind)
-            .collect::<Vec<_>>();
-        let previous = comparable
-            .iter()
-            .copied()
-            .filter(|prior| prior.kpm.is_finite() && prior.wpm.is_finite())
-            .max_by(|left, right| {
-                left.started_at_unix_ms
-                    .cmp(&right.started_at_unix_ms)
-                    .then_with(|| left.id.cmp(&right.id))
-            });
-        let previous_kpm = previous.map(|prior| prior.kpm);
-        let previous_wpm = previous.map(|prior| prior.wpm);
-        let best_kpm = comparable
-            .iter()
-            .map(|prior| prior.kpm)
-            .filter(|speed| speed.is_finite())
-            .max_by(f64::total_cmp);
-        let best_wpm = comparable
-            .iter()
-            .map(|prior| prior.wpm)
-            .filter(|speed| speed.is_finite())
-            .max_by(f64::total_cmp);
-        let speed_goal = match language {
-            Language::Ko => f64::from(self.settings.target_kpm),
-            Language::En => f64::from(self.settings.target_wpm),
-        };
-        let prior_duration = self
-            .sessions
-            .iter()
-            .filter(|prior| prior.local_date == session.local_date)
-            .fold(0_u64, |total, prior| {
-                total.saturating_add(prior.duration_ms)
-            });
-        let daily_target = u64::from(self.settings.daily_minutes).saturating_mul(60_000);
-        let result_grade = (kind == PracticeKind::Test).then(|| {
-            grade(
-                speed,
-                speed_goal,
-                session.accuracy,
-                self.settings.target_accuracy,
-            )
-        });
-        let mut view = ResultView {
-            previous_kpm,
-            previous_wpm,
-            best_kpm,
-            best_wpm,
-            kpm_delta: previous_kpm.map(|previous| session.kpm - previous),
-            wpm_delta: previous_wpm.map(|previous| session.wpm - previous),
-            speed_goal,
-            accuracy_goal: self.settings.target_accuracy,
-            daily_minutes_goal: self.settings.daily_minutes,
-            speed_goal_met: speed >= speed_goal,
-            accuracy_goal_met: session.accuracy >= self.settings.target_accuracy,
-            daily_minutes_met: prior_duration.saturating_add(session.duration_ms) >= daily_target,
-            weak_keys: weak_keys(&session.intended_keys, 1)
-                .into_iter()
-                .take(5)
-                .collect(),
-            grade: result_grade,
-            save_error: None,
-            long,
-            session,
-        };
-        match save_session(&self.paths, &view.session) {
-            Ok(_) => self.sessions.push(view.session.clone()),
-            Err(error) => view.save_error = Some(error.root_cause().to_string()),
-        }
-
-        self.remember_focus();
-        self.screen = Screen::Result;
-        self.parent = Screen::Home;
-        self.parent_before_help = None;
-        self.focus = 0;
-        self.result = Some(view.clone());
-        Ok(view)
-    }
-
     fn escape(&mut self) {
         self.content_disable_confirmation = false;
         self.remember_focus();
@@ -2348,176 +2169,6 @@ impl App {
             _ => {}
         }
     }
-
-    fn disable_selected_content(&mut self) {
-        let Some(id) = self.selected_content_pack.clone() else {
-            return;
-        };
-        let Some(pack) = self.content_packs().iter().find(|pack| pack.id == id) else {
-            return;
-        };
-        if pack.built_in {
-            self.warnings
-                .push(format!("content: built-in pack {id:?} cannot be disabled"));
-            return;
-        }
-        if !pack.enabled {
-            self.warnings
-                .push(format!("content: user pack {id:?} is already disabled"));
-            return;
-        }
-        if !self.content_disable_confirmation {
-            self.content_disable_confirmation = true;
-            return;
-        }
-        let mut mutation_warnings = Vec::new();
-        let result = disable_user_pack(&self.paths, &id, &mut mutation_warnings);
-        self.warnings.extend(
-            mutation_warnings
-                .iter()
-                .map(|warning| format!("content: {}", format_content_error(warning))),
-        );
-        match result {
-            Ok(catalog) => {
-                self.content_pack_summaries = collect_content_packs(&catalog, &self.paths.content);
-                self.content = catalog;
-                self.selected_content_pack = None;
-                self.content_disable_confirmation = false;
-                self.escape();
-            }
-            Err(error) => {
-                self.warnings.push(format!("content: {error:#}"));
-                self.content_disable_confirmation = false;
-            }
-        }
-    }
-}
-
-fn collect_content_packs(catalog: &ContentCatalog, content_root: &Path) -> Vec<ContentPackSummary> {
-    let mut packs = BTreeMap::<String, ContentPackSummary>::new();
-    for item in catalog.items() {
-        add_pack_item(
-            &mut packs,
-            item,
-            true,
-            catalog.active_user_path(&item.pack_id).is_none(),
-        );
-    }
-    for pack in packs.values_mut() {
-        if let Some(source) = catalog.pack_source(&pack.id) {
-            if !pack.licenses.contains(&source.license) {
-                pack.licenses.push(source.license.clone());
-            }
-            pack.provenance.push(ContentProvenance {
-                item_id: None,
-                source: source.clone(),
-            });
-        }
-    }
-
-    let disabled = content_root.join("disabled");
-    let mut entries = match fs::symlink_metadata(&disabled) {
-        Ok(metadata) if metadata.file_type().is_dir() => fs::read_dir(disabled)
-            .map(|entries| entries.flatten().collect::<Vec<_>>())
-            .unwrap_or_default(),
-        _ => Vec::new(),
-    };
-    entries.sort_unstable_by_key(|entry| entry.file_name());
-    for entry in entries {
-        let path = entry.path();
-        if path.extension().and_then(|value| value.to_str()) != Some("toml")
-            || !entry.file_type().is_ok_and(|kind| kind.is_file())
-        {
-            continue;
-        }
-        let Ok(bytes) = read_pack_bytes(&path) else {
-            continue;
-        };
-        let Ok(source) = std::str::from_utf8(&bytes) else {
-            continue;
-        };
-        let Ok(pack) = parse_pack(source) else {
-            continue;
-        };
-        if !validate_pack(&pack).is_empty() || packs.contains_key(&pack.id) {
-            continue;
-        }
-        let pack_id = pack.id.clone();
-        let pack_source = pack.source.clone();
-        let Ok(items) = pack.resolve_items() else {
-            continue;
-        };
-        for item in items {
-            add_pack_item(&mut packs, &item, false, false);
-        }
-        if let Some(pack) = packs.get_mut(&pack_id) {
-            if !pack.licenses.contains(&pack_source.license) {
-                pack.licenses.push(pack_source.license.clone());
-            }
-            pack.provenance.push(ContentProvenance {
-                item_id: None,
-                source: pack_source,
-            });
-        }
-    }
-
-    for pack in packs.values_mut() {
-        pack.licenses.sort_unstable();
-        pack.kinds
-            .sort_unstable_by_key(|kind| content_kind_order(*kind));
-    }
-    packs.into_values().collect()
-}
-
-fn add_pack_item(
-    packs: &mut BTreeMap<String, ContentPackSummary>,
-    item: &ResolvedItem,
-    enabled: bool,
-    built_in: bool,
-) {
-    let pack = packs
-        .entry(item.pack_id.clone())
-        .or_insert_with(|| ContentPackSummary {
-            id: item.pack_id.clone(),
-            sample_item_id: item.id.clone(),
-            provenance: Vec::new(),
-            language: item.language,
-            items: 0,
-            licenses: Vec::new(),
-            kinds: Vec::new(),
-            enabled,
-            built_in,
-        });
-    pack.items += 1;
-    if !pack
-        .provenance
-        .iter()
-        .any(|value| value.item_id.is_some() && value.source == item.source)
-    {
-        pack.provenance.push(ContentProvenance {
-            item_id: Some(item.id.clone()),
-            source: item.source.clone(),
-        });
-    }
-    if !pack
-        .licenses
-        .iter()
-        .any(|value| value == &item.source.license)
-    {
-        pack.licenses.push(item.source.license.clone());
-    }
-    if !pack.kinds.contains(&item.kind) {
-        pack.kinds.push(item.kind);
-    }
-}
-
-const fn content_kind_order(kind: ContentKind) -> u8 {
-    match kind {
-        ContentKind::Word => 0,
-        ContentKind::Sentence => 1,
-        ContentKind::Quote => 2,
-        ContentKind::Text => 3,
-    }
 }
 
 const fn other_language(language: Language) -> Language {
@@ -2701,57 +2352,4 @@ fn catalog_target(items: &[&ResolvedItem], separator: &str) -> (String, Vec<usiz
         content_ids.push(item.id.clone());
     }
     (target, item_ends, content_ids)
-}
-
-fn item_delta(before: &Metrics, after: &Metrics) -> ItemDelta {
-    let correct_units = after.correct_units.saturating_sub(before.correct_units);
-    let correct_cells = after.correct_cells.saturating_sub(before.correct_cells);
-    let attempted_units = after.attempted_units.saturating_sub(before.attempted_units);
-    let correct_attempts = correct_attempts(after).saturating_sub(correct_attempts(before));
-    let minutes = after.active.saturating_sub(before.active).as_secs_f64() / 60.0;
-    let kpm = if minutes > 0.0 {
-        correct_units as f64 / minutes
-    } else {
-        0.0
-    };
-    ItemDelta {
-        correct_units,
-        attempted_units,
-        errors: after.errors.saturating_sub(before.errors),
-        kpm,
-        wpm: if minutes > 0.0 {
-            correct_cells as f64 / minutes / 5.0
-        } else {
-            0.0
-        },
-        accuracy: if attempted_units == 0 {
-            100.0
-        } else {
-            correct_attempts as f64 / attempted_units as f64 * 100.0
-        },
-    }
-}
-
-fn correct_attempts(metrics: &Metrics) -> u64 {
-    (metrics.accuracy / 100.0 * metrics.attempted_units as f64)
-        .round()
-        .clamp(0.0, metrics.attempted_units as f64) as u64
-}
-
-fn session_speed(session: &SessionRecord) -> f64 {
-    match session.language {
-        Language::Ko => session.kpm,
-        Language::En => session.wpm,
-    }
-}
-
-const fn practice_id(kind: PracticeKind) -> &'static str {
-    match kind {
-        PracticeKind::Quick => "quick",
-        PracticeKind::Key => "key",
-        PracticeKind::Words => "words",
-        PracticeKind::Sentence => "sentence",
-        PracticeKind::Long => "long",
-        PracticeKind::Test => "test",
-    }
 }
