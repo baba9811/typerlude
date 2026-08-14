@@ -12,6 +12,10 @@
 
 <p align="center"><a href="README.md">English</a> · <strong>한국어</strong></p>
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Typerlude 영어 타자 연습 데모" width="800">
+</p>
+
 한국어·영어 타자를 연습하거나, 바이브 코딩 중 잠깐 심심할 때 터미널에서 쉬어가세요.
 Typerlude는 오프라인으로 실행되며 연습 데이터를 내 컴퓨터에만 보관합니다.
 

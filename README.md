@@ -12,6 +12,10 @@
 
 <p align="center"><strong>English</strong> · <a href="README.ko.md">한국어</a></p>
 
+<p align="center">
+  <img src="assets/demo.gif" alt="Typerlude English typing practice demo" width="800">
+</p>
+
 Practice Korean and English typing—or take a quick interlude when vibe coding gets quiet.
 Typerlude runs in your terminal, works offline, and keeps your practice data local.
 
