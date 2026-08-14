@@ -1,6 +1,6 @@
 {
   "name": "typerlude",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Offline-first Korean and English terminal typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
@@ -31,12 +31,12 @@
     "package-check": "node scripts/verify-package.mjs"
   },
   "optionalDependencies": {
-    "typerlude-darwin-arm64": "1.0.1",
-    "typerlude-darwin-x64": "1.0.1",
-    "typerlude-linux-arm64": "1.0.1",
-    "typerlude-linux-x64": "1.0.1",
-    "typerlude-win32-arm64-msvc": "1.0.1",
-    "typerlude-win32-x64-msvc": "1.0.1"
+    "typerlude-darwin-arm64": "1.0.2",
+    "typerlude-darwin-x64": "1.0.2",
+    "typerlude-linux-arm64": "1.0.2",
+    "typerlude-linux-x64": "1.0.2",
+    "typerlude-win32-arm64-msvc": "1.0.2",
+    "typerlude-win32-x64-msvc": "1.0.2"
   },
   "publishConfig": {
     "access": "public"
