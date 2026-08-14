@@ -189,6 +189,12 @@ retrieved_at = "2026-08-07"
     let mut newline = fixture_pack();
     newline.items[0].text = "line one\nline two".into();
     assert!(validate_pack(&newline).is_empty());
+
+    let mut consecutive_newlines = fixture_pack();
+    consecutive_newlines.items[0].text = "line one\n\nline two".into();
+    assert!(validate_pack(&consecutive_newlines).iter().any(|error| {
+        error.field == "text" && error.message.contains("consecutive newlines")
+    }));
 }
 
 #[test]

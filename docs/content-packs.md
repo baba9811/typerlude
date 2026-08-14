@@ -43,7 +43,8 @@ tags = ["custom"]
 
 Pack and item IDs must be unique. Installable pack IDs use ASCII letters, digits, `-`, and `_`.
 Text must be nonblank NFC UTF-8 without terminal control characters; duplicates are checked within
-the same language and content kind.
+the same language and content kind. Paragraphs use a single newline; consecutive newlines are
+rejected.
 
 Supported declared licenses are `CC0-1.0`, `CC-BY-2.0-FR`, `CC-BY-4.0`, `CC-BY-SA-4.0`,
 `KOGL-0`, `KOGL-1.0`, and `LicenseRef-Public-Domain`.

@@ -58,6 +58,14 @@ pub fn validate_pack(pack: &ContentPack) -> Vec<ContentError> {
                 "contains a disallowed control character",
             ));
         }
+        if item.text.contains("\n\n") {
+            errors.push(error(
+                pack,
+                item_id,
+                "text",
+                "must not contain consecutive newlines",
+            ));
+        }
         let normalized = normalize_nfc(&item.text);
         if normalized != item.text {
             errors.push(error(pack, item_id, "text", "must be NFC normalized"));
