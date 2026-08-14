@@ -89,6 +89,30 @@ fn long_viewport_reaches_valid_custom_text_beyond_u16_rows() {
 }
 
 #[test]
+fn custom_text_collapses_blank_line_runs_before_practice() {
+    let (_root, mut app) = fixture_app();
+    let start = Instant::now();
+
+    app.start_custom_text(
+        CustomTextSource::File,
+        "paragraphs.txt",
+        "first\r\n\r\n\n\nsecond",
+        start,
+    )
+    .unwrap();
+
+    let target = app
+        .active_practice()
+        .unwrap()
+        .engine
+        .target_cells()
+        .map(|(grapheme, _)| grapheme)
+        .collect::<String>();
+    assert_eq!(target, "first\nsecond");
+    assert_eq!(app.long_scroll().unwrap().total_paragraphs, 2);
+}
+
+#[test]
 fn custom_long_text_is_memory_only_and_uses_safe_content_ids() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();

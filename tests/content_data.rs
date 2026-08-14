@@ -393,7 +393,11 @@ fn bundled_text_packs_match_the_reviewed_classics_contract() {
             assert_eq!(item.title.as_deref(), Some(title), "{id}");
             assert_eq!(item.difficulty, Some(3), "{id}");
             assert_eq!(item.tags, [tag], "{id}");
-            assert!(item.text.contains("\n\n"), "{id} is not multi-paragraph");
+            assert!(item.text.contains('\n'), "{id} is not multi-paragraph");
+            assert!(
+                !item.text.contains("\n\n"),
+                "{id} contains consecutive newlines"
+            );
             assert!(
                 item.text.graphemes(true).count() >= 200,
                 "{id} is too short"
@@ -541,7 +545,7 @@ fn text_packs_have_exact_item_level_provenance() {
                         item.source.license_url,
                         "https://www.archives.gov/founding-docs/downloads"
                     );
-                    assert!(!item.source.modified);
+                    assert!(item.source.modified);
                     assert_eq!(item.source.retrieved_at, "2026-08-12");
                 }
                 "en-text-gettysburg-address" => {
@@ -572,7 +576,7 @@ fn text_packs_have_exact_item_level_provenance() {
                         item.source.license_url,
                         "https://copyright.gov/what-is-copyright/"
                     );
-                    assert!(!item.source.modified);
+                    assert!(item.source.modified);
                     assert_eq!(item.source.retrieved_at, "2026-08-07");
                 }
                 id => panic!("unexpected text item: {id}"),

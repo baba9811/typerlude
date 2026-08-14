@@ -43,6 +43,8 @@ typerlude notes.txt
 cat notes.txt | typerlude
 ```
 
+파일과 표준 입력의 연속 빈 줄은 연습 전에 한 줄로 축약됩니다.
+
 점수 연습 중 붙여넣기는 무시됩니다.
 
 ## 주요 기능

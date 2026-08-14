@@ -259,7 +259,7 @@ fn enter_marks_the_untyped_remainder_wrong_and_moves_on() {
 }
 
 #[test]
-fn one_enter_crosses_a_blank_line_run() {
+fn enter_consumes_only_one_target_newline() {
     let start = Instant::now();
     let mut engine =
         PracticeEngine::new_for_items(Language::En, PracticeKind::Long, "a\n\nb", &[3, 4], None)
@@ -268,8 +268,8 @@ fn one_enter_crosses_a_blank_line_run() {
     engine.input("a", start);
     assert_eq!(engine.submit_line(start), InputOutcome::Accepted);
 
-    assert_eq!(engine.cursor(), 3);
-    assert_eq!(engine.current_line_index(), 2);
+    assert_eq!(engine.cursor(), 2);
+    assert_eq!(engine.current_line_index(), 1);
     let metrics = engine.metrics(start);
     assert_eq!(metrics.attempted_units, 2);
     assert_eq!(metrics.correct_units, 2);
@@ -277,17 +277,17 @@ fn one_enter_crosses_a_blank_line_run() {
 }
 
 #[test]
-fn an_incomplete_line_submission_also_crosses_a_blank_line_run() {
+fn an_incomplete_line_submission_counts_one_enter_and_advances_one_line() {
     let start = Instant::now();
     let mut engine =
-        PracticeEngine::new_for_items(Language::En, PracticeKind::Long, "ab\n\nc", &[4, 5], None)
+        PracticeEngine::new_for_items(Language::En, PracticeKind::Long, "ab\nc", &[3, 4], None)
             .unwrap();
 
     engine.input("a", start);
     assert_eq!(engine.submit_line(start), InputOutcome::Accepted);
 
-    assert_eq!(engine.cursor(), 4);
-    assert_eq!(engine.current_line_index(), 2);
+    assert_eq!(engine.cursor(), 3);
+    assert_eq!(engine.current_line_index(), 1);
     let metrics = engine.metrics(start);
     assert_eq!(metrics.attempted_units, 3);
     assert_eq!(metrics.correct_units, 2);
