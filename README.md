@@ -43,6 +43,8 @@ typerlude notes.txt
 cat notes.txt | typerlude
 ```
 
+Consecutive blank lines in file and stdin text are collapsed before practice.
+
 Paste is ignored during scored practice.
 
 ## What you get

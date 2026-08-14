@@ -438,7 +438,13 @@ impl App {
         if text.len() > MAX_CONTENT_BYTES {
             bail!("custom text exceeds the 8 MiB limit");
         }
-        let text = text.replace("\r\n", "\n");
+        let mut text = text.replace("\r\n", "\n");
+        let mut previous_newline = false;
+        text.retain(|character| {
+            let keep = character != '\n' || !previous_newline;
+            previous_newline = character == '\n';
+            keep
+        });
         if text.trim().is_empty()
             || text
                 .chars()
