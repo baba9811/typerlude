@@ -40,6 +40,11 @@ Pick a mode, adjust its options, and press `Enter`. Use `Tab`, arrow keys, `j`, 
 pauses or opens leave confirmation while `q` and `ㅂ` remain typing input. In Word practice,
 `Space` or `Enter` submits the current word.
 
+Open **Games → Word Rain** for an endless Korean or English run. Choose Easy, Medium, or Hard;
+words fall faster every ten clears, and the first word to reach the miss line ends the game. A typo
+stays editable: use `Backspace`, or erase the input completely to target a different word. `Esc`
+pauses, pressing `q` or `ㅂ` twice while paused leaves, and `Enter` retries from the result screen.
+
 Practice your own text from a file or standard input:
 
 ```bash
@@ -54,6 +59,7 @@ Paste is ignored during scored practice.
 ## What you get
 
 - Quick, Keys, Words, Sentences, Long Text, and timed Test modes
+- Word Rain with randomized placement, escalating speed, combo scoring, and one-miss sudden death
 - Korean and English UI, content, scoring, and speed units
 - Unicode-aware typing metrics, goals, history, progress, and weak-key practice
 - Built-in offline content plus local content packs and themes
@@ -77,6 +83,8 @@ Your custom text stays in memory and is never copied into session history. Saved
 aggregate metrics and intended-key counts—not what you typed. Configuration, sessions, content,
 themes, and the update cache use your operating system's standard user directories; run
 `typerlude paths` to see the exact locations.
+
+Word Rain results and high scores are not saved.
 
 ## Contributing
 
