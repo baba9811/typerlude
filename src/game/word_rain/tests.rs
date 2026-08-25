@@ -345,6 +345,43 @@ fn backspace_removes_the_latest_character_and_empty_input_unlocks_target() {
 }
 
 #[test]
+fn empty_input_can_retarget_a_different_word() {
+    let now = Instant::now();
+    let mut game = WordRain::new(
+        Language::Ko,
+        Difficulty::Easy,
+        vec!["안녕".into(), "바다".into()],
+        7,
+        now,
+    )
+    .unwrap();
+    game.active = vec![
+        FallingWord {
+            id: 1,
+            text: "안녕".into(),
+            width: 4,
+            left: 0,
+            progress: 0.8,
+        },
+        FallingWord {
+            id: 2,
+            text: "바다".into(),
+            width: 4,
+            left: 20,
+            progress: 0.5,
+        },
+    ];
+
+    game.input_char('ㅇ');
+    assert_eq!(game.target_id(), Some(1));
+    assert!(game.backspace());
+    game.input_char('ㅂ');
+
+    assert_eq!(game.target_id(), Some(2));
+    assert_eq!(game.input(), "ㅂ");
+}
+
+#[test]
 fn wrong_input_resets_combo_and_backspace_does_not_restore_it() {
     let now = Instant::now();
     let mut game = game(Difficulty::Easy, &["alpha"], now);
@@ -440,4 +477,50 @@ fn a_miss_snapshots_the_complete_outcome() {
     assert_eq!(outcome.level, 3);
     assert_eq!(outcome.active_time, Duration::from_millis(250));
     assert_eq!(outcome.missed_word, "alpha");
+}
+
+#[test]
+fn simultaneous_misses_choose_farthest_fallen_then_oldest_id() {
+    let now = Instant::now();
+    let mut lower_game = game(Difficulty::Hard, &["older", "lower"], now);
+    lower_game.active = vec![
+        FallingWord {
+            id: 1,
+            text: "older".into(),
+            width: 5,
+            left: 0,
+            progress: 0.99,
+        },
+        FallingWord {
+            id: 2,
+            text: "lower".into(),
+            width: 5,
+            left: 20,
+            progress: 1.01,
+        },
+    ];
+
+    lower_game.tick(now + Duration::from_millis(250));
+    assert_eq!(lower_game.outcome.as_ref().unwrap().missed_word, "lower");
+
+    let mut tie_game = game(Difficulty::Hard, &["older", "newer"], now);
+    tie_game.active = vec![
+        FallingWord {
+            id: 1,
+            text: "older".into(),
+            width: 5,
+            left: 0,
+            progress: 1.0,
+        },
+        FallingWord {
+            id: 2,
+            text: "newer".into(),
+            width: 5,
+            left: 20,
+            progress: 1.0,
+        },
+    ];
+
+    tie_game.tick(now);
+    assert_eq!(tie_game.outcome.as_ref().unwrap().missed_word, "older");
 }

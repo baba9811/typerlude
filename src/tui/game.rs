@@ -10,7 +10,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::Modifier,
     text::{Line, Span},
-    widgets::{Clear, List, ListItem, Paragraph, Wrap},
+    widgets::{List, ListItem, Paragraph, Wrap},
 };
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -215,7 +215,6 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
                 Language::En => "Esc: Resume · q: Leave",
             }
         };
-        frame.render_widget(Clear, overlay);
         frame.render_widget(
             Paragraph::new(message)
                 .alignment(Alignment::Center)
