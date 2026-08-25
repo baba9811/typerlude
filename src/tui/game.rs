@@ -185,8 +185,8 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         ]),
         Line::from(format!("{}: {target}", text(language, TextKey::Target))),
         Line::from(match language {
-            Language::Ko => "Esc: 일시 정지 · Backspace: 수정",
-            Language::En => "Esc: Pause · Backspace: Correct",
+            Language::Ko => "Enter: 제출 · Esc: 일시 정지 · Backspace: 수정",
+            Language::En => "Enter: Submit · Esc: Pause · Backspace: Correct",
         }),
     ];
     let input_block = titled(text(language, TextKey::Input), styles);

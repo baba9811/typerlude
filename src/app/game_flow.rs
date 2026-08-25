@@ -80,6 +80,11 @@ impl App {
         }
 
         match key.key {
+            Key::Enter if key.kind == KeyKind::Press && key.modifiers == KeyModifiers::NONE => {
+                if let Some(active) = self.active_game.as_mut() {
+                    active.game.submit_input();
+                }
+            }
             Key::Backspace if matches!(key.kind, KeyKind::Press | KeyKind::Repeat) => {
                 if let Some(active) = self.active_game.as_mut() {
                     active.game.backspace();
@@ -250,6 +255,36 @@ mod tests {
 
         app.handle_event(key(Key::Backspace), now).unwrap();
         assert_eq!(app.active_game.as_ref().unwrap().game.input(), "");
+    }
+
+    #[test]
+    fn enter_submits_and_clears_invalid_game_input() {
+        let now = Instant::now();
+        let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+        start(&mut app, Language::En, Difficulty::Easy, now);
+        let first = app
+            .active_game
+            .as_ref()
+            .unwrap()
+            .game
+            .active_words()
+            .next()
+            .unwrap()
+            .text()
+            .chars()
+            .next()
+            .unwrap();
+
+        app.handle_event(key(Key::Char(first)), now).unwrap();
+        app.handle_event(key(Key::Char('~')), now).unwrap();
+        let active = app.active_game.as_ref().unwrap();
+        assert!(!active.game.input_is_valid());
+        assert!(active.game.target_id().is_some());
+
+        app.handle_event(key(Key::Enter), now).unwrap();
+        let active = app.active_game.as_ref().unwrap();
+        assert_eq!(active.game.input(), "");
+        assert_eq!(active.game.target_id(), None);
     }
 
     #[test]

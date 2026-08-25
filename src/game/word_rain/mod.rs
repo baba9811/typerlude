@@ -281,6 +281,14 @@ impl WordRain {
         removed
     }
 
+    pub(crate) fn submit_input(&mut self) {
+        if self.outcome.is_some() || self.paused || !self.viewport_supported {
+            return;
+        }
+        self.input.clear();
+        self.target = None;
+    }
+
     pub(crate) fn input(&self) -> &str {
         &self.input
     }
