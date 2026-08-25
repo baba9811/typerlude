@@ -65,6 +65,26 @@ fn word_rain_keeps_title_collision_stats_and_input_visible_at_80x24() {
 }
 
 #[test]
+fn word_rain_anchors_the_unicode_input_cursor_in_the_input_dock() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let now = Instant::now();
+    start_game(&mut app, now);
+
+    let empty = draw(&app, 80, 24);
+    assert_eq!(empty.buffer[(3, 20)].symbol(), " ");
+    assert_eq!(empty.cursor, Some((3, 20)));
+
+    app.handle_event(key(Key::Char('오')), now).unwrap();
+    let entered = draw(&app, 80, 24);
+    assert_eq!(entered.buffer[(3, 20)].symbol(), "오");
+    assert_eq!(entered.cursor, Some((5, 20)));
+
+    app.handle_event(key(Key::Esc), now).unwrap();
+    assert_eq!(draw(&app, 80, 24).cursor, None);
+}
+
+#[test]
 fn the_complete_falling_word_is_clamped_inside_the_playfield() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
