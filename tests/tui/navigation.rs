@@ -27,6 +27,10 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
             Screen::ModeOptions,
             Screen::Practice,
             Screen::Result,
+            Screen::Games,
+            Screen::GameOptions,
+            Screen::Game,
+            Screen::GameResult,
             Screen::Stats,
             Screen::History,
             Screen::WeakKeys,
@@ -38,7 +42,7 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
             Screen::Help,
         ]
     );
-    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 13);
+    assert_eq!(Screen::ALL.into_iter().collect::<HashSet<_>>().len(), 17);
 
     let (_root, app) = fixture_app();
     assert_eq!(app.screen(), Screen::Home);
@@ -48,6 +52,35 @@ fn screen_all_is_exact_unique_and_app_starts_at_home() {
     assert!(app.practice.is_none());
     assert!(app.result.is_none());
     assert_eq!(app.warnings, ["review warning"]);
+}
+
+#[test]
+fn games_follow_the_screen_hierarchy() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+
+    press(&mut app, Key::Tab, 6, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
+    assert_eq!((app.screen(), app.parent()), (Screen::Games, Screen::Home));
+
+    app.handle_event(key(Key::Enter), now).unwrap();
+    assert_eq!(
+        (app.screen(), app.parent()),
+        (Screen::GameOptions, Screen::Games)
+    );
+
+    press(&mut app, Key::Tab, 2, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
+    assert_eq!((app.screen(), app.parent()), (Screen::Game, Screen::Games));
+
+    app.handle_event(key(Key::Esc), now).unwrap();
+    app.handle_event(key(Key::Char('q')), now).unwrap();
+    app.handle_event(key(Key::Char('q')), now).unwrap();
+    assert_eq!((app.screen(), app.parent()), (Screen::Games, Screen::Home));
+
+    app.handle_event(key(Key::Esc), now).unwrap();
+    assert_eq!(app.screen(), Screen::Home);
+    assert_eq!(app.focus(), 6);
 }
 
 #[test]
@@ -118,14 +151,14 @@ fn escape_restores_the_departure_focus_at_every_nested_level() {
     let (_root, mut app) = fixture_app();
     let now = Instant::now();
 
-    press(&mut app, Key::Tab, 6, now);
+    press(&mut app, Key::Tab, 7, now);
     app.handle_event(key(Key::Enter), now).unwrap();
     press(&mut app, Key::Tab, 3, now);
     app.handle_event(key(Key::Enter), now).unwrap();
     app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!((app.screen(), app.focus()), (Screen::Stats, 3));
     app.handle_event(key(Key::Esc), now).unwrap();
-    assert_eq!((app.screen(), app.focus()), (Screen::Home, 6));
+    assert_eq!((app.screen(), app.focus()), (Screen::Home, 7));
 
     app.open(Screen::Settings);
     press(&mut app, Key::Tab, 2, now);
@@ -240,7 +273,7 @@ fn focus_keys_wrap_and_home_enter_opens_the_exact_static_action() {
     let now = Instant::now();
 
     app.handle_event(key(Key::BackTab), now).unwrap();
-    assert_eq!(app.focus(), 9);
+    assert_eq!(app.focus(), 10);
     app.handle_event(key(Key::Enter), now).unwrap();
     assert_eq!(app.screen(), Screen::Settings);
     assert_eq!(app.focus(), 0);
@@ -248,12 +281,12 @@ fn focus_keys_wrap_and_home_enter_opens_the_exact_static_action() {
     for backward in [Key::Up, Key::Char('k')] {
         app.open(Screen::Home);
         app.handle_event(key(backward), now).unwrap();
-        assert_eq!(app.focus(), 9);
+        assert_eq!(app.focus(), 10);
     }
 
     for forward in [Key::Tab, Key::Down, Key::Char('j')] {
         app.open(Screen::Home);
-        for _ in 0..10 {
+        for _ in 0..11 {
             app.handle_event(key(forward), now).unwrap();
         }
         assert_eq!(app.focus(), 0);

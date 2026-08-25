@@ -21,6 +21,28 @@ pub(crate) struct FallingWord {
     progress: f64,
 }
 
+impl FallingWord {
+    pub(crate) const fn id(&self) -> u64 {
+        self.id
+    }
+
+    pub(crate) fn text(&self) -> &str {
+        &self.text
+    }
+
+    pub(crate) const fn width(&self) -> u16 {
+        self.width
+    }
+
+    pub(crate) const fn left(&self) -> u16 {
+        self.left
+    }
+
+    pub(crate) const fn progress(&self) -> f64 {
+        self.progress
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WordRainOutcome {
     pub(crate) score: u64,
@@ -100,6 +122,34 @@ impl WordRain {
 
     fn level(&self) -> u64 {
         1_u64.saturating_add(self.cleared / 10)
+    }
+
+    pub(crate) const fn difficulty(&self) -> Difficulty {
+        self.difficulty
+    }
+
+    pub(crate) fn active_words(&self) -> impl ExactSizeIterator<Item = &FallingWord> {
+        self.active.iter()
+    }
+
+    pub(crate) const fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    pub(crate) const fn outcome(&self) -> Option<&WordRainOutcome> {
+        self.outcome.as_ref()
+    }
+
+    pub(crate) const fn score(&self) -> u64 {
+        self.score
+    }
+
+    pub(crate) const fn combo(&self) -> u64 {
+        self.combo
+    }
+
+    pub(crate) fn current_level(&self) -> u64 {
+        self.level()
     }
 
     fn speed_multiplier(&self) -> f64 {

@@ -54,7 +54,7 @@ dim = "dark_gray"
 
 #[test]
 fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
-    assert_eq!(TextKey::ALL.len(), 71);
+    assert_eq!(TextKey::ALL.len(), 86);
     assert_eq!(
         TextKey::ALL.iter().copied().collect::<HashSet<_>>().len(),
         TextKey::ALL.len()

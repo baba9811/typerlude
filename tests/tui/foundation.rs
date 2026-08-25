@@ -10,6 +10,12 @@ fn required_label(screen: Screen, language: Language) -> &'static str {
         (Screen::Practice, Language::En) => "Progress",
         (Screen::Result, Language::Ko) => "결과",
         (Screen::Result, Language::En) => "Result",
+        (Screen::Games | Screen::GameOptions | Screen::Game | Screen::GameResult, Language::Ko) => {
+            "단어비"
+        }
+        (Screen::Games | Screen::GameOptions | Screen::Game | Screen::GameResult, Language::En) => {
+            "Word Rain"
+        }
         (Screen::Stats, Language::Ko) => "통계",
         (Screen::Stats, Language::En) => "Statistics",
         (Screen::History, Language::Ko) => "기록",

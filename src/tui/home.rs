@@ -34,6 +34,7 @@ pub(super) fn render_home(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         TextKey::HomeSentence,
         TextKey::HomeLong,
         TextKey::HomeTest,
+        TextKey::HomeGames,
         TextKey::HomeStats,
         TextKey::HomeGoals,
         TextKey::HomeContent,

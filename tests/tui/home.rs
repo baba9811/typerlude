@@ -74,7 +74,7 @@ retrieved_at = "2026-08-10"
 }
 
 #[test]
-fn home_renders_exactly_ten_actions_and_marks_the_focused_one() {
+fn home_renders_exactly_eleven_actions_and_marks_the_focused_one() {
     let (_root, mut app) = fixture_app();
     for _ in 0..3 {
         app.handle_event(key(Key::Tab), Instant::now()).unwrap();
@@ -88,6 +88,7 @@ fn home_renders_exactly_ten_actions_and_marks_the_focused_one() {
         "Sentence practice",
         "Long-text practice",
         "Typing test",
+        "Games",
         "Statistics",
         "Goals",
         "Content",

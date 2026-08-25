@@ -1,4 +1,5 @@
 mod content_flow;
+mod game_flow;
 mod navigation;
 mod practice_flow;
 mod practice_session;
@@ -12,6 +13,10 @@ pub use self::{
 use crate::{
     config::Settings,
     content::{ContentCatalog, ContentKind, SourceMeta},
+    game::{
+        GameKind,
+        word_rain::{WordRain, WordRainOutcome},
+    },
     model::{Difficulty, Language, PracticeKind},
     practice::{Metrics, PracticeEngine},
     stats::{KeyAccuracy, ProgressPoint, Range, progress},
@@ -101,6 +106,10 @@ pub enum Screen {
     ModeOptions,
     Practice,
     Result,
+    Games,
+    GameOptions,
+    Game,
+    GameResult,
     Stats,
     History,
     WeakKeys,
@@ -113,11 +122,15 @@ pub enum Screen {
 }
 
 impl Screen {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 17] = [
         Self::Home,
         Self::ModeOptions,
         Self::Practice,
         Self::Result,
+        Self::Games,
+        Self::GameOptions,
+        Self::Game,
+        Self::GameResult,
         Self::Stats,
         Self::History,
         Self::WeakKeys,
@@ -339,6 +352,30 @@ impl ModeOptions {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct GameOptions {
+    pub(crate) kind: GameKind,
+    pub(crate) language: Language,
+    pub(crate) difficulty: Difficulty,
+    pub(crate) error: Option<String>,
+}
+
+impl GameOptions {
+    fn new(kind: GameKind, language: Language) -> Self {
+        Self {
+            kind,
+            language,
+            difficulty: Difficulty::Medium,
+            error: None,
+        }
+    }
+}
+
+pub(crate) struct ActiveWordRain {
+    pub(crate) game: WordRain,
+    pub(crate) leave_confirmation: bool,
+}
+
 impl QuickOptions {
     pub fn new(language: Language, source: QuickSource, stop: StopRule) -> Result<Self> {
         let valid = match stop {
@@ -457,6 +494,9 @@ pub struct App {
     focus: usize,
     focus_memory: HashMap<Screen, usize>,
     mode_options: ModeOptions,
+    game_options: GameOptions,
+    active_game: Option<ActiveWordRain>,
+    game_result: Option<WordRainOutcome>,
     quit: bool,
     retry_request: Option<ModeRequest>,
     retry_stream: Option<CatalogStream>,
@@ -490,6 +530,7 @@ impl App {
     ) -> Self {
         let stats_language = settings.language;
         let mode_options = ModeOptions::new(PracticeKind::Quick, settings.language);
+        let game_options = GameOptions::new(GameKind::WordRain, settings.language);
         let content_pack_summaries = collect_content_packs(&content, &paths.content);
         Self {
             screen: Screen::Home,
@@ -498,6 +539,9 @@ impl App {
             focus: 0,
             focus_memory: HashMap::new(),
             mode_options,
+            game_options,
+            active_game: None,
+            game_result: None,
             quit: false,
             retry_request: None,
             retry_stream: None,
@@ -535,6 +579,18 @@ impl App {
 
     pub(crate) const fn mode_options(&self) -> &ModeOptions {
         &self.mode_options
+    }
+
+    pub(crate) const fn game_options(&self) -> &GameOptions {
+        &self.game_options
+    }
+
+    pub(crate) const fn active_word_rain(&self) -> Option<&ActiveWordRain> {
+        self.active_game.as_ref()
+    }
+
+    pub(crate) const fn game_result(&self) -> Option<&WordRainOutcome> {
+        self.game_result.as_ref()
     }
 
     pub const fn should_quit(&self) -> bool {
