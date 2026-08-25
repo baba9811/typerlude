@@ -13,6 +13,7 @@ use ratatui::{
     widgets::{List, ListItem, Paragraph, Wrap},
 };
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 pub(super) fn render_games(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
     let language = app.settings.ui_language;
@@ -167,19 +168,12 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         .and_then(|id| active.game.active_words().find(|word| word.id() == id))
         .map(|word| word.text())
         .unwrap_or("—");
-    let entered = if active.game.input().is_empty() {
-        "—"
-    } else {
-        active.game.input()
-    };
+    let entered = active.game.input();
     let invalid = !active.game.input().is_empty() && !active.game.input_is_valid();
     let input = vec![
         Line::from(vec![
             Span::styled("> ", styles.accent),
-            Span::styled(
-                entered.to_owned(),
-                if invalid { styles.error } else { styles.base },
-            ),
+            Span::styled(entered, if invalid { styles.error } else { styles.base }),
             Span::styled(
                 if invalid {
                     format!("  ! {}", text(language, TextKey::CorrectionNeeded))
@@ -195,12 +189,18 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
             Language::En => "Esc: Pause · Backspace: Correct",
         }),
     ];
+    let input_block = titled(text(language, TextKey::Input), styles);
+    let input_area = input_block.inner(regions[2]);
     frame.render_widget(
-        Paragraph::new(input)
-            .style(styles.base)
-            .block(titled(text(language, TextKey::Input), styles)),
+        Paragraph::new(input).style(styles.base).block(input_block),
         regions[2],
     );
+    if !active.game.is_paused() && input_area.width > 2 && input_area.height > 0 {
+        let entered_width = UnicodeWidthStr::width(entered)
+            .min(usize::from(input_area.width.saturating_sub(3)))
+            as u16;
+        frame.set_cursor_position((input_area.x + 2 + entered_width, input_area.y));
+    }
 
     if active.game.is_paused() {
         let overlay = centered(regions[0], 54, 5);
