@@ -113,11 +113,8 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         let max_left = sky.width.saturating_sub(render_width);
         let logical_max = LOGICAL_WIDTH.saturating_sub(word.width()).max(1);
         let scaled = u32::from(word.left()) * u32::from(max_left) / u32::from(logical_max);
-        let row = if sky.height == 1 {
-            0
-        } else {
-            (word.progress().clamp(0.0, 1.0) * f64::from(sky.height - 1)).floor() as u16
-        };
+        let row = ((word.progress().clamp(0.0, 1.0) * f64::from(sky.height)).floor() as u16)
+            .min(sky.height - 1);
         let matched = active.game.matched_graphemes(word.id());
         let mut spans = Vec::new();
         if targeted {

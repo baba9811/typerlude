@@ -80,6 +80,48 @@ fn the_complete_falling_word_is_clamped_inside_the_playfield() {
 }
 
 #[test]
+fn a_word_reaches_the_row_above_the_miss_line_before_game_over() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let now = Instant::now();
+    start_game(&mut app, now);
+
+    let initial = buffer_text(&draw(&app, 80, 24).buffer);
+    let first_word = app
+        .content
+        .select(Language::En, ContentKind::Word, Difficulty::Medium)
+        .into_iter()
+        .find(|item| {
+            initial.lines().any(|row| {
+                row.trim_matches(|character| character == '│' || character == ' ') == item.text
+            })
+        })
+        .unwrap()
+        .text
+        .clone();
+
+    for step in 1..=55 {
+        app.tick(now + Duration::from_millis(step * 250)).unwrap();
+    }
+    assert_eq!(app.screen(), Screen::Game);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    let rows = output.lines().collect::<Vec<_>>();
+    let word_row = rows
+        .iter()
+        .position(|row| {
+            row.trim_matches(|character| character == '│' || character == ' ') == first_word
+        })
+        .unwrap();
+    let miss_line = rows
+        .iter()
+        .position(|row| row.contains("Miss line"))
+        .unwrap();
+
+    assert_eq!(word_row + 1, miss_line, "{output}");
+}
+
+#[test]
 fn pause_overlay_keeps_the_board_and_leave_confirmation_visible() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
