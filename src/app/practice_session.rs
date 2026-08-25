@@ -283,6 +283,7 @@ impl App {
 
     pub fn tick(&mut self, now: Instant) -> Result<()> {
         self.poll_update();
+        self.tick_word_rain(now);
         if let Some(active) = self.practice.as_mut() {
             active.live_metrics = active.engine.metrics(now);
             let item_start = active

@@ -10,7 +10,7 @@ use std::{
 mod input;
 mod lifecycle;
 
-use input::handle_event_at_size;
+use input::{handle_event_at_size, tick_at_size};
 use lifecycle::TerminalGuard;
 pub use lifecycle::write_restore_sequence;
 
@@ -49,7 +49,8 @@ pub fn run(mut app: App) -> Result<()> {
                 let size = terminal.size().context("failed to read terminal size")?;
                 handle_event_at_size(&mut app, event, size, Instant::now())?;
             } else {
-                app.tick(Instant::now())?;
+                let size = terminal.size().context("failed to read terminal size")?;
+                tick_at_size(&mut app, size, Instant::now())?;
             }
             terminal
                 .draw(|frame| tui::render(frame, &app))

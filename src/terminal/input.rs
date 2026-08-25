@@ -13,6 +13,11 @@ pub(super) fn handle_event_at_size(
     size: Size,
     now: Instant,
 ) -> Result<()> {
+    let viewport = match &event {
+        Event::Resize(width, height) => Size::new(*width, *height),
+        _ => size,
+    };
+    app.set_game_viewport_supported(tui::supports_size(viewport.width, viewport.height), now);
     let resized = matches!(event, Event::Resize(..));
     let event = input_event(event);
     let global_quit = matches!(
@@ -31,6 +36,11 @@ pub(super) fn handle_event_at_size(
         app.request_quit();
     }
     Ok(())
+}
+
+pub(super) fn tick_at_size(app: &mut App, size: Size, now: Instant) -> Result<()> {
+    app.set_game_viewport_supported(tui::supports_size(size.width, size.height), now);
+    app.tick(now)
 }
 
 fn input_event(event: Event) -> InputEvent {
@@ -76,7 +86,7 @@ fn input_event(event: Event) -> InputEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::{handle_event_at_size, input_event};
+    use super::{handle_event_at_size, input_event, tick_at_size};
     use crate::{
         app::{App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers as AppKeyModifiers, Screen},
         config::Settings,
@@ -86,7 +96,7 @@ mod tests {
     };
     use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
     use ratatui::layout::Size;
-    use std::time::Instant;
+    use std::time::{Duration, Instant};
 
     fn fixture_app() -> App {
         App::new(
@@ -101,6 +111,26 @@ mod tests {
 
     fn key(code: KeyCode, modifiers: KeyModifiers) -> Event {
         Event::Key(KeyEvent::new(code, modifiers))
+    }
+
+    fn app_key(key: Key) -> InputEvent {
+        InputEvent::Key(KeyInput {
+            key,
+            modifiers: AppKeyModifiers::NONE,
+            kind: KeyKind::Press,
+        })
+    }
+
+    fn start_game(app: &mut App, now: Instant) {
+        for _ in 0..6 {
+            app.handle_event(app_key(Key::Tab), now).unwrap();
+        }
+        app.handle_event(app_key(Key::Enter), now).unwrap();
+        app.handle_event(app_key(Key::Enter), now).unwrap();
+        app.handle_event(app_key(Key::Tab), now).unwrap();
+        app.handle_event(app_key(Key::Tab), now).unwrap();
+        app.handle_event(app_key(Key::Enter), now).unwrap();
+        assert_eq!(app.screen(), Screen::Game);
     }
 
     #[test]
@@ -187,5 +217,107 @@ mod tests {
         )
         .unwrap();
         assert_eq!(supported.screen(), Screen::ModeOptions);
+    }
+
+    #[test]
+    fn tiny_terminal_transitions_suspend_and_resynchronize_word_rain_time() {
+        let mut app = fixture_app();
+        let now = Instant::now();
+        start_game(&mut app, now);
+        let supported = Size::new(80, 24);
+        let tiny = Size::new(79, 23);
+        let initial = app
+            .active_word_rain()
+            .unwrap()
+            .game
+            .active_words()
+            .next()
+            .unwrap()
+            .progress();
+
+        tick_at_size(&mut app, supported, now + Duration::from_millis(250)).unwrap();
+        let advanced = app
+            .active_word_rain()
+            .unwrap()
+            .game
+            .active_words()
+            .next()
+            .unwrap()
+            .progress();
+        assert!(advanced > initial);
+
+        tick_at_size(&mut app, tiny, now + Duration::from_millis(500)).unwrap();
+        tick_at_size(&mut app, tiny, now + Duration::from_secs(100)).unwrap();
+        assert_eq!(
+            app.active_word_rain()
+                .unwrap()
+                .game
+                .active_words()
+                .next()
+                .unwrap()
+                .progress(),
+            advanced
+        );
+
+        tick_at_size(&mut app, supported, now + Duration::from_secs(100)).unwrap();
+        assert_eq!(
+            app.active_word_rain()
+                .unwrap()
+                .game
+                .active_words()
+                .next()
+                .unwrap()
+                .progress(),
+            advanced
+        );
+        tick_at_size(&mut app, supported, now + Duration::from_millis(100_250)).unwrap();
+        let game = &app.active_word_rain().unwrap().game;
+        assert!(game.active_words().next().unwrap().progress() > advanced);
+
+        app.handle_event(app_key(Key::Esc), now + Duration::from_secs(101))
+            .unwrap();
+        tick_at_size(&mut app, tiny, now + Duration::from_secs(102)).unwrap();
+        tick_at_size(&mut app, supported, now + Duration::from_secs(103)).unwrap();
+        assert!(app.active_word_rain().unwrap().game.is_paused());
+    }
+
+    #[test]
+    fn resize_events_use_the_reported_dimensions_for_immediate_suspension() {
+        let mut app = fixture_app();
+        let now = Instant::now();
+        start_game(&mut app, now);
+        tick_at_size(
+            &mut app,
+            Size::new(80, 24),
+            now + Duration::from_millis(250),
+        )
+        .unwrap();
+        let before_resize = app
+            .active_word_rain()
+            .unwrap()
+            .game
+            .active_words()
+            .next()
+            .unwrap()
+            .progress();
+
+        handle_event_at_size(
+            &mut app,
+            Event::Resize(79, 23),
+            Size::new(80, 24),
+            now + Duration::from_millis(500),
+        )
+        .unwrap();
+
+        assert_eq!(
+            app.active_word_rain()
+                .unwrap()
+                .game
+                .active_words()
+                .next()
+                .unwrap()
+                .progress(),
+            before_resize
+        );
     }
 }

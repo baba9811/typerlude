@@ -10,6 +10,9 @@ mod home;
 #[path = "tui/navigation.rs"]
 mod navigation;
 
+#[path = "tui/game.rs"]
+mod game;
+
 #[path = "tui/practice.rs"]
 mod practice;
 

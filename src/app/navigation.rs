@@ -1,8 +1,10 @@
 use super::{
-    App, InputEvent, Key, KeyInput, KeyKind, KeyModifiers, ModeOptions, QUICK_COUNT_PRESETS,
-    QUICK_TIME_PRESETS, QuickOptions, QuickSource, Screen, TEST_DURATION_PRESETS, key_stages,
+    App, GameOptions, InputEvent, Key, KeyInput, KeyKind, KeyModifiers, ModeOptions,
+    QUICK_COUNT_PRESETS, QUICK_TIME_PRESETS, QuickOptions, QuickSource, Screen,
+    TEST_DURATION_PRESETS, key_stages,
 };
 use crate::{
+    game::GameKind,
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     stats::Range,
@@ -45,6 +47,7 @@ impl App {
                 if matches!(key.key, Key::Char('c' | 'C')) && key.modifiers.control
         );
         let was_practicing = self.screen == Screen::Practice;
+        let was_playing = self.screen == Screen::Game;
         let tick = self.tick(now);
         if quit {
             self.quit = true;
@@ -52,6 +55,9 @@ impl App {
         }
         tick?;
         if was_practicing && self.screen != Screen::Practice {
+            return Ok(());
+        }
+        if was_playing && self.screen != Screen::Game {
             return Ok(());
         }
         match event {
@@ -81,6 +87,9 @@ impl App {
     ) -> Result<()> {
         if self.screen == Screen::Practice {
             return self.handle_practice_key(key, now);
+        }
+        if self.screen == Screen::Game {
+            return self.handle_game_key(key, now);
         }
 
         if key.is_plain_q_command() {
@@ -185,6 +194,7 @@ impl App {
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
+            Screen::GameResult => self.return_to_games(),
             Screen::Help => {
                 let destination = self.parent;
                 let restored_parent = self.parent_before_help.take().unwrap_or(Screen::Home);
@@ -231,7 +241,9 @@ impl App {
 
     fn focus_count(&self) -> usize {
         match self.screen {
-            Screen::Home => 10,
+            Screen::Home => 11,
+            Screen::Games => GameKind::ALL.len(),
+            Screen::GameOptions => 3,
             Screen::ModeOptions => match self.mode_options.kind {
                 PracticeKind::Quick | PracticeKind::Key => 5,
                 PracticeKind::Words => 3,
@@ -273,6 +285,18 @@ impl App {
     fn adjust(&mut self, delta: isize) {
         if self.screen == Screen::ModeOptions {
             self.adjust_mode_options(delta);
+            return;
+        }
+        if self.screen == Screen::GameOptions {
+            self.game_options.error = None;
+            match self.focus {
+                0 => self.game_options.language = other_language(self.game_options.language),
+                1 => {
+                    self.game_options.difficulty =
+                        cycle_game_difficulty(self.game_options.difficulty, delta);
+                }
+                _ => {}
+            }
             return;
         }
         match (self.screen, self.focus) {
@@ -404,10 +428,11 @@ impl App {
                             ModeOptions::new(kinds[self.focus], self.settings.language);
                         self.open(Screen::ModeOptions);
                     }
-                    6 => self.open(Screen::Stats),
-                    7 => self.open(Screen::Goals),
-                    8 => self.open(Screen::Content),
-                    9 => self.open(Screen::Settings),
+                    6 => self.open(Screen::Games),
+                    7 => self.open(Screen::Stats),
+                    8 => self.open(Screen::Goals),
+                    9 => self.open(Screen::Content),
+                    10 => self.open(Screen::Settings),
                     _ => {}
                 }
             }
@@ -466,6 +491,22 @@ impl App {
                     }
                     _ => self.adjust(1),
                 }
+            }
+            Screen::Games => {
+                if let Some(kind) = GameKind::ALL.get(self.focus).copied() {
+                    self.game_options = GameOptions::new(kind, self.settings.language);
+                    self.open(Screen::GameOptions);
+                }
+            }
+            Screen::GameOptions => {
+                if self.focus == 2 {
+                    self.start_word_rain_with_seed(fastrand::u64(..), now)?;
+                } else {
+                    self.adjust(1);
+                }
+            }
+            Screen::GameResult => {
+                self.start_word_rain_with_seed(fastrand::u64(..), now)?;
             }
             Screen::Stats => match self.focus {
                 0..=2 => self.adjust(1),
@@ -565,6 +606,15 @@ fn cycle_mode(mode: Option<PracticeKind>, delta: isize) -> Option<PracticeKind> 
         Some(PracticeKind::Test),
     ];
     let index = VALUES.iter().position(|value| *value == mode).unwrap_or(0);
+    VALUES[cycle_index(index, VALUES.len(), delta)]
+}
+
+fn cycle_game_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {
+    const VALUES: [Difficulty; 3] = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard];
+    let index = VALUES
+        .iter()
+        .position(|value| *value == difficulty)
+        .unwrap_or(1);
     VALUES[cycle_index(index, VALUES.len(), delta)]
 }
 

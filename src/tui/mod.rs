@@ -1,5 +1,6 @@
 mod content;
 mod format;
+mod game;
 mod home;
 mod practice;
 mod result;
@@ -8,6 +9,7 @@ mod stats;
 mod theme;
 
 use self::content::{render_content, render_content_detail};
+use self::game::{render_game, render_game_options, render_game_result, render_games};
 use self::home::{render_home, render_mode_options};
 use self::practice::render_practice;
 use self::result::render_result;
@@ -57,6 +59,10 @@ pub fn render(frame: &mut Frame<'_>, app: &App) {
         Screen::ModeOptions => render_mode_options(frame, app, main, styles),
         Screen::Practice => render_practice(frame, app, main, styles),
         Screen::Result => render_result(frame, app, main, styles),
+        Screen::Games => render_games(frame, app, main, styles),
+        Screen::GameOptions => render_game_options(frame, app, main, styles),
+        Screen::Game => render_game(frame, app, main, styles),
+        Screen::GameResult => render_game_result(frame, app, main, styles),
         Screen::Stats => render_stats(frame, app, main, styles),
         Screen::History => render_history(frame, app, main, styles),
         Screen::WeakKeys => render_weak_keys(frame, app, main, styles),
