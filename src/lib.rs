@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod content;
 mod diagnostic;
+mod game;
 pub mod i18n;
 pub mod model;
 pub mod practice;
