@@ -139,6 +139,7 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         Language::Ko => vec![
             Line::from("이동: Tab / Shift+Tab / ↑↓ / j / k"),
             Line::from("선택/편집: Enter / ←→ · 콘텐츠 비활성화: 상세에서 d 두 번"),
+            Line::from("한글 입력: 조합 중 Enter는 글자 확정 · 다시 Enter는 제출/줄바꿈"),
             Line::from("뒤로/홈에서 종료: Esc / q / ㅂ · 즉시 종료: Ctrl+C · 도움말: ?"),
             Line::from("시험 외: Esc / Ctrl+P 일시 정지 · 정지 중 q 또는 ㅂ을 두 번 눌러 나가기"),
             Line::from("시험: Esc 나가기 확인 열기/취소 · q 또는 ㅂ으로 확인"),
@@ -148,6 +149,9 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         Language::En => vec![
             Line::from("Move: Tab / Shift+Tab / ↑↓ / j / k"),
             Line::from("Select/Edit: Enter / ←→ · Content Disable: d twice in detail"),
+            Line::from(
+                "Korean input: Enter commits composition · press Enter again to submit/newline",
+            ),
             Line::from("Back / quit from Home: Esc / q / ㅂ · Quit now: Ctrl+C · Help: ?"),
             Line::from("Non-Test: Esc / Ctrl+P pause · paused: press q or ㅂ twice to leave"),
             Line::from("Test: Esc opens/cancels leave · q or ㅂ confirms"),
@@ -165,8 +169,7 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         Line::from("typerlude content add PACK.toml"),
         Line::from("typerlude content validate [PACK.toml]"),
         Line::from("typerlude content disable PACK_ID"),
-        Line::from("typerlude paths|licenses|update"),
-        Line::from("typerlude --help|--version|--smoke"),
+        Line::from("typerlude paths|licenses|update · typerlude --help|--version|--smoke"),
         Line::from("typerlude FILE | typerlude practice FILE | cat FILE | typerlude"),
     ]);
     frame.render_widget(Paragraph::new(lines).style(styles.base), inner);
