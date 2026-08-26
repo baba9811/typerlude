@@ -196,6 +196,7 @@ fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
         (
             Language::En,
             [
+                "Korean input: Enter commits composition · press Enter again to submit/newline",
                 "Non-Test: Esc / Ctrl+P pause",
                 "Test: Esc opens/cancels leave · q or ㅂ confirms",
                 "r: exact target/options",
@@ -205,6 +206,7 @@ fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
         (
             Language::Ko,
             [
+                "한글 입력: 조합 중 Enter는 글자 확정 · 다시 Enter는 제출/줄바꿈",
                 "시험 외: Esc / Ctrl+P 일시 정지",
                 "시험: Esc 나가기 확인 열기/취소 · q 또는 ㅂ으로 확인",
                 "r: 같은 대상/설정",
@@ -219,6 +221,10 @@ fn help_distinguishes_test_leave_and_result_actions_at_minimum_size() {
         for text in required {
             assert!(output.contains(text), "missing {text:?}: {output}");
         }
+        assert!(
+            output.contains("typerlude paths|licenses|update · typerlude --help|--version|--smoke"),
+            "{output}"
+        );
         assert!(
             output.contains("typerlude FILE | typerlude practice FILE"),
             "{output}"
