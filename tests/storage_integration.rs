@@ -14,7 +14,7 @@ use std::{
 };
 use time::{OffsetDateTime, macros::date};
 use typerlude::{
-    config::Settings,
+    config::{BossProgress, Settings},
     i18n::initial_ui_language,
     model::{Language, PracticeKind},
     practice::PracticeEngine,
@@ -181,6 +181,14 @@ fn config_round_trip_atomically_replaces_the_previous_value() {
         language: Language::Ko,
         daily_minutes: 25,
         word_rain_high_scores: [[101, 102, 103], [201, 202, 203]],
+        boss_battle_progress: vec![
+            BossProgress {
+                clear_rank: 1,
+                high_scores: [[301, 0, 0], [401, 0, 0]],
+            },
+            BossProgress::default(),
+            BossProgress::default(),
+        ],
         ..Settings::default()
     };
     settings.save(&paths).unwrap();

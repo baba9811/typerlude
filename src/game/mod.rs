@@ -1,3 +1,4 @@
+pub(crate) mod boss_battle;
 pub(crate) mod word_rain;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

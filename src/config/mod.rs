@@ -1,4 +1,5 @@
 use crate::{
+    game::boss_battle::BossKind,
     i18n::initial_ui_language_os,
     model::{Difficulty, Language},
     storage::{AppPaths, LoadWarning, atomic_write},
@@ -6,6 +7,12 @@ use crate::{
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 use std::{ffi::OsStr, fs, io::ErrorKind};
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct BossProgress {
+    pub clear_rank: u8,
+    pub high_scores: [[u64; 3]; 2],
+}
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -26,6 +33,7 @@ pub struct Settings {
     pub check_updates: bool,
     pub skipped_update_version: String,
     pub word_rain_high_scores: [[u64; 3]; 2],
+    pub boss_battle_progress: Vec<BossProgress>,
 }
 
 impl Default for Settings {
@@ -47,6 +55,7 @@ impl Default for Settings {
             check_updates: true,
             skipped_update_version: String::new(),
             word_rain_high_scores: [[0; 3]; 2],
+            boss_battle_progress: vec![BossProgress::default(); BossKind::ALL.len()],
         }
     }
 }
@@ -58,6 +67,57 @@ pub struct ConfigLoad {
 }
 
 impl Settings {
+    pub(crate) fn boss_clear_rank(&self, boss: BossKind) -> u8 {
+        self.boss_battle_progress
+            .get(boss.index())
+            .map_or(0, |progress| progress.clear_rank)
+    }
+
+    pub(crate) fn boss_is_unlocked(&self, boss: BossKind) -> bool {
+        boss.index() == 0 || self.boss_clear_rank(BossKind::ALL[boss.index() - 1]) >= 1
+    }
+
+    pub(crate) fn boss_difficulty_is_unlocked(
+        &self,
+        boss: BossKind,
+        difficulty: Difficulty,
+    ) -> bool {
+        self.boss_is_unlocked(boss)
+            && concrete_difficulty_slot(difficulty) <= usize::from(self.boss_clear_rank(boss))
+    }
+
+    pub(crate) fn boss_high_score(
+        &self,
+        boss: BossKind,
+        language: Language,
+        difficulty: Difficulty,
+    ) -> u64 {
+        self.boss_battle_progress
+            .get(boss.index())
+            .map_or(0, |progress| {
+                progress.high_scores[language_slot(language)][concrete_difficulty_slot(difficulty)]
+            })
+    }
+
+    pub(crate) fn record_boss_clear(
+        &mut self,
+        boss: BossKind,
+        language: Language,
+        difficulty: Difficulty,
+        score: u64,
+    ) {
+        let boss = boss.index();
+        let difficulty = concrete_difficulty_slot(difficulty);
+        if self.boss_battle_progress.len() <= boss {
+            self.boss_battle_progress
+                .resize_with(boss + 1, BossProgress::default);
+        }
+        let progress = &mut self.boss_battle_progress[boss];
+        progress.clear_rank = progress.clear_rank.max(difficulty as u8 + 1);
+        let best = &mut progress.high_scores[language_slot(language)][difficulty];
+        *best = (*best).max(score);
+    }
+
     pub(crate) fn word_rain_high_score(&self, language: Language, difficulty: Difficulty) -> u64 {
         let (language, difficulty) = word_rain_score_slot(language, difficulty);
         self.word_rain_high_scores[language][difficulty]
@@ -162,28 +222,45 @@ impl Settings {
         if !(1..=1_440).contains(&self.daily_minutes) {
             bail!("daily_minutes must be between 1 and 1440");
         }
+        if self
+            .boss_battle_progress
+            .iter()
+            .any(|progress| progress.clear_rank > 3)
+        {
+            bail!("boss clear rank must be between 0 and 3");
+        }
         Ok(())
     }
 }
 
 fn word_rain_score_slot(language: Language, difficulty: Difficulty) -> (usize, usize) {
-    let language = match language {
+    (
+        language_slot(language),
+        concrete_difficulty_slot(difficulty),
+    )
+}
+
+fn language_slot(language: Language) -> usize {
+    match language {
         Language::Ko => 0,
         Language::En => 1,
-    };
-    let difficulty = match difficulty {
+    }
+}
+
+fn concrete_difficulty_slot(difficulty: Difficulty) -> usize {
+    match difficulty {
         Difficulty::Easy => 0,
         Difficulty::Medium => 1,
         Difficulty::Hard => 2,
-        Difficulty::Mixed => unreachable!("word rain requires a concrete difficulty"),
-    };
-    (language, difficulty)
+        Difficulty::Mixed => unreachable!("game requires a concrete difficulty"),
+    }
 }
 
 #[cfg(test)]
 mod locale_tests {
     use super::Settings;
     use crate::{
+        game::boss_battle::BossKind,
         model::{Difficulty, Language},
         storage::AppPaths,
     };
@@ -252,5 +329,75 @@ mod locale_tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn boss_progress_requires_prior_clears_and_easy_opens_the_next_boss() {
+        let mut settings = Settings::default();
+        assert!(settings.boss_is_unlocked(BossKind::IronWarden));
+        assert!(!settings.boss_is_unlocked(BossKind::ThornQueen));
+        assert!(settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Easy,));
+        assert!(!settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Medium,));
+
+        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Easy, 12_345);
+
+        assert_eq!(settings.boss_clear_rank(BossKind::IronWarden), 1);
+        assert!(settings.boss_is_unlocked(BossKind::ThornQueen));
+        assert!(settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Medium,));
+        assert!(!settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Hard,));
+        assert_eq!(
+            settings.boss_high_score(BossKind::IronWarden, Language::En, Difficulty::Easy,),
+            12_345,
+        );
+        assert_eq!(
+            settings.boss_high_score(BossKind::IronWarden, Language::Ko, Difficulty::Easy,),
+            0,
+        );
+    }
+
+    #[test]
+    fn recording_a_lower_clear_never_regresses_rank_or_best_score() {
+        let mut settings = Settings::default();
+        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Hard, 20_000);
+        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Easy, 10_000);
+        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Hard, 19_000);
+
+        assert_eq!(settings.boss_clear_rank(BossKind::IronWarden), 3);
+        assert_eq!(
+            settings.boss_high_score(BossKind::IronWarden, Language::En, Difficulty::Hard,),
+            20_000,
+        );
+    }
+
+    #[test]
+    fn recording_an_appended_boss_extends_short_progress() {
+        let mut settings = Settings {
+            boss_battle_progress: Vec::new(),
+            ..Settings::default()
+        };
+
+        settings.record_boss_clear(BossKind::NullArchon, Language::Ko, Difficulty::Easy, 9_000);
+
+        assert_eq!(settings.boss_battle_progress.len(), 3);
+        assert_eq!(settings.boss_clear_rank(BossKind::NullArchon), 1);
+        assert_eq!(
+            settings.boss_high_score(BossKind::NullArchon, Language::Ko, Difficulty::Easy,),
+            9_000,
+        );
+    }
+
+    #[test]
+    fn boss_clear_rank_above_three_is_rejected() {
+        let mut settings = Settings::default();
+        settings.boss_battle_progress[0].clear_rank = 4;
+
+        let error = settings.validate().unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("boss clear rank must be between 0 and 3"),
+            "{error:#}",
+        );
     }
 }
