@@ -573,6 +573,7 @@ impl App {
                 (GameKind::BossBattle, 5) => {
                     self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
                 }
+                (GameKind::BossBattle, 0..=2) => self.focus = 3,
                 (GameKind::BossBattle, 3 | 4) => self.adjust(1),
                 (GameKind::BossBattle, _) => {}
             },
@@ -835,6 +836,21 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(app.focus, 3);
+        assert_eq!(app.game_options.boss, BossKind::ThornQueen);
+    }
+
+    #[test]
+    fn enter_opens_options_for_the_selected_boss() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.game_options.boss = BossKind::ThornQueen;
+        app.focus = 1;
+
+        app.enter(Instant::now()).unwrap();
+
+        assert_eq!(app.screen, Screen::GameOptions);
         assert_eq!(app.focus, 3);
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
     }

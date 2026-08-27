@@ -312,6 +312,7 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
         "Language: en",
         "Easy",
         "LOCKED",
+        "Enter/Tab Options",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
@@ -409,6 +410,8 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
     let stable = buffer_text(&draw(&app, 80, 24).buffer);
     for expected in [
         "/ERROR\\",
+        "NULL://ACTIVE",
+        "C MAX // STANDBY",
         "Checksum",
         "□ □ □",
         "VOID_CANTICLE",
@@ -417,6 +420,14 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
     ] {
         assert!(stable.contains(expected), "{expected}: {stable}");
     }
+    let rows = stable.lines().collect::<Vec<_>>();
+    let art = rows.iter().position(|row| row.contains("C C C")).unwrap();
+    let checksum = rows
+        .iter()
+        .position(|row| row.contains("Checksum"))
+        .unwrap();
+    let input = rows.iter().position(|row| row.contains("Prompt:")).unwrap();
+    assert!(art < checksum && checksum < input, "{stable}");
 }
 
 #[test]
