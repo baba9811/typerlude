@@ -12,6 +12,47 @@ fn open_game_options(app: &mut App, now: Instant) {
     assert_eq!(app.screen(), Screen::GameOptions);
 }
 
+fn open_boss_options(app: &mut App, now: Instant) {
+    open_games(app, now);
+    app.handle_event(key(Key::Tab), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
+    assert_eq!(app.screen(), Screen::GameOptions);
+}
+
+fn start_boss(app: &mut App, boss_index: usize, now: Instant) {
+    open_boss_options(app, now);
+    press(app, Key::Down, boss_index, now);
+    press(app, Key::Tab, 3, now);
+    app.handle_event(key(Key::Enter), now).unwrap();
+    assert_eq!(app.screen(), Screen::Game);
+}
+
+fn advance(app: &mut App, now: &mut Instant, duration: Duration) {
+    let end = *now + duration;
+    while *now < end {
+        *now = (*now + Duration::from_millis(250)).min(end);
+        app.tick(*now).unwrap();
+    }
+}
+
+fn force_boss_victory(app: &mut App, now: &mut Instant) {
+    for _ in 0..10_000 {
+        if app.screen() == Screen::GameResult {
+            return;
+        }
+        let output = buffer_text(&draw(app, 80, 24).buffer);
+        let word = output.lines().find_map(|row| {
+            row.split_once("Prompt:")
+                .map(|(_, prompt)| prompt.trim_matches([' ', '│']).to_owned())
+        });
+        if let Some(word) = word {
+            type_text(app, &word, *now);
+        }
+        advance(app, now, Duration::from_millis(250));
+    }
+    panic!("boss battle did not finish");
+}
+
 fn start_game(app: &mut App, now: Instant) {
     open_game_options(app, now);
     press(app, Key::Tab, 2, now);
@@ -254,4 +295,140 @@ fn warning_footer_does_not_clip_the_game_input_dock() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("Input"), "{output}");
     assert!(output.contains("review warning"), "{output}");
+}
+
+#[test]
+fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    open_boss_options(&mut app, Instant::now());
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in [
+        "IRON WARDEN",
+        "THORN QUEEN",
+        "NULL ARCHON",
+        "☆☆☆",
+        "Language: en",
+        "Easy",
+        "LOCKED",
+    ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+}
+
+#[test]
+fn iron_warden_battle_keeps_art_pattern_status_prompt_and_input_visible() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut now = Instant::now();
+    start_boss(&mut app, 0, now);
+    advance(&mut app, &mut now, Duration::from_millis(800));
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in [
+        "▄████████▄",
+        "PILE DRIVER",
+        "◇ ◇ ◇",
+        "HP",
+        "01:30",
+        "♥♥♥",
+        "Prompt:",
+        "Input",
+    ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+}
+
+#[test]
+fn thorn_queen_battle_shows_crown_and_parallel_vine_lanes() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.boss_battle_progress[0].clear_rank = 1;
+    let mut now = Instant::now();
+    start_boss(&mut app, 1, now);
+    advance(&mut app, &mut now, Duration::from_millis(800));
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in [
+        "✦",
+        "VINE 1",
+        "VINE 2",
+        "TARGET",
+        "HP",
+        "01:30",
+        "♥♥♥",
+        "Prompt:",
+    ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+}
+
+#[test]
+fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.boss_battle_progress[0].clear_rank = 1;
+    app.settings.boss_battle_progress[1].clear_rank = 1;
+    let mut now = Instant::now();
+    start_boss(&mut app, 2, now);
+
+    let locked = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in ["SYSTEM LOCK", "VOID_CANTICLE", "NULL", "ERROR"] {
+        assert!(locked.contains(expected), "{expected}: {locked}");
+    }
+
+    advance(&mut app, &mut now, Duration::from_millis(800));
+    let stable = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in [
+        "/ERROR\\",
+        "Checksum",
+        "□ □ □",
+        "VOID_CANTICLE",
+        "Prompt:",
+        "Input",
+    ] {
+        assert!(stable.contains(expected), "{expected}: {stable}");
+    }
+}
+
+#[test]
+fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut now = Instant::now();
+    start_boss(&mut app, 0, now);
+    force_boss_victory(&mut app, &mut now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in [
+        "Victory",
+        "☆☆☆ -> ★☆☆",
+        "Boss unlocked",
+        "Score",
+        "KPM",
+        "Accuracy",
+        "Max combo",
+        "Time",
+        "Enter: Retry",
+        "Esc: Boss select",
+    ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+    assert!(output.lines().count() <= 24, "{output}");
+}
+
+#[test]
+fn boss_defeat_keeps_progress_locked() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut now = Instant::now();
+    start_boss(&mut app, 0, now);
+    advance(&mut app, &mut now, Duration::from_secs(50));
+
+    assert_eq!(app.screen(), Screen::GameResult);
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("Defeat"), "{output}");
+    assert!(output.contains("☆☆☆ -> ☆☆☆"), "{output}");
+    assert!(!output.contains("unlocked:"), "{output}");
 }

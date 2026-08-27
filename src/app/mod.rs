@@ -625,10 +625,6 @@ impl App {
         }
     }
 
-    pub(crate) fn game_result(&self) -> Option<(&WordRainOutcome, u64)> {
-        self.word_rain_result()
-    }
-
     pub(crate) fn active_boss_battle(&self) -> Option<&ActiveBossBattle> {
         match self.active_game.as_ref() {
             Some(ActiveGame::BossBattle(active)) => Some(active),

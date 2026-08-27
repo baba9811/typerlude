@@ -1,4 +1,5 @@
 use super::{
+    boss_battle::{render_boss_battle, render_boss_options, render_boss_result},
     format::{grouped_u64, language_name},
     theme::ThemeStyles,
     titled,
@@ -40,6 +41,10 @@ pub(super) fn render_game_options(
     area: Rect,
     styles: ThemeStyles,
 ) {
+    if app.game_options().kind == GameKind::BossBattle {
+        render_boss_options(frame, app, area, styles);
+        return;
+    }
     let language = app.settings.ui_language;
     let options = app.game_options();
     let block = titled(game_name(language, options.kind), styles);
@@ -85,6 +90,10 @@ pub(super) fn render_game_options(
 }
 
 pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: ThemeStyles) {
+    if app.active_boss_battle().is_some() {
+        render_boss_battle(frame, app, area, styles);
+        return;
+    }
     let language = app.settings.ui_language;
     let Some(active) = app.active_word_rain() else {
         frame.render_widget(titled(text(language, TextKey::WordRain), styles), area);
@@ -233,8 +242,12 @@ pub(super) fn render_game_result(
     area: Rect,
     styles: ThemeStyles,
 ) {
+    if app.boss_battle_result().is_some() {
+        render_boss_result(frame, app, area, styles);
+        return;
+    }
     let language = app.settings.ui_language;
-    let Some((result, previous_best)) = app.game_result() else {
+    let Some((result, previous_best)) = app.word_rain_result() else {
         frame.render_widget(titled(text(language, TextKey::WordRain), styles), area);
         return;
     };
@@ -317,7 +330,7 @@ const fn game_name(language: Language, kind: GameKind) -> &'static str {
     }
 }
 
-const fn difficulty_name(language: Language, difficulty: Difficulty) -> &'static str {
+pub(super) const fn difficulty_name(language: Language, difficulty: Difficulty) -> &'static str {
     let key = match difficulty {
         Difficulty::Easy => TextKey::Easy,
         Difficulty::Medium => TextKey::Medium,
@@ -327,7 +340,7 @@ const fn difficulty_name(language: Language, difficulty: Difficulty) -> &'static
     text(language, key)
 }
 
-fn centered(area: Rect, width: u16, height: u16) -> Rect {
+pub(super) fn centered(area: Rect, width: u16, height: u16) -> Rect {
     let vertical = Layout::vertical([
         Constraint::Fill(1),
         Constraint::Length(height.min(area.height)),

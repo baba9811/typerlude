@@ -134,8 +134,10 @@ impl App {
 
         match key.key {
             Key::Esc => self.escape(),
-            Key::Tab | Key::Down if self.screen != Screen::Practice => self.move_focus(1),
-            Key::BackTab | Key::Up if self.screen != Screen::Practice => {
+            Key::Tab if self.screen != Screen::Practice => self.move_tab_focus(1),
+            Key::BackTab if self.screen != Screen::Practice => self.move_tab_focus(-1),
+            Key::Down if self.screen != Screen::Practice => self.move_focus(1),
+            Key::Up if self.screen != Screen::Practice => {
                 self.move_focus(-1);
             }
             Key::Char('j')
@@ -292,6 +294,26 @@ impl App {
             self.clamp_boss_difficulty();
             self.game_options.error = None;
         }
+    }
+
+    fn move_tab_focus(&mut self, delta: isize) {
+        if self.screen == Screen::GameOptions && self.game_options.kind == GameKind::BossBattle {
+            self.focus = if delta < 0 {
+                match self.focus {
+                    0..=2 => 5,
+                    3 => self.game_options.boss.index(),
+                    focus => focus - 1,
+                }
+            } else {
+                match self.focus {
+                    0..=2 => 3,
+                    5 => self.game_options.boss.index(),
+                    focus => focus + 1,
+                }
+            };
+            return;
+        }
+        self.move_focus(delta);
     }
 
     fn adjust(&mut self, delta: isize) {
@@ -790,6 +812,28 @@ mod tests {
         assert_eq!(app.game_options.difficulty, Difficulty::Medium);
         app.adjust(1);
         assert_eq!(app.game_options.difficulty, Difficulty::Easy);
+    }
+
+    #[test]
+    fn tab_leaves_the_boss_roster_without_changing_the_preview() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.game_options.boss = BossKind::ThornQueen;
+        app.focus = 1;
+
+        app.handle_event(
+            InputEvent::Key(KeyInput {
+                key: Key::Tab,
+                modifiers: KeyModifiers::NONE,
+                kind: KeyKind::Press,
+            }),
+            Instant::now(),
+        )
+        .unwrap();
+
+        assert_eq!(app.focus, 3);
+        assert_eq!(app.game_options.boss, BossKind::ThornQueen);
     }
 
     #[test]

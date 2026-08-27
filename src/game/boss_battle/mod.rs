@@ -309,10 +309,6 @@ impl BossBattle {
         self.boss
     }
 
-    pub(crate) const fn language(&self) -> Language {
-        self.language
-    }
-
     pub(crate) const fn difficulty(&self) -> Difficulty {
         self.difficulty
     }
@@ -337,6 +333,7 @@ impl BossBattle {
         self.combo
     }
 
+    #[cfg(test)]
     pub(crate) const fn active_time(&self) -> Duration {
         self.active_time
     }
