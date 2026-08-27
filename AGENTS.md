@@ -29,3 +29,11 @@
 - Use the narrowest visibility that works: private, then `pub(super)`, then `pub(crate)`, and `pub` only for deliberate package facades.
 - Preserve CLI behavior and output, TUI behavior, terminal restoration, storage schemas, content formats, and bounded/atomic I/O unless a change explicitly requests otherwise.
 - Keep structural moves separate from behavior changes and verify the nearest characterization tests after each move.
+
+## Versioning and Releases
+
+- Use stable numeric Semantic Versioning in `MAJOR.MINOR.PATCH` form; releases do not use prerelease or build metadata.
+- Choose the bump from all changes since the latest published tag: PATCH for backward-compatible bug fixes, MINOR for backward-compatible functionality, and MAJOR for incompatible changes to public library, CLI, or persisted-format contracts.
+- When change types are mixed, use the highest required bump and reset all lower components to zero.
+- Never reuse or decrease a published version.
+- Use `make release` as the only release entry point; do not hand-edit or publish the synchronized Cargo and npm versions separately.
