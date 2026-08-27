@@ -16,6 +16,7 @@ const HIT_DURATION: Duration = Duration::from_millis(180);
 const MAX_WORD_WIDTH: usize = 24;
 const WARDEN_HEALTH: [u64; 3] = [280, 480, 720];
 const QUEEN_HEALTH: [u64; 3] = [180, 320, 500];
+const ARCHON_HEALTH: [u64; 3] = [340, 580, 860];
 const QUEEN_STAGGER: [Duration; 3] = [
     Duration::from_millis(1_500),
     Duration::from_millis(1_200),
@@ -30,6 +31,11 @@ const WARDEN_CORE: [Duration; 3] = [
     Duration::from_secs(6),
     Duration::from_secs(5),
     Duration::from_secs(4),
+];
+const ARCHON_CANTICLE: [Duration; 3] = [
+    Duration::from_secs(14),
+    Duration::from_secs(11),
+    Duration::from_secs(9),
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,6 +79,10 @@ pub(crate) enum BossPatternView {
     },
     Queen {
         target_id: Option<u64>,
+    },
+    NullArchon {
+        checksum: u8,
+        canticle_progress: f64,
     },
 }
 
@@ -167,9 +177,27 @@ impl WardenState {
 }
 
 #[derive(Debug)]
+struct ArchonState {
+    checksum_units: Vec<u64>,
+    canticle_elapsed: Duration,
+    canticle_deadline: Duration,
+}
+
+impl ArchonState {
+    fn new(difficulty: Difficulty) -> Self {
+        Self {
+            checksum_units: Vec::with_capacity(3),
+            canticle_elapsed: Duration::ZERO,
+            canticle_deadline: archon_canticle(difficulty, BossPhase::One),
+        }
+    }
+}
+
+#[derive(Debug)]
 enum BossPattern {
     Warden(WardenState),
     Queen,
+    NullArchon(ArchonState),
 }
 
 pub(crate) struct BossBattle {
@@ -214,9 +242,6 @@ impl BossBattle {
         if difficulty == Difficulty::Mixed {
             bail!("boss battle requires a concrete difficulty");
         }
-        if boss == BossKind::NullArchon {
-            bail!("boss pattern is not available");
-        }
         let words = words
             .into_iter()
             .map(|word| normalize_nfc(&word))
@@ -239,7 +264,10 @@ impl BossBattle {
                 QUEEN_HEALTH[difficulty_slot(difficulty)],
                 BossPattern::Queen,
             ),
-            BossKind::NullArchon => unreachable!("rejected above"),
+            BossKind::NullArchon => (
+                ARCHON_HEALTH[difficulty_slot(difficulty)],
+                BossPattern::NullArchon(ArchonState::new(difficulty)),
+            ),
         };
         let mut battle = Self {
             boss,
@@ -271,9 +299,8 @@ impl BossBattle {
             outcome: None,
         };
         match boss {
-            BossKind::IronWarden => battle.spawn_prompt(),
+            BossKind::IronWarden | BossKind::NullArchon => battle.spawn_prompt(),
             BossKind::ThornQueen => battle.fill_queen_lanes(),
-            BossKind::NullArchon => unreachable!("rejected above"),
         }
         Ok(battle)
     }
@@ -340,6 +367,13 @@ impl BossBattle {
             BossPattern::Queen => BossPatternView::Queen {
                 target_id: self.target,
             },
+            BossPattern::NullArchon(state) => BossPatternView::NullArchon {
+                checksum: state.checksum_units.len() as u8,
+                canticle_progress: duration_progress(
+                    state.canticle_elapsed,
+                    state.canticle_deadline,
+                ),
+            },
         }
     }
 
@@ -382,7 +416,7 @@ impl BossBattle {
         match self.boss {
             BossKind::IronWarden => self.tick_warden(active),
             BossKind::ThornQueen => self.tick_queen(),
-            BossKind::NullArchon => unreachable!("validated by BossBattle::new"),
+            BossKind::NullArchon => self.tick_archon(active),
         }
     }
 
@@ -416,7 +450,14 @@ impl BossBattle {
             self.target = self.select_target();
         }
         if !self.input_is_valid() {
-            if !self.input_error {
+            if matches!(&self.pattern, BossPattern::NullArchon(_)) {
+                self.combo = 0;
+                if let BossPattern::NullArchon(state) = &mut self.pattern {
+                    state.checksum_units.pop();
+                }
+                self.clear_input();
+                self.start_cue(BattleCue::Hit, HIT_DURATION, false);
+            } else if !self.input_error {
                 self.combo = 0;
                 self.input_error = true;
             }
@@ -497,7 +538,7 @@ impl BossBattle {
             return;
         };
         let units = unit_count(self.language, &self.prompts[index].text);
-        let multiplier = match &mut self.pattern {
+        let damage = match &mut self.pattern {
             BossPattern::Warden(state) => {
                 let core_exposed = !state.core_remaining.is_zero();
                 if !core_exposed {
@@ -506,14 +547,27 @@ impl BossBattle {
                         state.core_remaining = warden_core(self.difficulty, self.phase);
                     }
                 }
-                if core_exposed { 2 } else { 1 }
+                units.saturating_mul(if core_exposed { 2 } else { 1 })
             }
-            BossPattern::Queen => 1,
+            BossPattern::Queen => units,
+            BossPattern::NullArchon(state) => {
+                state.checksum_units.push(units);
+                let bonus = if state.checksum_units.len() == 3 {
+                    let bonus = state.checksum_units.iter().sum();
+                    state.checksum_units.clear();
+                    state.canticle_elapsed = Duration::ZERO;
+                    state.canticle_deadline = archon_canticle(self.difficulty, self.phase);
+                    bonus
+                } else {
+                    0
+                };
+                units.saturating_add(bonus)
+            }
         };
 
         self.combo = self.combo.saturating_add(1);
         self.max_combo = self.max_combo.max(self.combo);
-        self.health = self.health.saturating_sub(units.saturating_mul(multiplier));
+        self.health = self.health.saturating_sub(damage);
         self.prompts.remove(index);
         self.clear_input();
 
@@ -531,9 +585,8 @@ impl BossBattle {
             self.start_cue(BattleCue::Hit, HIT_DURATION, false);
         }
         match self.boss {
-            BossKind::IronWarden => self.spawn_prompt(),
+            BossKind::IronWarden | BossKind::NullArchon => self.spawn_prompt(),
             BossKind::ThornQueen => self.fill_queen_lanes(),
-            BossKind::NullArchon => unreachable!("validated by BossBattle::new"),
         }
     }
 
@@ -567,7 +620,9 @@ impl BossBattle {
                     Event::None
                 }
             }
-            BossPattern::Queen => unreachable!("tick_warden requires Warden state"),
+            BossPattern::Queen | BossPattern::NullArchon(_) => {
+                unreachable!("tick_warden requires Warden state")
+            }
         };
 
         match event {
@@ -608,6 +663,38 @@ impl BossBattle {
         self.hearts = self.hearts.saturating_sub(1);
         self.combo = 0;
         self.fill_queen_lanes();
+        if self.hearts == 0 {
+            self.start_finish(false);
+        } else {
+            self.start_cue(BattleCue::BossAttack, ATTACK_DURATION, true);
+        }
+    }
+
+    fn tick_archon(&mut self, elapsed: Duration) {
+        let expired = match &mut self.pattern {
+            BossPattern::NullArchon(state) => {
+                state.canticle_elapsed = state.canticle_elapsed.saturating_add(elapsed);
+                if state.canticle_elapsed >= state.canticle_deadline {
+                    state.checksum_units.clear();
+                    state.canticle_elapsed = Duration::ZERO;
+                    state.canticle_deadline = archon_canticle(self.difficulty, self.phase);
+                    true
+                } else {
+                    false
+                }
+            }
+            BossPattern::Warden(_) | BossPattern::Queen => {
+                unreachable!("tick_archon requires Null Archon state")
+            }
+        };
+        if !expired {
+            return;
+        }
+
+        self.hearts = self.hearts.saturating_sub(1);
+        self.combo = 0;
+        self.clear_input();
+        self.reset_prompt_deadlines();
         if self.hearts == 0 {
             self.start_finish(false);
         } else {
@@ -737,6 +824,11 @@ impl BossBattle {
                             .min(warden_core(self.difficulty, self.phase));
                     }
                     BossPattern::Queen => self.fill_queen_lanes(),
+                    BossPattern::NullArchon(state) => {
+                        state.canticle_deadline = archon_canticle(self.difficulty, self.phase);
+                        state.canticle_elapsed =
+                            state.canticle_elapsed.min(state.canticle_deadline);
+                    }
                 }
             }
             BattleCue::Victory | BattleCue::Defeat => self.publish_outcome(),
@@ -802,6 +894,15 @@ fn warden_cast(difficulty: Difficulty, phase: BossPhase) -> Duration {
 
 fn warden_core(difficulty: Difficulty, phase: BossPhase) -> Duration {
     let base = WARDEN_CORE[difficulty_slot(difficulty)];
+    if phase == BossPhase::Two {
+        base.mul_f64(0.8)
+    } else {
+        base
+    }
+}
+
+fn archon_canticle(difficulty: Difficulty, phase: BossPhase) -> Duration {
+    let base = ARCHON_CANTICLE[difficulty_slot(difficulty)];
     if phase == BossPhase::Two {
         base.mul_f64(0.8)
     } else {

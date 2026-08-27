@@ -55,6 +55,23 @@ fn queen(now: Instant, language: Language, words: &[&str]) -> BossBattle {
     .unwrap()
 }
 
+fn archon(now: Instant) -> BossBattle {
+    BossBattle::new(
+        BossKind::NullArchon,
+        Language::En,
+        Difficulty::Easy,
+        vec![
+            "alpha".into(),
+            "bravo".into(),
+            "cider".into(),
+            "delta".into(),
+        ],
+        7,
+        now,
+    )
+    .unwrap()
+}
+
 #[test]
 fn iron_warden_breaks_three_locks_then_exposes_its_core() {
     let mut now = Instant::now();
@@ -258,4 +275,106 @@ fn thorn_queen_phase_two_adds_a_third_vine_after_the_transition() {
         game.pattern_view(),
         BossPatternView::Queen { target_id: None }
     ));
+}
+
+#[test]
+fn null_archon_rolls_back_one_checksum_slot_on_a_wrong_key() {
+    let mut now = Instant::now();
+    let mut game = archon(now);
+    finish_intro(&mut game, &mut now);
+    type_current_prompt(&mut game);
+    type_current_prompt(&mut game);
+    assert!(matches!(
+        game.pattern_view(),
+        BossPatternView::NullArchon { checksum: 2, .. }
+    ));
+
+    game.input_char('#');
+
+    assert!(game.input().is_empty());
+    assert_eq!(game.combo(), 0);
+    assert!(matches!(
+        game.pattern_view(),
+        BossPatternView::NullArchon { checksum: 1, .. }
+    ));
+    assert_eq!(game.cue().map(|(cue, _)| cue), Some(BattleCue::Hit));
+
+    let first = game
+        .prompts()
+        .next()
+        .unwrap()
+        .text()
+        .chars()
+        .next()
+        .unwrap();
+    game.input_char(first);
+    assert!(
+        !game.input().is_empty(),
+        "ordinary corruption must not lock input"
+    );
+}
+
+#[test]
+fn three_checksum_words_reverse_the_canticle_for_bonus_damage() {
+    let mut now = Instant::now();
+    let mut game = archon(now);
+    finish_intro(&mut game, &mut now);
+    let before = game.health();
+
+    type_current_prompt(&mut game);
+    type_current_prompt(&mut game);
+    type_current_prompt(&mut game);
+
+    assert!(matches!(
+        game.pattern_view(),
+        BossPatternView::NullArchon { checksum: 0, .. }
+    ));
+    assert!(
+        before - game.health() > 15,
+        "checksum must add bonus damage"
+    );
+}
+
+#[test]
+fn a_failed_canticle_costs_one_heart_and_locks_without_consuming_time() {
+    let mut now = Instant::now();
+    let mut game = archon(now);
+    finish_intro(&mut game, &mut now);
+    type_current_prompt(&mut game);
+
+    for _ in 0..200 {
+        advance(&mut game, &mut now, Duration::from_millis(250));
+        if game.hearts() < 3 {
+            break;
+        }
+    }
+
+    assert_eq!(game.hearts(), 2);
+    assert!(matches!(
+        game.pattern_view(),
+        BossPatternView::NullArchon { checksum: 0, .. }
+    ));
+    assert_eq!(game.cue().map(|(cue, _)| cue), Some(BattleCue::BossAttack));
+    let before = game.active_time();
+    advance(&mut game, &mut now, Duration::from_millis(600));
+    assert_eq!(game.active_time(), before);
+}
+
+#[test]
+fn null_archon_crosses_into_phase_two_after_a_time_freezing_cmax_transition() {
+    let mut now = Instant::now();
+    let mut game = archon(now);
+    finish_intro(&mut game, &mut now);
+    game.health = game.max_health / 2 + 1;
+    let before = game.active_time();
+
+    type_current_prompt(&mut game);
+
+    assert_eq!(
+        game.cue().map(|(cue, _)| cue),
+        Some(BattleCue::PhaseTransition)
+    );
+    advance(&mut game, &mut now, Duration::from_millis(750));
+    assert_eq!(game.active_time(), before);
+    assert_eq!(game.phase(), BossPhase::Two);
 }
