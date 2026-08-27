@@ -313,6 +313,7 @@ pub(super) fn render_game_result(
 const fn game_name(language: Language, kind: GameKind) -> &'static str {
     match kind {
         GameKind::WordRain => text(language, TextKey::WordRain),
+        GameKind::BossBattle => text(language, TextKey::BossBattle),
     }
 }
 

@@ -15,6 +15,7 @@ use crate::{
     content::{ContentCatalog, ContentKind, SourceMeta},
     game::{
         GameKind,
+        boss_battle::{BossBattle, BossBattleOutcome, BossKind},
         word_rain::{WordRain, WordRainOutcome},
     },
     model::{Difficulty, Language, PracticeKind},
@@ -355,6 +356,7 @@ impl ModeOptions {
 #[derive(Clone, Debug)]
 pub(crate) struct GameOptions {
     pub(crate) kind: GameKind,
+    pub(crate) boss: BossKind,
     pub(crate) language: Language,
     pub(crate) difficulty: Difficulty,
     pub(crate) error: Option<String>,
@@ -364,8 +366,12 @@ impl GameOptions {
     fn new(kind: GameKind, language: Language) -> Self {
         Self {
             kind,
+            boss: BossKind::IronWarden,
             language,
-            difficulty: Difficulty::Medium,
+            difficulty: match kind {
+                GameKind::WordRain => Difficulty::Medium,
+                GameKind::BossBattle => Difficulty::Easy,
+            },
             error: None,
         }
     }
@@ -376,9 +382,31 @@ pub(crate) struct ActiveWordRain {
     pub(crate) leave_confirmation: bool,
 }
 
+pub(crate) struct ActiveBossBattle {
+    pub(crate) game: BossBattle,
+    pub(crate) leave_confirmation: bool,
+}
+
+enum ActiveGame {
+    WordRain(ActiveWordRain),
+    BossBattle(ActiveBossBattle),
+}
+
 struct WordRainResult {
     outcome: WordRainOutcome,
     previous_best: u64,
+}
+
+pub(crate) struct BossBattleResult {
+    pub(crate) outcome: BossBattleOutcome,
+    pub(crate) previous_best: u64,
+    pub(crate) previous_rank: u8,
+    pub(crate) new_rank: u8,
+}
+
+enum StoredGameResult {
+    WordRain(WordRainResult),
+    BossBattle(BossBattleResult),
 }
 
 impl QuickOptions {
@@ -500,8 +528,8 @@ pub struct App {
     focus_memory: HashMap<Screen, usize>,
     mode_options: ModeOptions,
     game_options: GameOptions,
-    active_game: Option<ActiveWordRain>,
-    game_result: Option<WordRainResult>,
+    active_game: Option<ActiveGame>,
+    game_result: Option<StoredGameResult>,
     quit: bool,
     retry_request: Option<ModeRequest>,
     retry_stream: Option<CatalogStream>,
@@ -591,13 +619,37 @@ impl App {
     }
 
     pub(crate) const fn active_word_rain(&self) -> Option<&ActiveWordRain> {
-        self.active_game.as_ref()
+        match self.active_game.as_ref() {
+            Some(ActiveGame::WordRain(active)) => Some(active),
+            Some(ActiveGame::BossBattle(_)) | None => None,
+        }
     }
 
     pub(crate) fn game_result(&self) -> Option<(&WordRainOutcome, u64)> {
-        self.game_result
-            .as_ref()
-            .map(|result| (&result.outcome, result.previous_best))
+        self.word_rain_result()
+    }
+
+    pub(crate) fn active_boss_battle(&self) -> Option<&ActiveBossBattle> {
+        match self.active_game.as_ref() {
+            Some(ActiveGame::BossBattle(active)) => Some(active),
+            Some(ActiveGame::WordRain(_)) | None => None,
+        }
+    }
+
+    pub(crate) fn word_rain_result(&self) -> Option<(&WordRainOutcome, u64)> {
+        match self.game_result.as_ref() {
+            Some(StoredGameResult::WordRain(result)) => {
+                Some((&result.outcome, result.previous_best))
+            }
+            Some(StoredGameResult::BossBattle(_)) | None => None,
+        }
+    }
+
+    pub(crate) fn boss_battle_result(&self) -> Option<&BossBattleResult> {
+        match self.game_result.as_ref() {
+            Some(StoredGameResult::BossBattle(result)) => Some(result),
+            Some(StoredGameResult::WordRain(_)) | None => None,
+        }
     }
 
     pub const fn should_quit(&self) -> bool {
