@@ -503,6 +503,52 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
 }
 
 #[test]
+fn null_archon_overlaps_and_animates_its_cmax_glitch_layers() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.boss_battle_progress[0].clear_rank = 1;
+    app.settings.boss_battle_progress[1].clear_rank = 1;
+    let mut now = Instant::now();
+    start_boss(&mut app, 2, now);
+    advance(&mut app, &mut now, Duration::from_millis(800));
+
+    let first = draw(&app, 80, 24);
+    let output = buffer_text(&first.buffer);
+    let archon = first
+        .buffer
+        .content
+        .iter()
+        .position(|cell| cell.symbol() == "{")
+        .unwrap();
+    let archon_x = archon as u16 % 80;
+    let archon_y = archon as u16 / 80;
+    let cmax = (0..80)
+        .filter(|x| matches!(first.buffer[(*x, archon_y)].symbol(), "C" | "M" | "A" | "X"))
+        .collect::<Vec<_>>();
+
+    for symbol in ["C", "M", "A", "X"] {
+        assert!(
+            (0..80).any(|x| first.buffer[(x, archon_y)].symbol() == symbol),
+            "missing {symbol}: {output}"
+        );
+    }
+    assert!(
+        cmax.first().is_some_and(|x| *x < archon_x) && cmax.last().is_some_and(|x| *x > archon_x),
+        "{output}"
+    );
+
+    advance(&mut app, &mut now, Duration::from_millis(250));
+    let animated = draw(&app, 80, 24);
+    let animated_archon = animated
+        .buffer
+        .content
+        .iter()
+        .position(|cell| cell.symbol() == "{")
+        .unwrap() as u16;
+    assert_ne!(archon_x, animated_archon % 80, "{output}");
+}
+
+#[test]
 fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
