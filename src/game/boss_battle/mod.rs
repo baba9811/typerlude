@@ -15,6 +15,12 @@ const FINISH_DURATION: Duration = Duration::from_secs(1);
 const HIT_DURATION: Duration = Duration::from_millis(180);
 const MAX_WORD_WIDTH: usize = 24;
 const WARDEN_HEALTH: [u64; 3] = [280, 480, 720];
+const QUEEN_HEALTH: [u64; 3] = [180, 320, 500];
+const QUEEN_STAGGER: [Duration; 3] = [
+    Duration::from_millis(1_500),
+    Duration::from_millis(1_200),
+    Duration::from_millis(900),
+];
 const WARDEN_CAST: [Duration; 3] = [
     Duration::from_secs(12),
     Duration::from_secs(9),
@@ -64,6 +70,9 @@ pub(crate) enum BossPatternView {
         locks: u8,
         core_exposed: bool,
         cast_progress: f64,
+    },
+    Queen {
+        target_id: Option<u64>,
     },
 }
 
@@ -160,6 +169,7 @@ impl WardenState {
 #[derive(Debug)]
 enum BossPattern {
     Warden(WardenState),
+    Queen,
 }
 
 pub(crate) struct BossBattle {
@@ -204,7 +214,7 @@ impl BossBattle {
         if difficulty == Difficulty::Mixed {
             bail!("boss battle requires a concrete difficulty");
         }
-        if boss != BossKind::IronWarden {
+        if boss == BossKind::NullArchon {
             bail!("boss pattern is not available");
         }
         let words = words
@@ -220,7 +230,17 @@ impl BossBattle {
             bail!("boss battle requires playable words");
         }
 
-        let max_health = WARDEN_HEALTH[difficulty_slot(difficulty)];
+        let (max_health, pattern) = match boss {
+            BossKind::IronWarden => (
+                WARDEN_HEALTH[difficulty_slot(difficulty)],
+                BossPattern::Warden(WardenState::new(difficulty)),
+            ),
+            BossKind::ThornQueen => (
+                QUEEN_HEALTH[difficulty_slot(difficulty)],
+                BossPattern::Queen,
+            ),
+            BossKind::NullArchon => unreachable!("rejected above"),
+        };
         let mut battle = Self {
             boss,
             language,
@@ -247,10 +267,14 @@ impl BossBattle {
             phase_transitioning: false,
             cue: Some(CueState::new(BattleCue::Intro, INTRO_DURATION, true)),
             pending_finish: None,
-            pattern: BossPattern::Warden(WardenState::new(difficulty)),
+            pattern,
             outcome: None,
         };
-        battle.spawn_prompt();
+        match boss {
+            BossKind::IronWarden => battle.spawn_prompt(),
+            BossKind::ThornQueen => battle.fill_queen_lanes(),
+            BossKind::NullArchon => unreachable!("rejected above"),
+        }
         Ok(battle)
     }
 
@@ -313,6 +337,9 @@ impl BossBattle {
                 core_exposed: !state.core_remaining.is_zero(),
                 cast_progress: duration_progress(state.cast_elapsed, state.cast_deadline),
             },
+            BossPattern::Queen => BossPatternView::Queen {
+                target_id: self.target,
+            },
         }
     }
 
@@ -352,7 +379,11 @@ impl BossBattle {
         for prompt in &mut self.prompts {
             prompt.elapsed = prompt.elapsed.saturating_add(active).min(prompt.deadline);
         }
-        self.tick_warden(active);
+        match self.boss {
+            BossKind::IronWarden => self.tick_warden(active),
+            BossKind::ThornQueen => self.tick_queen(),
+            BossKind::NullArchon => unreachable!("validated by BossBattle::new"),
+        }
     }
 
     pub(crate) fn toggle_pause(&mut self, now: Instant) -> bool {
@@ -449,7 +480,12 @@ impl BossBattle {
         let input = key_units(self.language, &self.input);
         self.prompts
             .iter()
-            .find(|prompt| key_units(self.language, &prompt.text).starts_with(&input))
+            .filter(|prompt| key_units(self.language, &prompt.text).starts_with(&input))
+            .max_by(|left, right| {
+                left.progress()
+                    .total_cmp(&right.progress())
+                    .then_with(|| right.id.cmp(&left.id))
+            })
             .map(|prompt| prompt.id)
     }
 
@@ -461,20 +497,23 @@ impl BossBattle {
             return;
         };
         let units = unit_count(self.language, &self.prompts[index].text);
-        let BossPattern::Warden(state) = &mut self.pattern;
-        let core_exposed = !state.core_remaining.is_zero();
-        if !core_exposed {
-            state.locks = state.locks.saturating_add(1).min(3);
-            if state.locks == 3 {
-                state.core_remaining = warden_core(self.difficulty, self.phase);
+        let multiplier = match &mut self.pattern {
+            BossPattern::Warden(state) => {
+                let core_exposed = !state.core_remaining.is_zero();
+                if !core_exposed {
+                    state.locks = state.locks.saturating_add(1).min(3);
+                    if state.locks == 3 {
+                        state.core_remaining = warden_core(self.difficulty, self.phase);
+                    }
+                }
+                if core_exposed { 2 } else { 1 }
             }
-        }
+            BossPattern::Queen => 1,
+        };
 
         self.combo = self.combo.saturating_add(1);
         self.max_combo = self.max_combo.max(self.combo);
-        self.health = self
-            .health
-            .saturating_sub(units.saturating_mul(if core_exposed { 2 } else { 1 }));
+        self.health = self.health.saturating_sub(units.saturating_mul(multiplier));
         self.prompts.remove(index);
         self.clear_input();
 
@@ -491,7 +530,11 @@ impl BossBattle {
         } else {
             self.start_cue(BattleCue::Hit, HIT_DURATION, false);
         }
-        self.spawn_prompt();
+        match self.boss {
+            BossKind::IronWarden => self.spawn_prompt(),
+            BossKind::ThornQueen => self.fill_queen_lanes(),
+            BossKind::NullArchon => unreachable!("validated by BossBattle::new"),
+        }
     }
 
     fn tick_warden(&mut self, elapsed: Duration) {
@@ -524,6 +567,7 @@ impl BossBattle {
                     Event::None
                 }
             }
+            BossPattern::Queen => unreachable!("tick_warden requires Warden state"),
         };
 
         match event {
@@ -543,6 +587,34 @@ impl BossBattle {
         }
     }
 
+    fn tick_queen(&mut self) {
+        let expired = self
+            .prompts
+            .iter()
+            .filter(|prompt| prompt.remaining().is_zero())
+            .max_by(|left, right| {
+                left.progress()
+                    .total_cmp(&right.progress())
+                    .then_with(|| right.id.cmp(&left.id))
+            })
+            .map(|prompt| prompt.id);
+        let Some(expired) = expired else {
+            return;
+        };
+        if self.target == Some(expired) {
+            self.clear_input();
+        }
+        self.prompts.retain(|prompt| prompt.id != expired);
+        self.hearts = self.hearts.saturating_sub(1);
+        self.combo = 0;
+        self.fill_queen_lanes();
+        if self.hearts == 0 {
+            self.start_finish(false);
+        } else {
+            self.start_cue(BattleCue::BossAttack, ATTACK_DURATION, true);
+        }
+    }
+
     fn spawn_prompt(&mut self) {
         let text = self.words[self.rng.usize(..self.words.len())].clone();
         let deadline = prompt_window(self.language, self.difficulty, &text);
@@ -553,6 +625,45 @@ impl BossBattle {
             elapsed: Duration::ZERO,
         });
         self.next_prompt_id = self.next_prompt_id.saturating_add(1);
+    }
+
+    fn fill_queen_lanes(&mut self) {
+        let desired = if self.phase == BossPhase::Two { 3 } else { 2 };
+        while self.prompts.len() < desired {
+            let active_initials = self
+                .prompts
+                .iter()
+                .filter_map(|prompt| key_units(self.language, &prompt.text).first().copied())
+                .collect::<Vec<_>>();
+            let candidates = self
+                .words
+                .iter()
+                .enumerate()
+                .filter(|(_, word)| {
+                    !self.prompts.iter().any(|prompt| prompt.text == **word)
+                        && key_units(self.language, word)
+                            .first()
+                            .is_some_and(|initial| !active_initials.contains(initial))
+                })
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            if candidates.is_empty() {
+                break;
+            }
+            let index = candidates[self.rng.usize(..candidates.len())];
+            let text = self.words[index].clone();
+            let lane = self.prompts.len();
+            let deadline = prompt_window(self.language, self.difficulty, &text).saturating_add(
+                QUEEN_STAGGER[difficulty_slot(self.difficulty)].mul_f64(lane as f64),
+            );
+            self.prompts.push(BossPrompt {
+                id: self.next_prompt_id,
+                text,
+                deadline,
+                elapsed: Duration::ZERO,
+            });
+            self.next_prompt_id = self.next_prompt_id.saturating_add(1);
+        }
     }
 
     fn reset_prompt_deadlines(&mut self) {
@@ -618,11 +729,15 @@ impl BossBattle {
             BattleCue::PhaseTransition => {
                 self.phase = BossPhase::Two;
                 self.phase_transitioning = false;
-                let BossPattern::Warden(state) = &mut self.pattern;
-                state.cast_deadline = warden_cast(self.difficulty, self.phase);
-                state.core_remaining = state
-                    .core_remaining
-                    .min(warden_core(self.difficulty, self.phase));
+                match &mut self.pattern {
+                    BossPattern::Warden(state) => {
+                        state.cast_deadline = warden_cast(self.difficulty, self.phase);
+                        state.core_remaining = state
+                            .core_remaining
+                            .min(warden_core(self.difficulty, self.phase));
+                    }
+                    BossPattern::Queen => self.fill_queen_lanes(),
+                }
             }
             BattleCue::Victory | BattleCue::Defeat => self.publish_outcome(),
             BattleCue::Intro | BattleCue::Hit | BattleCue::BossAttack => {}

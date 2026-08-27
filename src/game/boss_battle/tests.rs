@@ -1,5 +1,7 @@
 use super::{BattleCue, BossBattle, BossKind, BossPatternView, BossPhase};
 use crate::model::{Difficulty, Language};
+use crate::typing::key_units;
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 const INTRO: Duration = Duration::from_millis(800);
@@ -41,6 +43,18 @@ fn type_current_prompt(game: &mut BossBattle) {
     }
 }
 
+fn queen(now: Instant, language: Language, words: &[&str]) -> BossBattle {
+    BossBattle::new(
+        BossKind::ThornQueen,
+        language,
+        Difficulty::Easy,
+        words.iter().map(|word| (*word).to_owned()).collect(),
+        7,
+        now,
+    )
+    .unwrap()
+}
+
 #[test]
 fn iron_warden_breaks_three_locks_then_exposes_its_core() {
     let mut now = Instant::now();
@@ -53,7 +67,10 @@ fn iron_warden_breaks_three_locks_then_exposes_its_core() {
             locks,
             core_exposed,
             cast_progress: _,
-        } = game.pattern_view();
+        } = game.pattern_view()
+        else {
+            panic!("expected Warden state");
+        };
         assert_eq!(locks, expected_locks);
         assert_eq!(core_exposed, expected_locks == 3);
     }
@@ -159,4 +176,86 @@ fn zero_health_publishes_one_victory_only_after_the_death_cinematic() {
 
     advance(&mut game, &mut now, Duration::from_secs(1));
     assert_eq!(game.outcome(), Some(&outcome));
+}
+
+#[test]
+fn thorn_queen_uses_the_first_unit_to_lock_one_of_two_vines() {
+    let mut now = Instant::now();
+    let mut game = queen(now, Language::En, &["apple", "berry", "cider", "daisy"]);
+    finish_intro(&mut game, &mut now);
+
+    assert_eq!(game.prompts().len(), 2);
+    let mut prompts = game
+        .prompts()
+        .map(|prompt| (prompt.id(), prompt.text().to_owned()))
+        .collect::<Vec<_>>();
+    prompts.sort_by_key(|(id, _)| *id);
+    assert_ne!(prompts[0].1.chars().next(), prompts[1].1.chars().next(),);
+
+    let (target_id, target) = &prompts[1];
+    let mut characters = target.chars();
+    game.input_char(characters.next().unwrap());
+    assert_eq!(game.target_id(), Some(*target_id));
+
+    let health = game.health();
+    for character in characters {
+        game.input_char(character);
+    }
+    assert!(game.health() < health);
+    assert_eq!(game.prompts().len(), 2);
+}
+
+#[test]
+fn a_bloom_costs_one_heart_and_refills_the_vine_lane() {
+    let mut now = Instant::now();
+    let mut game = queen(now, Language::En, &["apple", "berry", "cider", "daisy"]);
+    finish_intro(&mut game, &mut now);
+    let remaining = game
+        .prompts()
+        .map(|prompt| prompt.remaining())
+        .min()
+        .unwrap();
+
+    advance(&mut game, &mut now, remaining + Duration::from_millis(1));
+
+    assert_eq!(game.hearts(), 2);
+    assert_eq!(game.prompts().len(), 2);
+    assert_eq!(game.cue().map(|(cue, _)| cue), Some(BattleCue::BossAttack));
+}
+
+#[test]
+fn korean_vines_have_distinct_physical_first_keys() {
+    let mut now = Instant::now();
+    let mut game = queen(now, Language::Ko, &["가방", "나무", "다리", "마음"]);
+    finish_intro(&mut game, &mut now);
+
+    let initials = game
+        .prompts()
+        .map(|prompt| key_units(Language::Ko, prompt.text())[0])
+        .collect::<HashSet<_>>();
+
+    assert_eq!(game.prompts().len(), 2);
+    assert_eq!(initials.len(), 2);
+}
+
+#[test]
+fn thorn_queen_phase_two_adds_a_third_vine_after_the_transition() {
+    let mut now = Instant::now();
+    let mut game = queen(now, Language::En, &["apple", "berry", "cider", "daisy"]);
+    finish_intro(&mut game, &mut now);
+    game.health = game.max_health / 2 + 1;
+
+    type_current_prompt(&mut game);
+    assert_eq!(
+        game.cue().map(|(cue, _)| cue),
+        Some(BattleCue::PhaseTransition)
+    );
+    advance(&mut game, &mut now, Duration::from_millis(750));
+
+    assert_eq!(game.phase(), BossPhase::Two);
+    assert_eq!(game.prompts().len(), 3);
+    assert!(matches!(
+        game.pattern_view(),
+        BossPatternView::Queen { target_id: None }
+    ));
 }
