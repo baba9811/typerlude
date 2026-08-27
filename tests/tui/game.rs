@@ -312,6 +312,7 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
         "Language: en",
         "Easy",
         "LOCKED",
+        "Enter/Tab Options",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
@@ -406,9 +407,12 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
     app.handle_event(key(Key::Esc), now).unwrap();
 
     advance(&mut app, &mut now, Duration::from_millis(800));
-    let stable = buffer_text(&draw(&app, 80, 24).buffer);
+    let stable_frame = draw(&app, 80, 24);
+    let stable = buffer_text(&stable_frame.buffer);
     for expected in [
         "/ERROR\\",
+        "NULL://ACTIVE",
+        "C MAX // STANDBY",
         "Checksum",
         "□ □ □",
         "VOID_CANTICLE",
@@ -417,6 +421,55 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
     ] {
         assert!(stable.contains(expected), "{expected}: {stable}");
     }
+    let rows = stable.lines().collect::<Vec<_>>();
+    let art = rows.iter().position(|row| row.contains("C C C")).unwrap();
+    let checksum = rows
+        .iter()
+        .position(|row| row.contains("Checksum"))
+        .unwrap();
+    let input = rows.iter().position(|row| row.contains("Prompt:")).unwrap();
+    assert!(art < checksum && checksum < input, "{stable}");
+
+    let trace_before = rows
+        .iter()
+        .find(|row| row.contains("TRACE::"))
+        .unwrap()
+        .to_string();
+    let stable_archon = stable_frame
+        .buffer
+        .content
+        .iter()
+        .position(|cell| cell.symbol() == "{")
+        .unwrap();
+    let stable_cmax = (0..80)
+        .find(|x| stable_frame.buffer[(*x, art as u16)].symbol() == "C")
+        .unwrap();
+    assert_role_style(
+        &stable_frame.buffer.content[stable_archon],
+        default_styles().base,
+    );
+
+    advance(&mut app, &mut now, Duration::from_millis(250));
+    let animated = buffer_text(&draw(&app, 80, 24).buffer);
+    let trace_after = animated
+        .lines()
+        .find(|row| row.contains("TRACE::"))
+        .unwrap();
+    assert_ne!(trace_before, trace_after, "{animated}");
+
+    app.handle_event(key(Key::Char('#')), now).unwrap();
+    let hit = draw(&app, 80, 24);
+    let hit_archon = hit
+        .buffer
+        .content
+        .iter()
+        .position(|cell| cell.symbol() == "{")
+        .unwrap();
+    let hit_cmax = (0..80)
+        .find(|x| hit.buffer[(*x, art as u16)].symbol() == "C")
+        .unwrap();
+    assert_ne!(stable_cmax, hit_cmax);
+    assert_role_style(&hit.buffer.content[hit_archon], default_styles().error);
 }
 
 #[test]

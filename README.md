@@ -40,11 +40,6 @@ Pick a mode, adjust its options, and press `Enter`. Use `Tab`, arrow keys, `j`, 
 pauses or opens leave confirmation while `q` and `ㅂ` remain typing input. In Word practice,
 `Space` or `Enter` submits the current word.
 
-Open **Games → Word Rain** for an endless Korean or English run. Choose Easy, Medium, or Hard;
-words fall faster every ten clears, and the first word to reach the miss line ends the game. A typo
-stays editable: use `Backspace`, or erase the input completely to target a different word. `Esc`
-pauses, pressing `q` or `ㅂ` twice while paused leaves, and `Enter` retries from the result screen.
-
 Practice your own text from a file or standard input:
 
 ```bash
@@ -56,10 +51,28 @@ Consecutive blank lines in file and stdin text are collapsed before practice.
 
 Paste is ignored during scored practice.
 
+## Games
+
+### Word Rain
+
+Choose Korean or English and Easy, Medium, or Hard for an endless run. Words fall faster every ten
+clears, and the first word to reach the miss line ends the game. A typo stays editable: use
+`Backspace`, or erase the input completely to target a different word. `Esc` pauses, pressing `q`
+or `ㅂ` twice while paused leaves, and `Enter` retries from the result screen.
+
+### Boss Battle
+
+Fight one of three bosses for 90 active seconds with three hearts. Each boss has its own typing
+pattern and phase-two skill. Difficulties unlock Easy → Medium → Hard for each boss, while clearing
+Easy also opens the next boss. Empty and filled stars show the highest cleared difficulty.
+
+See the [Boss Battle guide](https://github.com/baba9811/typerlude/blob/main/docs/games/boss-battle.md)
+for the boss roster, mechanics, progression, and scoring rules.
+
 ## What you get
 
 - Quick, Keys, Words, Sentences, Long Text, and timed Test modes
-- Word Rain with randomized placement, escalating speed, combo scoring, and one-miss sudden death
+- Two offline games: escalating one-miss Word Rain and three-boss Boss Battle
 - Korean and English UI, content, scoring, and speed units
 - Unicode-aware typing metrics, goals, history, progress, and weak-key practice
 - Built-in offline content plus local content packs and themes
@@ -84,8 +97,9 @@ aggregate metrics and intended-key counts—not what you typed. Configuration, s
 themes, and the update cache use your operating system's standard user directories; run
 `typerlude paths` to see the exact locations.
 
-Word Rain runs are not added to session history. Personal best scores are saved locally for each
-language and difficulty.
+Game runs are not added to session history. Word Rain best scores are saved for each language and
+difficulty. Boss Battle clear stars are shared between languages, while best scores are saved for
+each boss, language, and difficulty.
 
 ## Contributing
 

@@ -47,6 +47,14 @@ const NULL_ARCHON_ART: &[&str] = &[
     "          \\FAIL/           ",
 ];
 
+const CMAX_ART: &[&str] = &[
+    "C C C       M   M    AAAAA   X   X",
+    "C           MM MM    A   A    X X",
+    "C           M M M    AAAAA     X",
+    "C           M   M    A   A    X X",
+    "C C C       M   M    A   A   X   X",
+];
+
 pub(super) fn render_boss_options(
     frame: &mut Frame<'_>,
     app: &App,
@@ -212,14 +220,13 @@ pub(super) fn render_boss_options(
         Line::from(start),
     ];
     frame.render_widget(Paragraph::new(option_lines).style(styles.base), regions[2]);
-    frame.render_widget(
-        Paragraph::new(match language {
-            Language::Ko => "↑↓ 보스 · Tab 옵션 · ←→ 변경 · Enter · Esc",
-            Language::En => "↑↓ Boss · Tab Options · ←→ Change · Enter · Esc",
-        })
-        .style(styles.dim),
-        regions[3],
-    );
+    let help = match (language, app.focus() < BossKind::ALL.len()) {
+        (Language::Ko, true) => "↑↓ 보스 · Enter/Tab 옵션 · Esc",
+        (Language::En, true) => "↑↓ Boss · Enter/Tab Options · Esc",
+        (Language::Ko, false) => "Tab 이동 · ←→ 변경 · Enter 선택 · Esc",
+        (Language::En, false) => "Tab Fields · ←→ Change · Enter Select · Esc",
+    };
+    frame.render_widget(Paragraph::new(help).style(styles.dim), regions[3]);
 }
 
 pub(super) fn render_boss_battle(
@@ -631,12 +638,36 @@ fn render_queen(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: Th
 }
 
 fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: ThemeStyles) {
-    let regions = Layout::vertical([Constraint::Length(5), Constraint::Min(4)]).split(area);
+    let block = titled("C MAX // STANDBY", styles);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let regions = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(5),
+        Constraint::Min(4),
+    ])
+    .split(inner);
     let hit = game
         .cue()
         .filter(|(cue, _)| *cue == BattleCue::Hit)
         .map(|(_, progress)| progress);
-    render_motion_art(frame, NULL_ARCHON_ART, regions[0], styles, hit, 2);
+    let trace = (game.time_remaining().as_millis() / 125) % 256;
+    frame.render_widget(
+        Paragraph::new(format!(
+            "NULL://ACTIVE  //  SIGNAL 00:10  //  TRACE::{trace:03}"
+        ))
+        .alignment(Alignment::Center)
+        .style(styles.dim),
+        regions[0],
+    );
+    let visual_area = shifted(
+        regions[1],
+        u16::from(hit.is_some_and(|progress| progress < 0.55)) * 2,
+    );
+    let visuals = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
+        .split(visual_area);
+    render_motion_art(frame, CMAX_ART, visuals[0], styles, hit, 2);
+    render_motion_art(frame, NULL_ARCHON_ART, visuals[1], styles, hit, 2);
     let BossPatternView::NullArchon {
         checksum,
         canticle_progress,
@@ -655,6 +686,7 @@ fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
             "VOID_CANTICLE [{}]",
             gauge(canticle_progress, 20, false)
         )),
+        Line::from(Span::styled("ERR 00 ── NULL ── ERR 10 ── VOID", styles.dim)),
     ];
     if hit.is_some() {
         lines.push(Line::from(Span::styled(
@@ -667,11 +699,12 @@ fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
             styles.dim,
         )));
     }
+    let status_area = centered(regions[2], regions[2].width, 4);
     frame.render_widget(
         Paragraph::new(lines)
             .alignment(Alignment::Center)
             .style(styles.base),
-        regions[1],
+        status_area,
     );
 }
 
@@ -754,26 +787,11 @@ fn render_cmax(
         Line::from(Span::styled(format!("VOID_CANTICLE::{cue}"), styles.accent)),
         Line::from(Span::styled("ERR 00  ERR 10  ERR 00", styles.dim)),
         Line::from(""),
-        Line::from(Span::styled(
-            "C C C       M   M    AAAAA   X   X",
-            styles.base,
-        )),
-        Line::from(Span::styled(
-            "C           MM MM    A   A    X X",
-            styles.base,
-        )),
-        Line::from(Span::styled(
-            "C           M M M    AAAAA     X",
-            styles.accent,
-        )),
-        Line::from(Span::styled(
-            "C           M   M    A   A    X X",
-            styles.base,
-        )),
-        Line::from(Span::styled(
-            "C C C       M   M    A   A   X   X",
-            styles.base,
-        )),
+        Line::from(Span::styled(CMAX_ART[0], styles.base)),
+        Line::from(Span::styled(CMAX_ART[1], styles.base)),
+        Line::from(Span::styled(CMAX_ART[2], styles.accent)),
+        Line::from(Span::styled(CMAX_ART[3], styles.base)),
+        Line::from(Span::styled(CMAX_ART[4], styles.base)),
         Line::from(""),
         Line::from(Span::styled(
             match language {
