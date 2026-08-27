@@ -272,12 +272,13 @@ pub(super) fn render_boss_battle(
     let outer = titled(&title, styles);
     let inner = outer.inner(area);
     frame.render_widget(outer, area);
+    let battle = centered(inner, 96, 18);
     let regions = Layout::vertical([
         Constraint::Length(1),
         Constraint::Min(8),
         Constraint::Length(5),
     ])
-    .split(inner);
+    .split(battle);
 
     let remaining = game.time_remaining().as_secs_f64().ceil() as u64;
     let phase = match game.phase() {
@@ -312,11 +313,12 @@ pub(super) fn render_boss_battle(
         BossKind::ThornQueen => render_queen(frame, game, regions[1], styles),
         BossKind::NullArchon => render_archon(frame, game, regions[1], styles),
     }
+    let input_area = centered(regions[2], 56, regions[2].height);
     render_input(
         frame,
         game,
         language,
-        regions[2],
+        input_area,
         styles,
         locking_cue.is_some(),
     );
