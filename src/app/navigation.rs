@@ -159,7 +159,9 @@ impl App {
             {
                 self.disable_selected_content();
             }
-            Key::Enter if key.modifiers == KeyModifiers::NONE => self.enter(now)?,
+            Key::Enter if key.kind == KeyKind::Press && key.modifiers == KeyModifiers::NONE => {
+                self.enter(now)?;
+            }
             Key::Char('r')
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
@@ -847,12 +849,42 @@ mod tests {
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
         app.game_options.boss = BossKind::ThornQueen;
         app.focus = 1;
+        let now = Instant::now();
 
-        app.enter(Instant::now()).unwrap();
+        app.handle_event(
+            InputEvent::Key(KeyInput {
+                key: Key::Enter,
+                modifiers: KeyModifiers::NONE,
+                kind: KeyKind::Press,
+            }),
+            now,
+        )
+        .unwrap();
 
         assert_eq!(app.screen, Screen::GameOptions);
         assert_eq!(app.focus, 3);
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
+
+        for (modifiers, kind) in [
+            (KeyModifiers::NONE, KeyKind::Repeat),
+            (KeyModifiers::OTHER, KeyKind::Press),
+        ] {
+            app.handle_event(
+                InputEvent::Key(KeyInput {
+                    key: Key::Enter,
+                    modifiers,
+                    kind,
+                }),
+                now,
+            )
+            .unwrap();
+        }
+
+        assert_eq!(app.focus, 3);
+        assert_eq!(app.game_options.boss, BossKind::ThornQueen);
+        assert_eq!(app.game_options.language, Language::En);
+        assert_eq!(app.game_options.difficulty, Difficulty::Easy);
+        assert!(app.active_game.is_none());
     }
 
     #[test]

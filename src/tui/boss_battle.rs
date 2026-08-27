@@ -662,7 +662,7 @@ fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
     );
     let visual_area = shifted(
         regions[1],
-        u16::from(hit.is_some_and(|progress| progress < 0.55)),
+        u16::from(hit.is_some_and(|progress| progress < 0.55)) * 2,
     );
     let visuals = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
         .split(visual_area);
