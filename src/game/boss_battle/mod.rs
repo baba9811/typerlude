@@ -16,11 +16,13 @@ const HIT_DURATION: Duration = Duration::from_millis(180);
 const MAX_WORD_WIDTH: usize = 24;
 const WARDEN_HEALTH: [u64; 3] = [280, 480, 720];
 const QUEEN_HEALTH: [u64; 3] = [180, 320, 500];
-const ARCHON_HEALTH: [u64; 3] = [340, 580, 860];
+// Word-slot rollback loses different physical-unit chunks across the two content catalogs.
+const ARCHON_HEALTH_KO: [u64; 3] = [310, 500, 850];
+const ARCHON_HEALTH_EN: [u64; 3] = [303, 500, 895];
 const QUEEN_STAGGER: [Duration; 3] = [
     Duration::from_millis(1_500),
     Duration::from_millis(1_200),
-    Duration::from_millis(900),
+    Duration::from_millis(1_500),
 ];
 const WARDEN_CAST: [Duration; 3] = [
     Duration::from_secs(12),
@@ -34,8 +36,8 @@ const WARDEN_CORE: [Duration; 3] = [
 ];
 const ARCHON_CANTICLE: [Duration; 3] = [
     Duration::from_secs(14),
-    Duration::from_secs(11),
-    Duration::from_secs(9),
+    Duration::from_secs(17),
+    Duration::from_secs(14),
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -265,7 +267,7 @@ impl BossBattle {
                 BossPattern::Queen,
             ),
             BossKind::NullArchon => (
-                ARCHON_HEALTH[difficulty_slot(difficulty)],
+                archon_health(language, difficulty),
                 BossPattern::NullArchon(ArchonState::new(difficulty)),
             ),
         };
@@ -837,11 +839,11 @@ impl BossBattle {
         let Some(victory) = self.pending_finish.take() else {
             return;
         };
-        let accuracy_basis_points = if self.attempted_units == 0 {
-            10_000
-        } else {
-            self.correct_units.saturating_mul(10_000) / self.attempted_units
-        };
+        let accuracy_basis_points = self
+            .correct_units
+            .saturating_mul(10_000)
+            .checked_div(self.attempted_units)
+            .unwrap_or(10_000);
         let score = u64::from(victory).saturating_mul(10_000)
             + self.time_remaining().as_secs().saturating_mul(100)
             + u64::from(self.hearts).saturating_mul(1_000)
@@ -904,6 +906,13 @@ fn archon_canticle(difficulty: Difficulty, phase: BossPhase) -> Duration {
         base.mul_f64(0.8)
     } else {
         base
+    }
+}
+
+fn archon_health(language: Language, difficulty: Difficulty) -> u64 {
+    match language {
+        Language::Ko => ARCHON_HEALTH_KO[difficulty_slot(difficulty)],
+        Language::En => ARCHON_HEALTH_EN[difficulty_slot(difficulty)],
     }
 }
 

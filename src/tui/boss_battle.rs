@@ -211,11 +211,12 @@ pub(super) fn render_boss_battle(
     let game = &active.game;
     let language = app.settings.ui_language;
     let locking_cue = game.cue().filter(|(cue, _)| cue_locks(*cue));
-    if game.boss() == BossKind::NullArchon && !game.is_paused() {
-        if let Some((cue, progress)) = locking_cue {
-            render_cmax(frame, language, cue, progress, area, styles);
-            return;
-        }
+    if game.boss() == BossKind::NullArchon
+        && !game.is_paused()
+        && let Some((cue, progress)) = locking_cue
+    {
+        render_cmax(frame, language, cue, progress, area, styles);
+        return;
     }
 
     let title = format!(

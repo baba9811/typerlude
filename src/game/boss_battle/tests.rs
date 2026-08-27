@@ -1,6 +1,9 @@
-use super::{BattleCue, BossBattle, BossKind, BossPatternView, BossPhase};
-use crate::model::{Difficulty, Language};
+use super::{BattleCue, BossBattle, BossBattleOutcome, BossKind, BossPatternView, BossPhase};
 use crate::typing::key_units;
+use crate::{
+    content::{ContentCatalog, ContentKind},
+    model::{Difficulty, Language},
+};
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
@@ -70,6 +73,121 @@ fn archon(now: Instant) -> BossBattle {
         now,
     )
     .unwrap()
+}
+
+fn drive_profile(
+    game: &mut BossBattle,
+    now: &mut Instant,
+    kpm: u32,
+    accuracy: f64,
+) -> BossBattleOutcome {
+    let unit_delay = Duration::from_secs_f64(60.0 / f64::from(kpm));
+    let error_interval = 100.0 / (100.0 - accuracy);
+    let mut next_error = error_interval;
+
+    for _ in 0..100_000 {
+        if let Some(outcome) = game.outcome().cloned() {
+            return outcome;
+        }
+        if game.input_locked() {
+            advance_locking_cue(game, now);
+            continue;
+        }
+
+        let target = game.target.or_else(|| {
+            game.prompts
+                .iter()
+                .max_by(|left, right| {
+                    left.progress()
+                        .total_cmp(&right.progress())
+                        .then_with(|| right.id.cmp(&left.id))
+                })
+                .map(|prompt| prompt.id)
+        });
+        let Some((target, prompt)) = target.and_then(|id| {
+            game.prompts
+                .iter()
+                .find(|prompt| prompt.id == id)
+                .map(|prompt| (id, prompt.text.clone()))
+        }) else {
+            profile_delay(game, now, unit_delay);
+            continue;
+        };
+        let prefix = if game.target == Some(target) {
+            game.input.chars().count()
+        } else {
+            0
+        };
+        let Some(character) = prompt.chars().nth(prefix) else {
+            game.submit_input();
+            continue;
+        };
+        let units = key_units(game.language, &character.to_string()).len();
+
+        if game.attempted_units as f64 >= next_error {
+            if !profile_delay(game, now, unit_delay) {
+                continue;
+            }
+            game.input_char('#');
+            next_error += error_interval;
+            if game.boss != BossKind::NullArchon && profile_delay(game, now, unit_delay) {
+                game.backspace();
+            }
+            continue;
+        }
+
+        if !profile_delay(game, now, unit_delay.mul_f64(units as f64)) {
+            continue;
+        }
+        if game.prompts.iter().any(|prompt| prompt.id == target)
+            && game.target.is_none_or(|current| current == target)
+        {
+            game.input_char(character);
+        }
+    }
+    panic!("scripted profile exceeded its iteration guard");
+}
+
+fn profile_delay(game: &mut BossBattle, now: &mut Instant, duration: Duration) -> bool {
+    let end = *now + duration;
+    while *now < end {
+        *now = (*now + Duration::from_millis(250)).min(end);
+        game.tick(*now);
+        if game.outcome().is_some() || game.input_locked() {
+            return false;
+        }
+    }
+    true
+}
+
+fn advance_locking_cue(game: &mut BossBattle, now: &mut Instant) {
+    let cue = game.cue.expect("input must be locked by a cue");
+    let step = cue
+        .duration
+        .saturating_sub(cue.elapsed)
+        .min(Duration::from_millis(250));
+    *now += step;
+    game.tick(*now);
+}
+
+fn scripted_outcome(
+    catalog: &ContentCatalog,
+    boss: BossKind,
+    language: Language,
+    difficulty: Difficulty,
+    kpm: u32,
+    accuracy: f64,
+) -> BossBattleOutcome {
+    let mut seen = HashSet::new();
+    let words = catalog
+        .select(language, ContentKind::Word, difficulty)
+        .into_iter()
+        .map(|item| item.text.clone())
+        .filter(|word| seen.insert(word.clone()))
+        .collect();
+    let mut now = Instant::now();
+    let mut game = BossBattle::new(boss, language, difficulty, words, 7, now).unwrap();
+    drive_profile(&mut game, &mut now, kpm, accuracy)
 }
 
 #[test]
@@ -377,4 +495,71 @@ fn null_archon_crosses_into_phase_two_after_a_time_freezing_cmax_transition() {
     advance(&mut game, &mut now, Duration::from_millis(750));
     assert_eq!(game.active_time(), before);
     assert_eq!(game.phase(), BossPhase::Two);
+}
+
+#[test]
+fn fixed_target_profiles_clear_and_the_prior_tier_does_not() {
+    let catalog = ContentCatalog::load_builtins().unwrap();
+    let profiles = [
+        (Difficulty::Easy, 180_u32, 90.0, 70.0..=82.0, None),
+        (
+            Difficulty::Medium,
+            300_u32,
+            94.0,
+            70.0..=84.0,
+            Some((180_u32, 90.0)),
+        ),
+        (
+            Difficulty::Hard,
+            420_u32,
+            97.0,
+            74.0..=87.0,
+            Some((300_u32, 94.0)),
+        ),
+    ];
+    let mut failures = Vec::new();
+
+    for boss in BossKind::ALL {
+        for language in [Language::Ko, Language::En] {
+            for (difficulty, kpm, accuracy, clear_range, prior) in &profiles {
+                let outcome =
+                    scripted_outcome(&catalog, boss, language, *difficulty, *kpm, *accuracy);
+                eprintln!(
+                    "{boss:?} {language:?} {difficulty:?}: victory={} time={:.3}s hearts={} units={} combo={} accuracy={:.1}%",
+                    outcome.victory,
+                    outcome.active_time.as_secs_f64(),
+                    outcome.hearts,
+                    outcome.correct_units,
+                    outcome.max_combo,
+                    outcome.correct_units as f64 * 100.0 / outcome.attempted_units.max(1) as f64,
+                );
+                if !outcome.victory || !clear_range.contains(&outcome.active_time.as_secs_f64()) {
+                    failures.push(format!(
+                        "{boss:?} {language:?} {difficulty:?}: victory={} time={:.3}s expected={clear_range:?}",
+                        outcome.victory,
+                        outcome.active_time.as_secs_f64(),
+                    ));
+                }
+
+                if let Some((prior_kpm, prior_accuracy)) = prior {
+                    let prior_outcome = scripted_outcome(
+                        &catalog,
+                        boss,
+                        language,
+                        *difficulty,
+                        *prior_kpm,
+                        *prior_accuracy,
+                    );
+                    if prior_outcome.victory {
+                        failures.push(format!(
+                            "{boss:?} {language:?} {difficulty:?}: prior tier cleared in {:.3}s",
+                            prior_outcome.active_time.as_secs_f64(),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    assert!(failures.is_empty(), "\n{}", failures.join("\n"));
 }

@@ -54,7 +54,7 @@ dim = "dark_gray"
 
 #[test]
 fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
-    assert_eq!(TextKey::ALL.len(), 88);
+    assert_eq!(TextKey::ALL.len(), 102);
     assert_eq!(
         TextKey::ALL.iter().copied().collect::<HashSet<_>>().len(),
         TextKey::ALL.len()
@@ -63,9 +63,15 @@ fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
     for &key in TextKey::ALL {
         let korean = text(Language::Ko, key);
         let english = text(Language::En, key);
-        if key == TextKey::AppTitle {
-            assert_eq!(korean, "Typerlude");
-            assert_eq!(english, "Typerlude");
+        if let Some(shared_name) = match key {
+            TextKey::AppTitle => Some("Typerlude"),
+            TextKey::IronWarden => Some("IRON WARDEN"),
+            TextKey::ThornQueen => Some("THORN QUEEN"),
+            TextKey::NullArchon => Some("NULL ARCHON"),
+            _ => None,
+        } {
+            assert_eq!(korean, shared_name);
+            assert_eq!(english, shared_name);
             continue;
         }
         assert!(!korean.trim().is_empty(), "Korean {key:?}");
