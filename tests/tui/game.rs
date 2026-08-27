@@ -358,6 +358,36 @@ fn iron_warden_battle_keeps_art_pattern_status_prompt_and_input_visible() {
 }
 
 #[test]
+fn large_boss_battle_keeps_prompt_and_typed_input_with_the_boss() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.ui_language = Language::Ko;
+    let mut now = Instant::now();
+    start_boss(&mut app, 0, now);
+    advance(&mut app, &mut now, Duration::from_millis(800));
+
+    let drawn = draw(&app, 190, 50);
+    let output = buffer_text(&drawn.buffer);
+    let rows = output.lines().collect::<Vec<_>>();
+    let boss = rows
+        .iter()
+        .position(|row| row.contains("▄████████▄"))
+        .unwrap();
+    let prompt = rows.iter().position(|row| row.contains("Prompt:")).unwrap();
+    let cursor = drawn.cursor.unwrap();
+
+    assert!(output.contains("Enter: 제출"), "{output}");
+    assert!(prompt > boss && prompt - boss <= 18, "{output}");
+    assert!(cursor.0 > 190 / 4 && cursor.0 < 190 * 3 / 4, "{output}");
+    assert_eq!(usize::from(cursor.1), prompt + 1, "{output}");
+
+    app.handle_event(key(Key::Char('#')), now).unwrap();
+    let typed = draw(&app, 190, 50);
+    assert!(buffer_text(&typed.buffer).contains("> #"));
+    assert_eq!(typed.cursor, Some((cursor.0 + 1, cursor.1)));
+}
+
+#[test]
 fn thorn_queen_battle_shows_crown_and_parallel_vine_lanes() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
