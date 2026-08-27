@@ -1,4 +1,8 @@
-use super::{format::language_name, theme::ThemeStyles, titled};
+use super::{
+    format::{grouped_u64, language_name},
+    theme::ThemeStyles,
+    titled,
+};
 use crate::{
     app::App,
     game::{GameKind, word_rain::LOGICAL_WIDTH},
@@ -151,7 +155,7 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         Paragraph::new(format!(
             "{}: {} · {}: {} · {}: {}",
             text(language, TextKey::Score),
-            active.game.score(),
+            grouped_u64(active.game.score()),
             text(language, TextKey::Level),
             active.game.current_level(),
             text(language, TextKey::Combo),
@@ -230,19 +234,41 @@ pub(super) fn render_game_result(
     styles: ThemeStyles,
 ) {
     let language = app.settings.ui_language;
-    let Some(result) = app.game_result() else {
+    let Some((result, previous_best)) = app.game_result() else {
         frame.render_widget(titled(text(language, TextKey::WordRain), styles), area);
         return;
     };
-    let lines = vec![
-        Line::from(Span::styled(
-            text(language, TextKey::GameOver),
-            styles.accent,
-        )),
+    let mut lines = vec![Line::from(Span::styled(
+        text(language, TextKey::GameOver),
+        styles.accent,
+    ))];
+    if result.score > previous_best {
+        lines.extend([
+            Line::from(Span::styled(
+                text(language, TextKey::PersonalBestUpdated),
+                styles.accent.add_modifier(Modifier::BOLD),
+            )),
+            Line::from(Span::styled(
+                format!(
+                    "{} -> {}",
+                    grouped_u64(previous_best),
+                    grouped_u64(result.score)
+                ),
+                styles.accent,
+            )),
+        ]);
+    } else {
+        lines.push(Line::from(format!(
+            "{}: {}",
+            text(language, TextKey::PersonalBest),
+            grouped_u64(previous_best)
+        )));
+    }
+    lines.extend([
         Line::from(format!(
             "{}: {}",
             text(language, TextKey::Score),
-            result.score
+            grouped_u64(result.score)
         )),
         Line::from(format!(
             "{}: {}",
@@ -275,7 +301,7 @@ pub(super) fn render_game_result(
             text(language, TextKey::Retry),
             text(language, TextKey::HomeGames)
         )),
-    ];
+    ]);
     frame.render_widget(
         Paragraph::new(lines)
             .style(styles.base)

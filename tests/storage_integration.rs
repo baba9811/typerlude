@@ -180,6 +180,7 @@ fn config_round_trip_atomically_replaces_the_previous_value() {
     let mut settings = Settings {
         language: Language::Ko,
         daily_minutes: 25,
+        word_rain_high_scores: [[101, 102, 103], [201, 202, 203]],
         ..Settings::default()
     };
     settings.save(&paths).unwrap();

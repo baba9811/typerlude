@@ -1,4 +1,4 @@
-use super::{ActiveWordRain, App, Key, KeyInput, KeyKind, KeyModifiers, Screen};
+use super::{ActiveWordRain, App, Key, KeyInput, KeyKind, KeyModifiers, Screen, WordRainResult};
 use crate::{
     content::ContentKind,
     game::word_rain::WordRain,
@@ -115,8 +115,20 @@ impl App {
             .as_ref()
             .and_then(|active| active.game.outcome().cloned());
         if let Some(outcome) = outcome {
+            let language = self.game_options.language;
+            let difficulty = self.game_options.difficulty;
+            let previous_best = self.settings.word_rain_high_score(language, difficulty);
+            if outcome.score > previous_best {
+                let score = outcome.score;
+                let _ = self.change_settings(|settings| {
+                    settings.set_word_rain_high_score(language, difficulty, score);
+                });
+            }
             self.active_game = None;
-            self.game_result = Some(outcome);
+            self.game_result = Some(WordRainResult {
+                outcome,
+                previous_best,
+            });
             self.screen = Screen::GameResult;
             self.parent = Screen::Games;
             self.parent_before_help = None;
@@ -164,11 +176,17 @@ mod tests {
     use std::time::{Duration, Instant};
 
     fn fixture(content: ContentCatalog) -> App {
+        fixture_with_settings(Settings::default(), content)
+    }
+
+    fn fixture_with_settings(settings: Settings, content: ContentCatalog) -> App {
         App::new(
-            Settings::default(),
-            AppPaths::from_override(
-                std::env::temp_dir().join(format!("typerlude-word-rain-{}", std::process::id())),
-            ),
+            settings,
+            AppPaths::from_override(std::env::temp_dir().join(format!(
+                "typerlude-word-rain-{}-{}",
+                std::process::id(),
+                fastrand::u64(..)
+            ))),
             content,
             ThemeCatalog::load_builtins().unwrap(),
             Vec::new(),
@@ -188,6 +206,30 @@ mod tests {
         app.game_options = GameOptions::new(GameKind::WordRain, language);
         app.game_options.difficulty = difficulty;
         app.start_word_rain_with_seed(7, now).unwrap();
+    }
+
+    fn complete_first_word(app: &mut App, now: Instant) -> u64 {
+        let word = app
+            .active_game
+            .as_ref()
+            .unwrap()
+            .game
+            .active_words()
+            .next()
+            .unwrap()
+            .text()
+            .to_owned();
+        for character in word.chars() {
+            app.handle_event(key(Key::Char(character)), now).unwrap();
+        }
+        app.active_game.as_ref().unwrap().game.score()
+    }
+
+    fn finish_game(app: &mut App, now: Instant) {
+        for step in 1..=100 {
+            app.tick(now + Duration::from_millis(step * 250)).unwrap();
+        }
+        assert_eq!(app.screen, Screen::GameResult);
     }
 
     #[test]
@@ -331,5 +373,56 @@ mod tests {
         assert_eq!(app.game_options.language, Language::Ko);
         assert_eq!(active.game.difficulty(), Difficulty::Hard);
         assert!(app.game_result.is_none());
+    }
+
+    #[test]
+    fn a_higher_score_updates_only_its_language_and_difficulty_and_survives_reload() {
+        let now = Instant::now();
+        let settings = Settings {
+            word_rain_high_scores: [[11, 12, 13], [0, 22, 23]],
+            ..Settings::default()
+        };
+        let mut app = fixture_with_settings(settings, ContentCatalog::load_builtins().unwrap());
+        start(&mut app, Language::En, Difficulty::Easy, now);
+        let score = complete_first_word(&mut app, now);
+
+        finish_game(&mut app, now);
+
+        let result = app.game_result.as_ref().unwrap();
+        assert_eq!(result.outcome.score, score);
+        assert_eq!(result.previous_best, 0);
+        assert_eq!(
+            app.settings.word_rain_high_scores,
+            [[11, 12, 13], [score, 22, 23]]
+        );
+        assert_eq!(
+            Settings::load(&app.paths)
+                .unwrap()
+                .value
+                .word_rain_high_scores,
+            [[11, 12, 13], [score, 22, 23]]
+        );
+    }
+
+    #[test]
+    fn an_equal_score_does_not_update_the_personal_best() {
+        let now = Instant::now();
+        let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+        start(&mut app, Language::En, Difficulty::Easy, now);
+        let score = complete_first_word(&mut app, now);
+        finish_game(&mut app, now);
+
+        start(&mut app, Language::En, Difficulty::Easy, now);
+        assert_eq!(complete_first_word(&mut app, now), score);
+        finish_game(&mut app, now);
+
+        let result = app.game_result.as_ref().unwrap();
+        assert_eq!(result.outcome.score, score);
+        assert_eq!(result.previous_best, score);
+        assert_eq!(
+            app.settings
+                .word_rain_high_score(Language::En, Difficulty::Easy),
+            score
+        );
     }
 }

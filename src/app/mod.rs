@@ -376,6 +376,11 @@ pub(crate) struct ActiveWordRain {
     pub(crate) leave_confirmation: bool,
 }
 
+struct WordRainResult {
+    outcome: WordRainOutcome,
+    previous_best: u64,
+}
+
 impl QuickOptions {
     pub fn new(language: Language, source: QuickSource, stop: StopRule) -> Result<Self> {
         let valid = match stop {
@@ -496,7 +501,7 @@ pub struct App {
     mode_options: ModeOptions,
     game_options: GameOptions,
     active_game: Option<ActiveWordRain>,
-    game_result: Option<WordRainOutcome>,
+    game_result: Option<WordRainResult>,
     quit: bool,
     retry_request: Option<ModeRequest>,
     retry_stream: Option<CatalogStream>,
@@ -589,8 +594,10 @@ impl App {
         self.active_game.as_ref()
     }
 
-    pub(crate) const fn game_result(&self) -> Option<&WordRainOutcome> {
-        self.game_result.as_ref()
+    pub(crate) fn game_result(&self) -> Option<(&WordRainOutcome, u64)> {
+        self.game_result
+            .as_ref()
+            .map(|result| (&result.outcome, result.previous_best))
     }
 
     pub const fn should_quit(&self) -> bool {

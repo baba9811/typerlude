@@ -1,6 +1,6 @@
 use crate::{
     i18n::initial_ui_language_os,
-    model::Language,
+    model::{Difficulty, Language},
     storage::{AppPaths, LoadWarning, atomic_write},
 };
 use anyhow::{Context, Result, bail};
@@ -25,6 +25,7 @@ pub struct Settings {
     pub adaptive: bool,
     pub check_updates: bool,
     pub skipped_update_version: String,
+    pub word_rain_high_scores: [[u64; 3]; 2],
 }
 
 impl Default for Settings {
@@ -45,6 +46,7 @@ impl Default for Settings {
             adaptive: true,
             check_updates: true,
             skipped_update_version: String::new(),
+            word_rain_high_scores: [[0; 3]; 2],
         }
     }
 }
@@ -56,6 +58,21 @@ pub struct ConfigLoad {
 }
 
 impl Settings {
+    pub(crate) fn word_rain_high_score(&self, language: Language, difficulty: Difficulty) -> u64 {
+        let (language, difficulty) = word_rain_score_slot(language, difficulty);
+        self.word_rain_high_scores[language][difficulty]
+    }
+
+    pub(crate) fn set_word_rain_high_score(
+        &mut self,
+        language: Language,
+        difficulty: Difficulty,
+        score: u64,
+    ) {
+        let (language, difficulty) = word_rain_score_slot(language, difficulty);
+        self.word_rain_high_scores[language][difficulty] = score;
+    }
+
     pub fn load(paths: &AppPaths) -> Result<ConfigLoad> {
         let lc_all = std::env::var_os("LC_ALL");
         let lang = std::env::var_os("LANG");
@@ -149,10 +166,27 @@ impl Settings {
     }
 }
 
+fn word_rain_score_slot(language: Language, difficulty: Difficulty) -> (usize, usize) {
+    let language = match language {
+        Language::Ko => 0,
+        Language::En => 1,
+    };
+    let difficulty = match difficulty {
+        Difficulty::Easy => 0,
+        Difficulty::Medium => 1,
+        Difficulty::Hard => 2,
+        Difficulty::Mixed => unreachable!("word rain requires a concrete difficulty"),
+    };
+    (language, difficulty)
+}
+
 #[cfg(test)]
 mod locale_tests {
     use super::Settings;
-    use crate::{model::Language, storage::AppPaths};
+    use crate::{
+        model::{Difficulty, Language},
+        storage::AppPaths,
+    };
     use std::{ffi::OsStr, fs, path::PathBuf};
 
     #[test]
@@ -196,5 +230,27 @@ mod locale_tests {
         assert_eq!(fs::read(&paths.config).unwrap(), corrupt);
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn word_rain_high_scores_are_scoped_by_language_and_difficulty() {
+        let settings = Settings {
+            word_rain_high_scores: [[11, 12, 13], [21, 22, 23]],
+            ..Settings::default()
+        };
+
+        for (language, difficulty, expected) in [
+            (Language::Ko, Difficulty::Easy, 11),
+            (Language::Ko, Difficulty::Medium, 12),
+            (Language::Ko, Difficulty::Hard, 13),
+            (Language::En, Difficulty::Easy, 21),
+            (Language::En, Difficulty::Medium, 22),
+            (Language::En, Difficulty::Hard, 23),
+        ] {
+            assert_eq!(
+                settings.word_rain_high_score(language, difficulty),
+                expected
+            );
+        }
     }
 }

@@ -70,9 +70,21 @@ pub(super) fn speed_values(ui_language: Language, kpm: f64, wpm: f64) -> String 
     }
 }
 
+pub(super) fn grouped_u64(value: u64) -> String {
+    let digits = value.to_string();
+    let mut grouped = String::with_capacity(digits.len() + digits.len().saturating_sub(1) / 3);
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(3) {
+            grouped.push(',');
+        }
+        grouped.push(digit);
+    }
+    grouped
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{speed_values, terminal_line};
+    use super::{grouped_u64, speed_values, terminal_line};
     use crate::model::Language;
 
     #[test]
@@ -85,6 +97,19 @@ mod tests {
             speed_values(Language::Ko, 200.0, 40.0),
             "타수 200.0 타/분 · WPM 40.0"
         );
+    }
+
+    #[test]
+    fn scores_use_thousands_separators() {
+        for (score, expected) in [
+            (0, "0"),
+            (999, "999"),
+            (1_000, "1,000"),
+            (1_000_000, "1,000,000"),
+            (u64::MAX, "18,446,744,073,709,551,615"),
+        ] {
+            assert_eq!(grouped_u64(score), expected);
+        }
     }
 
     #[test]

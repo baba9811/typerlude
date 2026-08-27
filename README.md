@@ -84,7 +84,8 @@ aggregate metrics and intended-key counts—not what you typed. Configuration, s
 themes, and the update cache use your operating system's standard user directories; run
 `typerlude paths` to see the exact locations.
 
-Word Rain results and high scores are not saved.
+Word Rain runs are not added to session history. Personal best scores are saved locally for each
+language and difficulty.
 
 ## Contributing
 

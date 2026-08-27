@@ -19,6 +19,30 @@ fn start_game(app: &mut App, now: Instant) {
     assert_eq!(app.screen(), Screen::Game);
 }
 
+fn complete_visible_word(app: &mut App, now: Instant) {
+    let output = buffer_text(&draw(app, 80, 24).buffer);
+    let word = app
+        .content
+        .select(Language::En, ContentKind::Word, Difficulty::Medium)
+        .into_iter()
+        .find(|item| {
+            output.lines().any(|row| {
+                row.trim_matches(|character| character == '│' || character == ' ') == item.text
+            })
+        })
+        .unwrap()
+        .text
+        .clone();
+    type_text(app, &word, now);
+}
+
+fn finish_game(app: &mut App, now: Instant) {
+    for step in 1..=100 {
+        app.tick(now + Duration::from_millis(step * 250)).unwrap();
+    }
+    assert_eq!(app.screen(), Screen::GameResult);
+}
+
 #[test]
 fn games_and_options_render_the_concrete_word_rain_choice() {
     let (_root, mut app) = fixture_app();
@@ -187,6 +211,39 @@ fn game_result_shows_every_outcome_and_retry_action() {
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
+}
+
+#[test]
+fn updated_personal_best_fanfare_is_localized_and_uses_two_lines() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.ui_language = Language::Ko;
+    let now = Instant::now();
+    start_game(&mut app, now);
+    complete_visible_word(&mut app, now);
+    finish_game(&mut app, now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    let rows = output.lines().collect::<Vec<_>>();
+    let update = rows
+        .iter()
+        .position(|row| row.contains("개인 최고 기록 갱신!"))
+        .unwrap();
+    assert!(rows[update + 1].contains("0 -> "), "{output}");
+}
+
+#[test]
+fn unbeaten_personal_best_is_grouped_without_a_fanfare() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.word_rain_high_scores[1][1] = 1_000_000;
+    let now = Instant::now();
+    start_game(&mut app, now);
+    finish_game(&mut app, now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("Personal best: 1,000,000"), "{output}");
+    assert!(!output.contains("Personal best updated!"), "{output}");
 }
 
 #[test]
