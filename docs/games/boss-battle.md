@@ -43,14 +43,13 @@ separately for each boss, language, and difficulty.
 
 - **Pattern:** Two vines grow at once. The first physical key selects one matching vine; finish it
   before it blooms.
-- **Failure:** Any blooming vine costs one heart and refreshes the lanes.
+- **Failure:** Any blooming vine costs one heart and replaces that vine.
 - **Phase two:** A third simultaneous vine joins the field.
 - **Signature:** THORN BLOOM and parallel target selection.
 
 ### 3. NULL ARCHON
 
-- **Pattern:** Complete three checksum prompts in a row to reverse the void canticle and deal bonus
-  damage.
+- **Pattern:** Fill three checksum slots to reverse the void canticle and deal bonus damage.
 - **Failure:** A wrong key clears the current input and removes one stored checksum. If the canticle
   completes, you lose one heart.
 - **Phase two:** C MAX locks the system during the transition, then the canticle accelerates.
@@ -58,6 +57,9 @@ separately for each boss, language, and difficulty.
 
 ## Score and local data
 
-Score rewards victory, remaining time, remaining hearts, accuracy, and maximum combo. Boss Battle
-runs are not added to practice session history; clear stars and personal best scores are stored in
-the local settings file. Run `typerlude paths` to find it.
+Score is the sum of a 10,000-point victory bonus, whole seconds remaining × 100, remaining hearts ×
+1,000, accuracy in basis points (100% = 10,000), and maximum combo × 10. A defeat score appears on
+the result screen, but only victories update stars and personal bests.
+
+Boss Battle runs are not added to practice session history. Clear stars and personal best scores
+are stored in the local settings file; run `typerlude paths` to find it.
