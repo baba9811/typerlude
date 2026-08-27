@@ -318,11 +318,27 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
 }
 
 #[test]
+fn boss_select_keeps_the_exact_unlock_requirement_above_a_warning_footer() {
+    let (_root, mut app) = fixture_app();
+    let now = Instant::now();
+    open_boss_options(&mut app, now);
+    app.handle_event(key(Key::Down), now).unwrap();
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("Clear IRON WARDEN Easy"), "{output}");
+    assert!(output.contains("review warning"), "{output}");
+}
+
+#[test]
 fn iron_warden_battle_keeps_art_pattern_status_prompt_and_input_visible() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
     let mut now = Instant::now();
     start_boss(&mut app, 0, now);
+
+    let intro = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(intro.contains("Prompt: —"), "{intro}");
+
     advance(&mut app, &mut now, Duration::from_millis(800));
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
@@ -378,6 +394,17 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
         assert!(locked.contains(expected), "{expected}: {locked}");
     }
 
+    app.handle_event(key(Key::Esc), now).unwrap();
+    let paused_locked = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in ["SYSTEM LOCK", "FRAME", "Pause"] {
+        assert!(
+            paused_locked.contains(expected),
+            "{expected}: {paused_locked}"
+        );
+    }
+    assert!(!paused_locked.contains("Prompt:"), "{paused_locked}");
+    app.handle_event(key(Key::Esc), now).unwrap();
+
     advance(&mut app, &mut now, Duration::from_millis(800));
     let stable = buffer_text(&draw(&app, 80, 24).buffer);
     for expected in [
@@ -416,6 +443,29 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
         assert!(output.contains(expected), "{expected}: {output}");
     }
     assert!(output.lines().count() <= 24, "{output}");
+
+    app.handle_event(key(Key::Esc), now).unwrap();
+    assert_eq!(app.screen(), Screen::GameOptions);
+    let boss_select = buffer_text(&draw(&app, 80, 24).buffer);
+    for expected in ["BOSSES", "IRON WARDEN", "☆☆☆"] {
+        assert!(boss_select.contains(expected), "{expected}: {boss_select}");
+    }
+}
+
+#[test]
+fn leaving_a_paused_boss_fight_returns_to_boss_selection() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let now = Instant::now();
+    start_boss(&mut app, 0, now);
+
+    app.handle_event(key(Key::Esc), now).unwrap();
+    app.handle_event(key(Key::Char('q')), now).unwrap();
+    app.handle_event(key(Key::Char('q')), now).unwrap();
+
+    assert_eq!(app.screen(), Screen::GameOptions);
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("BOSSES"), "{output}");
 }
 
 #[test]

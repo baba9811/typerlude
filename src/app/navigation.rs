@@ -197,6 +197,9 @@ impl App {
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
+            Screen::GameResult if self.game_options.kind == GameKind::BossBattle => {
+                self.return_to_boss_options();
+            }
             Screen::GameResult => self.return_to_games(),
             Screen::Help => {
                 let destination = self.parent;

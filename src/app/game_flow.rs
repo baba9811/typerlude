@@ -5,6 +5,7 @@ use super::{
 use crate::{
     content::ContentKind,
     game::{
+        GameKind,
         boss_battle::{BossBattle, BossBattleOutcome},
         word_rain::{WordRain, WordRainOutcome},
     },
@@ -201,7 +202,10 @@ impl App {
                     .as_ref()
                     .is_some_and(ActiveGame::leave_confirmation);
                 if confirmed {
-                    self.return_to_games();
+                    match self.game_options.kind {
+                        GameKind::WordRain => self.return_to_games(),
+                        GameKind::BossBattle => self.return_to_boss_options(),
+                    }
                 } else if let Some(active) = self.active_game.as_mut() {
                     active.set_leave_confirmation(true);
                 }
@@ -304,6 +308,17 @@ impl App {
         self.parent = Screen::Home;
         self.parent_before_help = None;
         self.focus = 0;
+        self.active_game = None;
+        self.game_result = None;
+    }
+
+    pub(super) fn return_to_boss_options(&mut self) {
+        self.remember_focus();
+        self.screen = Screen::GameOptions;
+        self.parent = Screen::Games;
+        self.parent_before_help = None;
+        self.focus = self.game_options.boss.index();
+        self.game_options.error = None;
         self.active_game = None;
         self.game_result = None;
     }
@@ -619,5 +634,38 @@ mod tests {
                 .boss_high_score(BossKind::IronWarden, Language::Ko, Difficulty::Easy,),
             0,
         );
+    }
+
+    #[test]
+    fn boss_result_escape_preserves_the_exact_boss_options() {
+        let mut now = Instant::now();
+        let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+        for (boss, difficulty) in [
+            (BossKind::IronWarden, Difficulty::Easy),
+            (BossKind::ThornQueen, Difficulty::Easy),
+            (BossKind::NullArchon, Difficulty::Easy),
+            (BossKind::NullArchon, Difficulty::Medium),
+        ] {
+            app.settings
+                .record_boss_clear(boss, Language::En, difficulty, 1);
+        }
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::Ko);
+        app.game_options.boss = BossKind::NullArchon;
+        app.game_options.difficulty = Difficulty::Hard;
+        app.start_boss_battle_with_seed(7, now).unwrap();
+        force_boss_victory(&mut app, &mut now);
+
+        app.handle_event(key(Key::Esc), now).unwrap();
+
+        assert_eq!(app.screen, Screen::GameOptions);
+        assert_eq!(app.parent, Screen::Games);
+        assert_eq!(app.focus, BossKind::NullArchon.index());
+        assert_eq!(app.game_options.kind, GameKind::BossBattle);
+        assert_eq!(app.game_options.boss, BossKind::NullArchon);
+        assert_eq!(app.game_options.language, Language::Ko);
+        assert_eq!(app.game_options.difficulty, Difficulty::Hard);
+        assert!(app.game_options.error.is_none());
+        assert!(app.active_game.is_none());
+        assert!(app.game_result.is_none());
     }
 }

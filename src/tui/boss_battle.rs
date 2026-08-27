@@ -125,6 +125,37 @@ pub(super) fn render_boss_options(
         0
     };
     let marker = |focus| if app.focus() == focus { "> " } else { "  " };
+    let clear_requirement = |boss, difficulty| match language {
+        Language::Ko => format!(
+            "{} {} 클리어 필요",
+            boss_name(language, boss),
+            difficulty_name(language, difficulty)
+        ),
+        Language::En => format!(
+            "Clear {} {}",
+            boss_name(language, boss),
+            difficulty_name(language, difficulty)
+        ),
+    };
+    let requirement = if !unlocked {
+        options
+            .boss
+            .index()
+            .checked_sub(1)
+            .and_then(|index| BossKind::ALL.get(index).copied())
+            .map(|boss| clear_requirement(boss, Difficulty::Easy))
+            .or_else(|| Some(text(language, TextKey::BossLocked).to_owned()))
+    } else if !difficulty_unlocked {
+        match options.difficulty {
+            Difficulty::Medium => Some(clear_requirement(options.boss, Difficulty::Easy)),
+            Difficulty::Hard => Some(clear_requirement(options.boss, Difficulty::Medium)),
+            Difficulty::Easy | Difficulty::Mixed => {
+                Some(text(language, TextKey::DifficultyLocked).to_owned())
+            }
+        }
+    } else {
+        options.error.clone()
+    };
     let available = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard]
         .into_iter()
         .map(|difficulty| {
@@ -144,7 +175,22 @@ pub(super) fn render_boss_options(
         })
         .collect::<Vec<_>>()
         .join(" · ");
-    let mut option_lines = vec![
+    let mut start = vec![
+        Span::styled(marker(5), styles.accent),
+        Span::styled(
+            text(language, TextKey::Start),
+            if unlocked && difficulty_unlocked {
+                styles.correct.add_modifier(Modifier::BOLD)
+            } else {
+                styles.dim
+            },
+        ),
+    ];
+    if let Some(requirement) = requirement {
+        start.push(Span::styled(" · ", styles.dim));
+        start.push(Span::styled(requirement, styles.error));
+    }
+    let option_lines = vec![
         Line::from(format!(
             "{}{}: {}",
             marker(3),
@@ -163,31 +209,8 @@ pub(super) fn render_boss_options(
             text(language, TextKey::Best),
             grouped_u64(best)
         )),
-        Line::from(vec![
-            Span::styled(marker(5), styles.accent),
-            Span::styled(
-                text(language, TextKey::Start),
-                if unlocked && difficulty_unlocked {
-                    styles.correct.add_modifier(Modifier::BOLD)
-                } else {
-                    styles.dim
-                },
-            ),
-        ]),
+        Line::from(start),
     ];
-    if let Some(error) = &options.error {
-        option_lines.push(Line::from(Span::styled(error.clone(), styles.error)));
-    } else if !unlocked {
-        option_lines.push(Line::from(Span::styled(
-            text(language, TextKey::BossLocked),
-            styles.error,
-        )));
-    } else if !difficulty_unlocked {
-        option_lines.push(Line::from(Span::styled(
-            text(language, TextKey::DifficultyLocked),
-            styles.error,
-        )));
-    }
     frame.render_widget(Paragraph::new(option_lines).style(styles.base), regions[2]);
     frame.render_widget(
         Paragraph::new(match language {
@@ -212,10 +235,25 @@ pub(super) fn render_boss_battle(
     let language = app.settings.ui_language;
     let locking_cue = game.cue().filter(|(cue, _)| cue_locks(*cue));
     if game.boss() == BossKind::NullArchon
-        && !game.is_paused()
         && let Some((cue, progress)) = locking_cue
     {
         render_cmax(frame, language, cue, progress, area, styles);
+        if game.is_paused() {
+            let pause_height = area.height.min(5);
+            let pause_area = Rect::new(
+                area.x,
+                area.bottom().saturating_sub(pause_height),
+                area.width,
+                pause_height,
+            );
+            render_pause(
+                frame,
+                language,
+                active.leave_confirmation,
+                pause_area,
+                styles,
+            );
+        }
         return;
     }
 
@@ -277,24 +315,40 @@ pub(super) fn render_boss_battle(
     );
 
     if game.is_paused() {
-        let overlay = centered(regions[1], 54, 5);
-        let message = if active.leave_confirmation {
-            text(language, TextKey::LeaveGameConfirm)
-        } else {
-            match language {
-                Language::Ko => "Esc: 계속 · q: 나가기",
-                Language::En => "Esc: Resume · q: Leave",
-            }
-        };
-        frame.render_widget(
-            Paragraph::new(message)
-                .alignment(Alignment::Center)
-                .wrap(Wrap { trim: true })
-                .style(styles.base)
-                .block(titled(text(language, TextKey::Pause), styles)),
-            overlay,
+        render_pause(
+            frame,
+            language,
+            active.leave_confirmation,
+            regions[1],
+            styles,
         );
     }
+}
+
+fn render_pause(
+    frame: &mut Frame<'_>,
+    language: Language,
+    leave_confirmation: bool,
+    area: Rect,
+    styles: ThemeStyles,
+) {
+    let overlay = centered(area, 54, 5);
+    let message = if leave_confirmation {
+        text(language, TextKey::LeaveGameConfirm)
+    } else {
+        match language {
+            Language::Ko => "Esc: 계속 · q: 나가기",
+            Language::En => "Esc: Resume · q: Leave",
+        }
+    };
+    frame.render_widget(
+        Paragraph::new(message)
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true })
+            .style(styles.base)
+            .block(titled(text(language, TextKey::Pause), styles)),
+        overlay,
+    );
 }
 
 pub(super) fn render_boss_result(
@@ -631,20 +685,21 @@ fn render_input(
 ) {
     let block = titled(text(language, TextKey::Input), styles);
     let inner = block.inner(area);
-    let target = game
-        .target_id()
-        .and_then(|id| game.prompts().find(|prompt| prompt.id() == id))
-        .or_else(|| game.prompts().next());
+    let target = if locked {
+        None
+    } else {
+        game.target_id()
+            .and_then(|id| game.prompts().find(|prompt| prompt.id() == id))
+            .or_else(|| game.prompts().next())
+    };
     let prompt = target.map_or("—", |prompt| prompt.text());
-    let invalid = !game.input().is_empty() && !game.input_is_valid();
+    let entered = if locked { "" } else { game.input() };
+    let invalid = !entered.is_empty() && !game.input_is_valid();
     let lines = vec![
         Line::from(format!("Prompt: {prompt}")),
         Line::from(vec![
             Span::styled("> ", styles.accent),
-            Span::styled(
-                game.input(),
-                if invalid { styles.error } else { styles.base },
-            ),
+            Span::styled(entered, if invalid { styles.error } else { styles.base }),
             Span::styled(
                 if locked {
                     format!("  // {}", text(language, TextKey::InputLocked))

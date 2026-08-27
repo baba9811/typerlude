@@ -1,11 +1,14 @@
-use super::{BattleCue, BossBattle, BossBattleOutcome, BossKind, BossPatternView, BossPhase};
-use crate::typing::key_units;
+use super::{
+    BATTLE_LIMIT, BattleCue, BossBattle, BossBattleOutcome, BossKind, BossPatternView, BossPhase,
+};
+use crate::typing::{key_units, unit_count};
 use crate::{
     content::{ContentCatalog, ContentKind},
     model::{Difficulty, Language},
 };
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
+use unicode_width::UnicodeWidthStr;
 
 const INTRO: Duration = Duration::from_millis(800);
 
@@ -44,6 +47,21 @@ fn type_current_prompt(game: &mut BossBattle) {
     for character in prompt.chars() {
         game.input_char(character);
     }
+}
+
+fn type_current_prompt_at_kpm(game: &mut BossBattle, now: &mut Instant, kpm: u32) -> u64 {
+    let prompt = game.prompts().next().unwrap().text().to_owned();
+    let units = unit_count(game.language, &prompt);
+    for character in prompt.chars() {
+        let character_units = key_units(game.language, &character.to_string()).len() as f64;
+        advance(
+            game,
+            now,
+            Duration::from_secs_f64(character_units * 60.0 / f64::from(kpm)),
+        );
+        game.input_char(character);
+    }
+    units
 }
 
 fn queen(now: Instant, language: Language, words: &[&str]) -> BossBattle {
@@ -254,6 +272,55 @@ fn a_missed_pile_driver_costs_one_heart_and_resets_locks() {
 }
 
 #[test]
+fn max_width_custom_words_keep_pattern_windows_fair_by_physical_key_units() {
+    let cases = [
+        (Language::En, "abcdefghijklmnopqrstuvwx".to_owned(), 24),
+        (Language::Ko, "\u{ad05}".repeat(12), 60),
+    ];
+
+    for (language, word, expected_units) in cases {
+        assert_eq!(UnicodeWidthStr::width(word.as_str()), 24);
+        assert_eq!(unit_count(language, &word), expected_units);
+
+        for boss in [BossKind::IronWarden, BossKind::NullArchon] {
+            let mut now = Instant::now();
+            let mut game =
+                BossBattle::new(boss, language, Difficulty::Easy, vec![word.clone()], 7, now)
+                    .unwrap();
+            game.health = 1_000;
+            game.max_health = 1_000;
+            finish_intro(&mut game, &mut now);
+
+            for _ in 0..3 {
+                type_current_prompt_at_kpm(&mut game, &mut now, 180);
+            }
+            assert_eq!(game.hearts(), 3, "{boss:?} {language:?}");
+
+            match boss {
+                BossKind::IronWarden => {
+                    assert!(matches!(
+                        game.pattern_view(),
+                        BossPatternView::Warden {
+                            locks: 3,
+                            core_exposed: true,
+                            ..
+                        }
+                    ));
+                    let health = game.health();
+                    let units = type_current_prompt_at_kpm(&mut game, &mut now, 180);
+                    assert_eq!(health - game.health(), units * 2, "{language:?}");
+                }
+                BossKind::NullArchon => assert!(matches!(
+                    game.pattern_view(),
+                    BossPatternView::NullArchon { checksum: 0, .. }
+                )),
+                BossKind::ThornQueen => unreachable!(),
+            }
+        }
+    }
+}
+
+#[test]
 fn ninety_active_seconds_produces_one_timeout_defeat_after_its_cinematic() {
     let mut now = Instant::now();
     let mut game = battle(now);
@@ -311,6 +378,20 @@ fn zero_health_publishes_one_victory_only_after_the_death_cinematic() {
 
     advance(&mut game, &mut now, Duration::from_secs(1));
     assert_eq!(game.outcome(), Some(&outcome));
+}
+
+#[test]
+fn score_rounds_accuracy_to_the_nearest_basis_point() {
+    let mut now = Instant::now();
+    let mut game = battle(now);
+    finish_intro(&mut game, &mut now);
+    game.correct_units = 2;
+    game.attempted_units = 3;
+
+    game.start_finish(true);
+    advance(&mut game, &mut now, Duration::from_secs(1));
+
+    assert_eq!(game.outcome().unwrap().score, 28_667);
 }
 
 #[test]
@@ -550,10 +631,21 @@ fn fixed_target_profiles_clear_and_the_prior_tier_does_not() {
                         *prior_kpm,
                         *prior_accuracy,
                     );
-                    if prior_outcome.victory {
+                    eprintln!(
+                        "{boss:?} {language:?} {difficulty:?} prior: victory={} time={:.3}s hearts={}",
+                        prior_outcome.victory,
+                        prior_outcome.active_time.as_secs_f64(),
+                        prior_outcome.hearts,
+                    );
+                    let narrow_defeat = !prior_outcome.victory
+                        && prior_outcome.active_time >= Duration::from_secs(75)
+                        && (prior_outcome.active_time == BATTLE_LIMIT || prior_outcome.hearts == 0);
+                    if !narrow_defeat {
                         failures.push(format!(
-                            "{boss:?} {language:?} {difficulty:?}: prior tier cleared in {:.3}s",
+                            "{boss:?} {language:?} {difficulty:?}: prior tier victory={} time={:.3}s hearts={}",
+                            prior_outcome.victory,
                             prior_outcome.active_time.as_secs_f64(),
+                            prior_outcome.hearts,
                         ));
                     }
                 }
