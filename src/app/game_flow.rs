@@ -1,7 +1,14 @@
-use super::{ActiveWordRain, App, Key, KeyInput, KeyKind, KeyModifiers, Screen, WordRainResult};
+use super::{
+    ActiveBossBattle, ActiveGame, ActiveWordRain, App, BossBattleResult, Key, KeyInput, KeyKind,
+    KeyModifiers, Screen, StoredGameResult, WordRainResult,
+};
 use crate::{
     content::ContentKind,
-    game::word_rain::WordRain,
+    game::{
+        GameKind,
+        boss_battle::{BossBattle, BossBattleOutcome},
+        word_rain::{WordRain, WordRainOutcome},
+    },
     i18n::{TextKey, text},
     typing::normalize_nfc,
 };
@@ -9,20 +16,92 @@ use anyhow::Result;
 use std::{collections::HashSet, time::Instant};
 use unicode_width::UnicodeWidthStr;
 
+enum FinishedGame {
+    WordRain(WordRainOutcome),
+    BossBattle(BossBattleOutcome),
+}
+
+impl ActiveGame {
+    fn toggle_pause(&mut self, now: Instant) -> bool {
+        match self {
+            Self::WordRain(active) => active.game.toggle_pause(now),
+            Self::BossBattle(active) => active.game.toggle_pause(now),
+        }
+    }
+
+    fn is_paused(&self) -> bool {
+        match self {
+            Self::WordRain(active) => active.game.is_paused(),
+            Self::BossBattle(active) => active.game.is_paused(),
+        }
+    }
+
+    fn leave_confirmation(&self) -> bool {
+        match self {
+            Self::WordRain(active) => active.leave_confirmation,
+            Self::BossBattle(active) => active.leave_confirmation,
+        }
+    }
+
+    fn set_leave_confirmation(&mut self, confirmed: bool) {
+        match self {
+            Self::WordRain(active) => active.leave_confirmation = confirmed,
+            Self::BossBattle(active) => active.leave_confirmation = confirmed,
+        }
+    }
+
+    fn submit_input(&mut self) {
+        match self {
+            Self::WordRain(active) => active.game.submit_input(),
+            Self::BossBattle(active) => active.game.submit_input(),
+        }
+    }
+
+    fn backspace(&mut self) {
+        match self {
+            Self::WordRain(active) => {
+                active.game.backspace();
+            }
+            Self::BossBattle(active) => {
+                active.game.backspace();
+            }
+        }
+    }
+
+    fn input_char(&mut self, character: char) {
+        match self {
+            Self::WordRain(active) => active.game.input_char(character),
+            Self::BossBattle(active) => active.game.input_char(character),
+        }
+    }
+
+    fn tick(&mut self, now: Instant) {
+        match self {
+            Self::WordRain(active) => active.game.tick(now),
+            Self::BossBattle(active) => active.game.tick(now),
+        }
+    }
+
+    fn outcome(&self) -> Option<FinishedGame> {
+        match self {
+            Self::WordRain(active) => active.game.outcome().cloned().map(FinishedGame::WordRain),
+            Self::BossBattle(active) => {
+                active.game.outcome().cloned().map(FinishedGame::BossBattle)
+            }
+        }
+    }
+
+    fn set_viewport_supported(&mut self, supported: bool, now: Instant) {
+        match self {
+            Self::WordRain(active) => active.game.set_viewport_supported(supported, now),
+            Self::BossBattle(active) => active.game.set_viewport_supported(supported, now),
+        }
+    }
+}
+
 impl App {
     pub(super) fn start_word_rain_with_seed(&mut self, seed: u64, now: Instant) -> Result<()> {
-        let mut seen = HashSet::new();
-        let words = self
-            .content
-            .select(
-                self.game_options.language,
-                ContentKind::Word,
-                self.game_options.difficulty,
-            )
-            .into_iter()
-            .filter_map(|item| playable_word(&item.text))
-            .filter(|word| seen.insert(word.clone()))
-            .collect::<Vec<_>>();
+        let words = self.game_words();
         if words.is_empty() {
             self.game_options.error =
                 Some(text(self.settings.ui_language, TextKey::NoPlayableWords).to_owned());
@@ -36,44 +115,99 @@ impl App {
             seed,
             now,
         )?;
+        self.enter_game(ActiveGame::WordRain(ActiveWordRain {
+            game,
+            leave_confirmation: false,
+        }));
+        Ok(())
+    }
+
+    pub(super) fn start_boss_battle_with_seed(&mut self, seed: u64, now: Instant) -> Result<()> {
+        let boss = self.game_options.boss;
+        if !self.settings.boss_is_unlocked(boss) {
+            self.game_options.error =
+                Some(text(self.settings.ui_language, TextKey::BossLocked).to_owned());
+            return Ok(());
+        }
+        if !self
+            .settings
+            .boss_difficulty_is_unlocked(boss, self.game_options.difficulty)
+        {
+            self.game_options.error =
+                Some(text(self.settings.ui_language, TextKey::DifficultyLocked).to_owned());
+            return Ok(());
+        }
+
+        let words = self.game_words();
+        if words.is_empty() {
+            self.game_options.error =
+                Some(text(self.settings.ui_language, TextKey::NoPlayableWords).to_owned());
+            return Ok(());
+        }
+
+        let game = BossBattle::new(
+            boss,
+            self.game_options.language,
+            self.game_options.difficulty,
+            words,
+            seed,
+            now,
+        )?;
+        self.enter_game(ActiveGame::BossBattle(ActiveBossBattle {
+            game,
+            leave_confirmation: false,
+        }));
+        Ok(())
+    }
+
+    fn game_words(&self) -> Vec<String> {
+        let mut seen = HashSet::new();
+        self.content
+            .select(
+                self.game_options.language,
+                ContentKind::Word,
+                self.game_options.difficulty,
+            )
+            .into_iter()
+            .filter_map(|item| playable_word(&item.text))
+            .filter(|word| seen.insert(word.clone()))
+            .collect()
+    }
+
+    fn enter_game(&mut self, active: ActiveGame) {
         self.remember_focus();
         self.screen = Screen::Game;
         self.parent = Screen::Games;
         self.parent_before_help = None;
         self.focus = 0;
         self.game_options.error = None;
-        self.active_game = Some(ActiveWordRain {
-            game,
-            leave_confirmation: false,
-        });
+        self.active_game = Some(active);
         self.game_result = None;
-        Ok(())
     }
 
     pub(super) fn handle_game_key(&mut self, key: KeyInput, now: Instant) -> Result<()> {
         if key.kind == KeyKind::Press && key.key == Key::Esc {
             if let Some(active) = self.active_game.as_mut()
-                && active.game.toggle_pause(now)
+                && active.toggle_pause(now)
             {
-                active.leave_confirmation = false;
+                active.set_leave_confirmation(false);
             }
             return Ok(());
         }
 
-        if self
-            .active_game
-            .as_ref()
-            .is_some_and(|active| active.game.is_paused())
-        {
+        if self.active_game.as_ref().is_some_and(ActiveGame::is_paused) {
             if key.kind == KeyKind::Press && key.is_plain_q_command() {
                 let confirmed = self
                     .active_game
                     .as_ref()
-                    .is_some_and(|active| active.leave_confirmation);
+                    .is_some_and(ActiveGame::leave_confirmation);
                 if confirmed {
-                    self.return_to_games();
+                    match self.game_options.kind {
+                        GameKind::WordRain => self.return_to_games(),
+                        GameKind::BossBattle => self.return_to_boss_options(),
+                    }
                 } else if let Some(active) = self.active_game.as_mut() {
-                    active.leave_confirmation = true;
+                    active.set_leave_confirmation(true);
                 }
             }
             return Ok(());
@@ -82,12 +216,12 @@ impl App {
         match key.key {
             Key::Enter if key.kind == KeyKind::Press && key.modifiers == KeyModifiers::NONE => {
                 if let Some(active) = self.active_game.as_mut() {
-                    active.game.submit_input();
+                    active.submit_input();
                 }
             }
             Key::Backspace if matches!(key.kind, KeyKind::Press | KeyKind::Repeat) => {
                 if let Some(active) = self.active_game.as_mut() {
-                    active.game.backspace();
+                    active.backspace();
                 }
             }
             Key::Char(character)
@@ -95,7 +229,7 @@ impl App {
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
                 if let Some(active) = self.active_game.as_mut() {
-                    active.game.input_char(character);
+                    active.input_char(character);
                 }
             }
             _ => {}
@@ -103,42 +237,68 @@ impl App {
         Ok(())
     }
 
-    pub(super) fn tick_word_rain(&mut self, now: Instant) {
+    pub(super) fn tick_game(&mut self, now: Instant) {
         if self.screen != Screen::Game {
             return;
         }
         if let Some(active) = self.active_game.as_mut() {
-            active.game.tick(now);
+            active.tick(now);
         }
-        let outcome = self
-            .active_game
-            .as_ref()
-            .and_then(|active| active.game.outcome().cloned());
-        if let Some(outcome) = outcome {
-            let language = self.game_options.language;
-            let difficulty = self.game_options.difficulty;
-            let previous_best = self.settings.word_rain_high_score(language, difficulty);
-            if outcome.score > previous_best {
-                let score = outcome.score;
-                let _ = self.change_settings(|settings| {
-                    settings.set_word_rain_high_score(language, difficulty, score);
-                });
+        let outcome = self.active_game.as_ref().and_then(ActiveGame::outcome);
+        let Some(outcome) = outcome else {
+            return;
+        };
+
+        self.active_game = None;
+        self.game_result = Some(match outcome {
+            FinishedGame::WordRain(outcome) => {
+                let language = self.game_options.language;
+                let difficulty = self.game_options.difficulty;
+                let previous_best = self.settings.word_rain_high_score(language, difficulty);
+                if outcome.score > previous_best {
+                    let score = outcome.score;
+                    let _ = self.change_settings(|settings| {
+                        settings.set_word_rain_high_score(language, difficulty, score);
+                    });
+                }
+                StoredGameResult::WordRain(WordRainResult {
+                    outcome,
+                    previous_best,
+                })
             }
-            self.active_game = None;
-            self.game_result = Some(WordRainResult {
-                outcome,
-                previous_best,
-            });
-            self.screen = Screen::GameResult;
-            self.parent = Screen::Games;
-            self.parent_before_help = None;
-            self.focus = 0;
-        }
+            FinishedGame::BossBattle(outcome) => {
+                let previous_best = self.settings.boss_high_score(
+                    outcome.boss,
+                    outcome.language,
+                    outcome.difficulty,
+                );
+                let previous_rank = self.settings.boss_clear_rank(outcome.boss);
+                if outcome.victory {
+                    let boss = outcome.boss;
+                    let language = outcome.language;
+                    let difficulty = outcome.difficulty;
+                    let score = outcome.score;
+                    let _ = self.change_settings(|settings| {
+                        settings.record_boss_clear(boss, language, difficulty, score);
+                    });
+                }
+                StoredGameResult::BossBattle(BossBattleResult {
+                    new_rank: self.settings.boss_clear_rank(outcome.boss),
+                    outcome,
+                    previous_best,
+                    previous_rank,
+                })
+            }
+        });
+        self.screen = Screen::GameResult;
+        self.parent = Screen::Games;
+        self.parent_before_help = None;
+        self.focus = 0;
     }
 
     pub(crate) fn set_game_viewport_supported(&mut self, supported: bool, now: Instant) {
         if let Some(active) = self.active_game.as_mut() {
-            active.game.set_viewport_supported(supported, now);
+            active.set_viewport_supported(supported, now);
         }
     }
 
@@ -148,6 +308,17 @@ impl App {
         self.parent = Screen::Home;
         self.parent_before_help = None;
         self.focus = 0;
+        self.active_game = None;
+        self.game_result = None;
+    }
+
+    pub(super) fn return_to_boss_options(&mut self) {
+        self.remember_focus();
+        self.screen = Screen::GameOptions;
+        self.parent = Screen::Games;
+        self.parent_before_help = None;
+        self.focus = self.game_options.boss.index();
+        self.game_options.error = None;
         self.active_game = None;
         self.game_result = None;
     }
@@ -168,7 +339,7 @@ mod tests {
     use crate::{
         config::Settings,
         content::ContentCatalog,
-        game::GameKind,
+        game::{GameKind, boss_battle::BossKind},
         model::{Difficulty, Language},
         storage::AppPaths,
         theme::ThemeCatalog,
@@ -210,8 +381,7 @@ mod tests {
 
     fn complete_first_word(app: &mut App, now: Instant) -> u64 {
         let word = app
-            .active_game
-            .as_ref()
+            .active_word_rain()
             .unwrap()
             .game
             .active_words()
@@ -222,7 +392,7 @@ mod tests {
         for character in word.chars() {
             app.handle_event(key(Key::Char(character)), now).unwrap();
         }
-        app.active_game.as_ref().unwrap().game.score()
+        app.active_word_rain().unwrap().game.score()
     }
 
     fn finish_game(app: &mut App, now: Instant) {
@@ -230,6 +400,26 @@ mod tests {
             app.tick(now + Duration::from_millis(step * 250)).unwrap();
         }
         assert_eq!(app.screen, Screen::GameResult);
+    }
+
+    fn force_boss_victory(app: &mut App, now: &mut Instant) {
+        for _ in 0..10_000 {
+            if app.screen == Screen::GameResult {
+                return;
+            }
+            let prompt = app
+                .active_boss_battle()
+                .and_then(|active| active.game.prompts().next())
+                .map(|prompt| prompt.text().to_owned());
+            if let Some(prompt) = prompt {
+                for character in prompt.chars() {
+                    app.handle_event(key(Key::Char(character)), *now).unwrap();
+                }
+            }
+            *now += Duration::from_millis(250);
+            app.tick(*now).unwrap();
+        }
+        panic!("boss battle did not finish");
     }
 
     #[test]
@@ -256,7 +446,7 @@ mod tests {
             let mut app = fixture(ContentCatalog::load_builtins().unwrap());
             start(&mut app, Language::En, difficulty, now);
 
-            let active = app.active_game.as_ref().unwrap();
+            let active = app.active_word_rain().unwrap();
             assert_eq!(app.screen, Screen::Game);
             assert_eq!(active.game.difficulty(), difficulty);
             assert_eq!(active.game.active_words().count(), 1);
@@ -292,11 +482,11 @@ mod tests {
 
         app.handle_event(InputEvent::Paste, now).unwrap();
         app.handle_event(key(Key::Char('q')), now).unwrap();
-        assert_eq!(app.active_game.as_ref().unwrap().game.input(), "q");
+        assert_eq!(app.active_word_rain().unwrap().game.input(), "q");
         assert_eq!(app.screen, Screen::Game);
 
         app.handle_event(key(Key::Backspace), now).unwrap();
-        assert_eq!(app.active_game.as_ref().unwrap().game.input(), "");
+        assert_eq!(app.active_word_rain().unwrap().game.input(), "");
     }
 
     #[test]
@@ -305,8 +495,7 @@ mod tests {
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
         start(&mut app, Language::En, Difficulty::Easy, now);
         let first = app
-            .active_game
-            .as_ref()
+            .active_word_rain()
             .unwrap()
             .game
             .active_words()
@@ -319,12 +508,12 @@ mod tests {
 
         app.handle_event(key(Key::Char(first)), now).unwrap();
         app.handle_event(key(Key::Char('~')), now).unwrap();
-        let active = app.active_game.as_ref().unwrap();
+        let active = app.active_word_rain().unwrap();
         assert!(!active.game.input_is_valid());
         assert!(active.game.target_id().is_some());
 
         app.handle_event(key(Key::Enter), now).unwrap();
-        let active = app.active_game.as_ref().unwrap();
+        let active = app.active_word_rain().unwrap();
         assert_eq!(active.game.input(), "");
         assert_eq!(active.game.target_id(), None);
     }
@@ -336,15 +525,15 @@ mod tests {
         start(&mut app, Language::En, Difficulty::Easy, now);
 
         app.handle_event(key(Key::Esc), now).unwrap();
-        assert!(app.active_game.as_ref().unwrap().game.is_paused());
+        assert!(app.active_word_rain().unwrap().game.is_paused());
 
         app.handle_event(key(Key::Char('q')), now).unwrap();
-        assert!(app.active_game.as_ref().unwrap().leave_confirmation);
+        assert!(app.active_word_rain().unwrap().leave_confirmation);
         assert_eq!(app.screen, Screen::Game);
 
         app.handle_event(key(Key::Esc), now).unwrap();
-        assert!(!app.active_game.as_ref().unwrap().game.is_paused());
-        assert!(!app.active_game.as_ref().unwrap().leave_confirmation);
+        assert!(!app.active_word_rain().unwrap().game.is_paused());
+        assert!(!app.active_word_rain().unwrap().leave_confirmation);
 
         app.handle_event(key(Key::Esc), now).unwrap();
         app.handle_event(key(Key::Char('ㅂ')), now).unwrap();
@@ -368,7 +557,7 @@ mod tests {
 
         app.handle_event(key(Key::Enter), now + Duration::from_secs(11))
             .unwrap();
-        let active = app.active_game.as_ref().unwrap();
+        let active = app.active_word_rain().unwrap();
         assert_eq!(app.screen, Screen::Game);
         assert_eq!(app.game_options.language, Language::Ko);
         assert_eq!(active.game.difficulty(), Difficulty::Hard);
@@ -388,9 +577,9 @@ mod tests {
 
         finish_game(&mut app, now);
 
-        let result = app.game_result.as_ref().unwrap();
-        assert_eq!(result.outcome.score, score);
-        assert_eq!(result.previous_best, 0);
+        let (result, previous_best) = app.word_rain_result().unwrap();
+        assert_eq!(result.score, score);
+        assert_eq!(previous_best, 0);
         assert_eq!(
             app.settings.word_rain_high_scores,
             [[11, 12, 13], [score, 22, 23]]
@@ -416,13 +605,67 @@ mod tests {
         assert_eq!(complete_first_word(&mut app, now), score);
         finish_game(&mut app, now);
 
-        let result = app.game_result.as_ref().unwrap();
-        assert_eq!(result.outcome.score, score);
-        assert_eq!(result.previous_best, score);
+        let (result, previous_best) = app.word_rain_result().unwrap();
+        assert_eq!(result.score, score);
+        assert_eq!(previous_best, score);
         assert_eq!(
             app.settings
                 .word_rain_high_score(Language::En, Difficulty::Easy),
             score
         );
+    }
+
+    #[test]
+    fn a_boss_victory_updates_shared_rank_and_language_scoped_score() {
+        let mut now = Instant::now();
+        let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.game_options.boss = BossKind::IronWarden;
+        app.game_options.difficulty = Difficulty::Easy;
+        app.start_boss_battle_with_seed(7, now).unwrap();
+
+        force_boss_victory(&mut app, &mut now);
+
+        assert_eq!(app.screen, Screen::GameResult);
+        assert_eq!(app.settings.boss_clear_rank(BossKind::IronWarden), 1);
+        assert!(app.settings.boss_is_unlocked(BossKind::ThornQueen));
+        assert_eq!(
+            app.settings
+                .boss_high_score(BossKind::IronWarden, Language::Ko, Difficulty::Easy,),
+            0,
+        );
+    }
+
+    #[test]
+    fn boss_result_escape_preserves_the_exact_boss_options() {
+        let mut now = Instant::now();
+        let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+        for (boss, difficulty) in [
+            (BossKind::IronWarden, Difficulty::Easy),
+            (BossKind::ThornQueen, Difficulty::Easy),
+            (BossKind::NullArchon, Difficulty::Easy),
+            (BossKind::NullArchon, Difficulty::Medium),
+        ] {
+            app.settings
+                .record_boss_clear(boss, Language::En, difficulty, 1);
+        }
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::Ko);
+        app.game_options.boss = BossKind::NullArchon;
+        app.game_options.difficulty = Difficulty::Hard;
+        app.start_boss_battle_with_seed(7, now).unwrap();
+        force_boss_victory(&mut app, &mut now);
+
+        app.handle_event(key(Key::Esc), now).unwrap();
+
+        assert_eq!(app.screen, Screen::GameOptions);
+        assert_eq!(app.parent, Screen::Games);
+        assert_eq!(app.focus, BossKind::NullArchon.index());
+        assert_eq!(app.game_options.kind, GameKind::BossBattle);
+        assert_eq!(app.game_options.boss, BossKind::NullArchon);
+        assert_eq!(app.game_options.language, Language::Ko);
+        assert_eq!(app.game_options.difficulty, Difficulty::Hard);
+        assert!(app.game_options.error.is_none());
+        assert!(app.active_game.is_none());
+        assert!(app.game_result.is_none());
     }
 }

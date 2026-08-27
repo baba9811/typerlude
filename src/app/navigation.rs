@@ -4,7 +4,8 @@ use super::{
     TEST_DURATION_PRESETS, key_stages,
 };
 use crate::{
-    game::GameKind,
+    config::Settings,
+    game::{GameKind, boss_battle::BossKind},
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     stats::Range,
@@ -133,8 +134,10 @@ impl App {
 
         match key.key {
             Key::Esc => self.escape(),
-            Key::Tab | Key::Down if self.screen != Screen::Practice => self.move_focus(1),
-            Key::BackTab | Key::Up if self.screen != Screen::Practice => {
+            Key::Tab if self.screen != Screen::Practice => self.move_tab_focus(1),
+            Key::BackTab if self.screen != Screen::Practice => self.move_tab_focus(-1),
+            Key::Down if self.screen != Screen::Practice => self.move_focus(1),
+            Key::Up if self.screen != Screen::Practice => {
                 self.move_focus(-1);
             }
             Key::Char('j')
@@ -194,6 +197,9 @@ impl App {
         match self.screen {
             Screen::Home => self.quit = true,
             Screen::Result => self.return_home(),
+            Screen::GameResult if self.game_options.kind == GameKind::BossBattle => {
+                self.return_to_boss_options();
+            }
             Screen::GameResult => self.return_to_games(),
             Screen::Help => {
                 let destination = self.parent;
@@ -243,7 +249,10 @@ impl App {
         match self.screen {
             Screen::Home => 11,
             Screen::Games => GameKind::ALL.len(),
-            Screen::GameOptions => 3,
+            Screen::GameOptions => match self.game_options.kind {
+                GameKind::WordRain => 3,
+                GameKind::BossBattle => 6,
+            },
             Screen::ModeOptions => match self.mode_options.kind {
                 PracticeKind::Quick | PracticeKind::Key => 5,
                 PracticeKind::Words => 3,
@@ -280,6 +289,34 @@ impl App {
         {
             self.mode_options.long_selection = self.focus - 1;
         }
+        if self.screen == Screen::GameOptions
+            && self.game_options.kind == GameKind::BossBattle
+            && self.focus < BossKind::ALL.len()
+        {
+            self.game_options.boss = BossKind::ALL[self.focus];
+            self.clamp_boss_difficulty();
+            self.game_options.error = None;
+        }
+    }
+
+    fn move_tab_focus(&mut self, delta: isize) {
+        if self.screen == Screen::GameOptions && self.game_options.kind == GameKind::BossBattle {
+            self.focus = if delta < 0 {
+                match self.focus {
+                    0..=2 => 5,
+                    3 => self.game_options.boss.index(),
+                    focus => focus - 1,
+                }
+            } else {
+                match self.focus {
+                    0..=2 => 3,
+                    5 => self.game_options.boss.index(),
+                    focus => focus + 1,
+                }
+            };
+            return;
+        }
+        self.move_focus(delta);
     }
 
     fn adjust(&mut self, delta: isize) {
@@ -289,13 +326,27 @@ impl App {
         }
         if self.screen == Screen::GameOptions {
             self.game_options.error = None;
-            match self.focus {
-                0 => self.game_options.language = other_language(self.game_options.language),
-                1 => {
-                    self.game_options.difficulty =
-                        cycle_game_difficulty(self.game_options.difficulty, delta);
-                }
-                _ => {}
+            match self.game_options.kind {
+                GameKind::WordRain => match self.focus {
+                    0 => self.game_options.language = other_language(self.game_options.language),
+                    1 => {
+                        self.game_options.difficulty =
+                            cycle_game_difficulty(self.game_options.difficulty, delta);
+                    }
+                    _ => {}
+                },
+                GameKind::BossBattle => match self.focus {
+                    3 => self.game_options.language = other_language(self.game_options.language),
+                    4 => {
+                        self.game_options.difficulty = cycle_boss_difficulty(
+                            &self.settings,
+                            self.game_options.boss,
+                            self.game_options.difficulty,
+                            delta,
+                        );
+                    }
+                    _ => {}
+                },
             }
             return;
         }
@@ -328,6 +379,22 @@ impl App {
             (Screen::Settings, _) => self.activate_setting(),
             _ => {}
         }
+    }
+
+    fn clamp_boss_difficulty(&mut self) {
+        if self
+            .settings
+            .boss_difficulty_is_unlocked(self.game_options.boss, self.game_options.difficulty)
+        {
+            return;
+        }
+        self.game_options.difficulty = [Difficulty::Hard, Difficulty::Medium, Difficulty::Easy]
+            .into_iter()
+            .find(|difficulty| {
+                self.settings
+                    .boss_difficulty_is_unlocked(self.game_options.boss, *difficulty)
+            })
+            .unwrap_or(Difficulty::Easy);
     }
 
     fn adjust_mode_options(&mut self, delta: isize) {
@@ -498,16 +565,23 @@ impl App {
                     self.open(Screen::GameOptions);
                 }
             }
-            Screen::GameOptions => {
-                if self.focus == 2 {
+            Screen::GameOptions => match (self.game_options.kind, self.focus) {
+                (GameKind::WordRain, 2) => {
                     self.start_word_rain_with_seed(fastrand::u64(..), now)?;
-                } else {
-                    self.adjust(1);
                 }
-            }
-            Screen::GameResult => {
-                self.start_word_rain_with_seed(fastrand::u64(..), now)?;
-            }
+                (GameKind::WordRain, _) => self.adjust(1),
+                (GameKind::BossBattle, 5) => {
+                    self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
+                }
+                (GameKind::BossBattle, 3 | 4) => self.adjust(1),
+                (GameKind::BossBattle, _) => {}
+            },
+            Screen::GameResult => match self.game_options.kind {
+                GameKind::WordRain => self.start_word_rain_with_seed(fastrand::u64(..), now)?,
+                GameKind::BossBattle => {
+                    self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
+                }
+            },
             Screen::Stats => match self.focus {
                 0..=2 => self.adjust(1),
                 3 => self.open(Screen::History),
@@ -618,6 +692,26 @@ fn cycle_game_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {
     VALUES[cycle_index(index, VALUES.len(), delta)]
 }
 
+fn cycle_boss_difficulty(
+    settings: &Settings,
+    boss: BossKind,
+    difficulty: Difficulty,
+    delta: isize,
+) -> Difficulty {
+    let values = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard]
+        .into_iter()
+        .filter(|value| settings.boss_difficulty_is_unlocked(boss, *value))
+        .collect::<Vec<_>>();
+    if values.is_empty() {
+        return Difficulty::Easy;
+    }
+    let index = values
+        .iter()
+        .position(|value| *value == difficulty)
+        .unwrap_or_default();
+    values[cycle_index(index, values.len(), delta)]
+}
+
 fn cycle_index(index: usize, len: usize, delta: isize) -> usize {
     if delta < 0 {
         (index + len - 1) % len
@@ -666,4 +760,97 @@ fn cycle_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {
         .position(|value| *value == difficulty)
         .unwrap_or_default();
     values[cycle_index(index, values.len(), delta)]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::Settings, content::ContentCatalog, game::boss_battle::BossKind, storage::AppPaths,
+        theme::ThemeCatalog,
+    };
+
+    fn fixture() -> App {
+        App::new(
+            Settings::default(),
+            AppPaths::from_override(std::env::temp_dir().join(format!(
+                "typerlude-boss-navigation-{}-{}",
+                std::process::id(),
+                fastrand::u64(..)
+            ))),
+            ContentCatalog::load_builtins().unwrap(),
+            ThemeCatalog::load_builtins().unwrap(),
+            Vec::new(),
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn boss_options_use_six_positions_and_preview_locked_roster_rows() {
+        let mut app = fixture();
+        app.screen = Screen::Games;
+        app.focus = 1;
+
+        app.enter(Instant::now()).unwrap();
+        assert_eq!(app.screen, Screen::GameOptions);
+        assert_eq!(app.game_options.kind, GameKind::BossBattle);
+        assert_eq!(app.focus_count(), 6);
+
+        app.move_focus(1);
+        assert_eq!(app.focus, 1);
+        assert_eq!(app.game_options.boss, BossKind::ThornQueen);
+        assert!(!app.settings.boss_is_unlocked(BossKind::ThornQueen));
+    }
+
+    #[test]
+    fn boss_difficulty_navigation_skips_locked_values() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.settings
+            .record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Easy, 1);
+        app.focus = 4;
+
+        app.adjust(1);
+        assert_eq!(app.game_options.difficulty, Difficulty::Medium);
+        app.adjust(1);
+        assert_eq!(app.game_options.difficulty, Difficulty::Easy);
+    }
+
+    #[test]
+    fn tab_leaves_the_boss_roster_without_changing_the_preview() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.game_options.boss = BossKind::ThornQueen;
+        app.focus = 1;
+
+        app.handle_event(
+            InputEvent::Key(KeyInput {
+                key: Key::Tab,
+                modifiers: KeyModifiers::NONE,
+                kind: KeyKind::Press,
+            }),
+            Instant::now(),
+        )
+        .unwrap();
+
+        assert_eq!(app.focus, 3);
+        assert_eq!(app.game_options.boss, BossKind::ThornQueen);
+    }
+
+    #[test]
+    fn starting_a_locked_boss_stays_on_options_with_an_error() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.game_options.boss = BossKind::NullArchon;
+        app.focus = 5;
+
+        app.enter(Instant::now()).unwrap();
+
+        assert_eq!(app.screen, Screen::GameOptions);
+        assert!(app.active_game.is_none());
+        assert_eq!(app.game_options.error.as_deref(), Some("Boss locked"));
+    }
 }

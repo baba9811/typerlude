@@ -1,3 +1,4 @@
+mod boss_battle;
 mod content;
 mod format;
 mod game;
