@@ -280,7 +280,21 @@ impl App {
 
     fn move_focus(&mut self, delta: isize) {
         let count = self.focus_count();
-        self.focus = if delta < 0 {
+        self.focus = if self.screen == Screen::GameOptions
+            && self.game_options.kind == GameKind::BossBattle
+        {
+            let roster_count = BossKind::ALL.len();
+            let (first, last) = if self.focus < roster_count {
+                (0, roster_count - 1)
+            } else {
+                (roster_count, count - 1)
+            };
+            if delta < 0 {
+                self.focus.saturating_sub(1).max(first)
+            } else {
+                (self.focus + 1).min(last)
+            }
+        } else if delta < 0 {
             (self.focus + count - 1) % count
         } else {
             (self.focus + 1) % count
@@ -840,6 +854,50 @@ mod tests {
 
         assert_eq!(app.focus, 3);
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
+    }
+
+    #[test]
+    fn boss_direction_keys_stop_at_each_column_boundary() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
+        app.game_options.boss = BossKind::NullArchon;
+        let now = Instant::now();
+
+        for (focus, key) in [
+            (5, Key::Down),
+            (5, Key::Char('j')),
+            (3, Key::Up),
+            (3, Key::Char('k')),
+            (2, Key::Down),
+        ] {
+            app.focus = focus;
+            app.handle_event(
+                InputEvent::Key(KeyInput {
+                    key,
+                    modifiers: KeyModifiers::NONE,
+                    kind: KeyKind::Press,
+                }),
+                now,
+            )
+            .unwrap();
+            assert_eq!(app.focus, focus);
+            assert_eq!(app.game_options.boss, BossKind::NullArchon);
+        }
+
+        app.focus = 0;
+        app.game_options.boss = BossKind::IronWarden;
+        app.handle_event(
+            InputEvent::Key(KeyInput {
+                key: Key::Up,
+                modifiers: KeyModifiers::NONE,
+                kind: KeyKind::Press,
+            }),
+            now,
+        )
+        .unwrap();
+        assert_eq!(app.focus, 0);
+        assert_eq!(app.game_options.boss, BossKind::IronWarden);
     }
 
     #[test]

@@ -662,14 +662,16 @@ fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
         .style(styles.dim),
         regions[0],
     );
-    let visual_area = shifted(
-        regions[1],
-        u16::from(hit.is_some_and(|progress| progress < 0.55)) * 2,
-    );
-    let visuals = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
-        .split(visual_area);
-    render_motion_art(frame, CMAX_ART, visuals[0], styles, hit, 2);
-    render_motion_art(frame, NULL_ARCHON_ART, visuals[1], styles, hit, 2);
+    let visual_area = centered(regions[1], 48, 5);
+    let glitch = u16::from((trace / 2).is_multiple_of(2));
+    let mut cmax_area = visual_area;
+    cmax_area.x = cmax_area.x.saturating_add(glitch);
+    render_motion_art(frame, CMAX_ART, cmax_area, styles, hit, 2);
+    let mut archon_area = centered(visual_area, 29, 5);
+    archon_area.x = archon_area
+        .x
+        .saturating_add(1 - glitch + u16::from(hit.is_some_and(|progress| progress < 0.55)) * 2);
+    render_ascii_overlay(frame, NULL_ARCHON_ART, archon_area, styles, hit, 2);
     let BossPatternView::NullArchon {
         checksum,
         canticle_progress,
@@ -859,6 +861,35 @@ fn render_motion_art(
         })
         .collect::<Vec<_>>();
     frame.render_widget(Paragraph::new(lines).alignment(Alignment::Center), area);
+}
+
+fn render_ascii_overlay(
+    frame: &mut Frame<'_>,
+    art: &[&str],
+    area: Rect,
+    styles: ThemeStyles,
+    hit: Option<f64>,
+    impact_row: usize,
+) {
+    for (row, line) in art.iter().enumerate().take(usize::from(area.height)) {
+        let x = area
+            .x
+            .saturating_add(area.width.saturating_sub(line.len() as u16) / 2);
+        let y = area.y.saturating_add(row as u16);
+        let style = if hit.is_some() && row == impact_row {
+            styles.error
+        } else if hit.is_some() && row.is_multiple_of(2) {
+            styles.accent
+        } else {
+            styles.base
+        };
+        for (column, symbol) in line.chars().enumerate() {
+            let x = x.saturating_add(column as u16);
+            if symbol != ' ' && x < area.right() {
+                frame.buffer_mut()[(x, y)].set_char(symbol).set_style(style);
+            }
+        }
+    }
 }
 
 fn shifted(area: Rect, amount: u16) -> Rect {
