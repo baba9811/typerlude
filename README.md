@@ -59,7 +59,7 @@ Choose Korean or English and Easy, Medium, Hard, or Hell for an endless run. Wor
 ten clears, and the first word to reach the miss line ends the game. A typo stays editable: use
 `Backspace`, or erase the input completely to target a different word. `Esc` pauses and pressing `q`
 or `ㅂ` twice while paused leaves. On the result screen, `r` or `ㄱ` retries; `Enter` or `Esc` returns
-to Games.
+to Games. Hell starts with a 7.0-second fall time and a 1.2-second spawn interval.
 
 ### Boss Battle
 
