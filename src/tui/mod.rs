@@ -27,7 +27,7 @@ use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
     text::Span,
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
 use unicode_width::UnicodeWidthStr;
 
@@ -174,6 +174,16 @@ fn titled<'a>(title: &'a str, styles: ThemeStyles) -> Block<'a> {
         .border_style(styles.accent)
         .style(styles.base)
         .title(Span::styled(title, styles.accent))
+}
+
+fn danger_titled<'a>(title: &'a str, styles: ThemeStyles) -> Block<'a> {
+    Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Double)
+        .border_style(styles.error)
+        .style(styles.base)
+        .title(Span::styled(title, styles.error))
+        .title_alignment(Alignment::Center)
 }
 
 fn warning_text(warnings: &[String]) -> String {

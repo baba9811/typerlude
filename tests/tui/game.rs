@@ -19,6 +19,19 @@ fn open_boss_options(app: &mut App, now: Instant) {
     assert_eq!(app.screen(), Screen::GameOptions);
 }
 
+fn select_word_rain_hell(app: &mut App, now: Instant) {
+    open_game_options(app, now);
+    app.handle_event(key(Key::Tab), now).unwrap();
+    press(app, Key::Right, 2, now);
+}
+
+fn select_warden_hell(app: &mut App, now: Instant) {
+    app.settings.boss_battle_progress[0].clear_rank = 3;
+    open_boss_options(app, now);
+    press(app, Key::Tab, 2, now);
+    press(app, Key::Right, 3, now);
+}
+
 fn start_boss(app: &mut App, boss_index: usize, now: Instant) {
     open_boss_options(app, now);
     press(app, Key::Down, boss_index, now);
@@ -43,7 +56,7 @@ fn force_boss_victory(app: &mut App, now: &mut Instant) {
         let output = buffer_text(&draw(app, 80, 24).buffer);
         let word = output.lines().find_map(|row| {
             row.split_once("Prompt:")
-                .map(|(_, prompt)| prompt.trim_matches([' ', '│']).to_owned())
+                .map(|(_, prompt)| prompt.trim_matches([' ', '│', '║']).to_owned())
         });
         if let Some(word) = word {
             type_text(app, &word, *now);
@@ -84,6 +97,17 @@ fn finish_game(app: &mut App, now: Instant) {
     assert_eq!(app.screen(), Screen::GameResult);
 }
 
+fn assert_no_blink(drawn: &Drawn) {
+    let blink = Modifier::SLOW_BLINK | Modifier::RAPID_BLINK;
+    assert!(
+        drawn
+            .buffer
+            .content
+            .iter()
+            .all(|cell| !cell.modifier.intersects(blink))
+    );
+}
+
 #[test]
 fn games_and_options_render_the_concrete_word_rain_choice() {
     let (_root, mut app) = fixture_app();
@@ -97,9 +121,78 @@ fn games_and_options_render_the_concrete_word_rain_choice() {
 
     app.handle_event(key(Key::Enter), now).unwrap();
     let options = buffer_text(&draw(&app, 80, 24).buffer);
-    for expected in ["Word Rain", "Language: en", "Difficulty: Medium", "Start"] {
+    for expected in [
+        "Word Rain",
+        "Language: en",
+        "Difficulty: Easy · [Medium]",
+        "Start",
+    ] {
         assert!(options.contains(expected), "{expected}: {options}");
     }
+}
+
+#[test]
+fn word_rain_hell_uses_a_centered_danger_badge_and_slow_non_blinking_motion() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut now = Instant::now();
+    select_word_rain_hell(&mut app, now);
+
+    let options = draw(&app, 80, 24);
+    let output = buffer_text(&options.buffer);
+    for expected in ["[╬ HELL ╬]", "HELL // REDLINE"] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+    assert_eq!(options.buffer[(0, 0)].symbol(), "╔");
+    assert_role_style(&options.buffer[(0, 0)], default_styles().error);
+    let difficulty_row = output
+        .lines()
+        .position(|row| row.contains("Difficulty:"))
+        .unwrap();
+    let difficulty_line = output.lines().nth(difficulty_row).unwrap();
+    let hell_column =
+        UnicodeWidthStr::width(&difficulty_line[..difficulty_line.find("HELL").unwrap()]);
+    assert_role_style(
+        &options.buffer[(hell_column as u16, difficulty_row as u16)],
+        default_styles().error.add_modifier(Modifier::REVERSED),
+    );
+
+    app.handle_event(key(Key::Tab), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
+    app.handle_event(key(Key::Char('#')), now).unwrap();
+    let first = draw(&app, 80, 24);
+    let first_output = buffer_text(&first.buffer);
+    for expected in [
+        "Word Rain · ╬ HELL ╬ // REDLINE",
+        "!! Miss line",
+        "Score: 0",
+        "Target:",
+        "Input",
+        "> #",
+    ] {
+        assert!(
+            first_output.contains(expected),
+            "{expected}: {first_output}"
+        );
+    }
+    assert!(
+        app.content
+            .select(Language::En, ContentKind::Word, Difficulty::Hard)
+            .iter()
+            .any(|item| first_output.contains(&item.text)),
+        "no complete Hell word was visible: {first_output}"
+    );
+    assert!(first.cursor.is_some(), "{first_output}");
+    assert_no_blink(&first);
+
+    advance(&mut app, &mut now, Duration::from_millis(750));
+    let second = draw(&app, 80, 24);
+    let second_output = buffer_text(&second.buffer);
+    assert!(
+        second_output.contains("Word Rain · ┼ HELL ┼ // REDLINE"),
+        "{second_output}"
+    );
+    assert_no_blink(&second);
 }
 
 #[test]
@@ -273,7 +366,7 @@ fn updated_personal_best_fanfare_is_localized_and_uses_two_lines() {
         .unwrap();
     assert!(rows[update + 1].contains("0 -> "), "{output}");
     assert!(
-        output.contains("r: 다시 하기 · Enter/Esc: 게임"),
+        output.contains("r/ㄱ: 다시 하기 · Enter/Esc: 게임"),
         "{output}"
     );
 }
@@ -313,14 +406,73 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
         "IRON WARDEN",
         "THORN QUEEN",
         "NULL ARCHON",
-        "☆☆☆",
+        "☆☆☆ ✧",
         "Language: en",
         "Easy",
         "LOCKED",
+        "╬ HELL × ╬",
         "Enter/Tab Options",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
+}
+
+#[test]
+fn boss_hell_keeps_the_danger_hud_boss_and_input_together_at_both_sizes() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut now = Instant::now();
+    select_warden_hell(&mut app, now);
+
+    let options = draw(&app, 80, 24);
+    let option_output = buffer_text(&options.buffer);
+    for expected in ["★★★ ✧", "[╬ HELL ╬]", "HELL // REDLINE"] {
+        assert!(
+            option_output.contains(expected),
+            "{expected}: {option_output}"
+        );
+    }
+    assert_eq!(options.buffer[(0, 0)].symbol(), "╔");
+    assert_role_style(&options.buffer[(0, 0)], default_styles().error);
+
+    app.handle_event(key(Key::Tab), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
+    advance(&mut app, &mut now, Duration::from_millis(800));
+    app.handle_event(key(Key::Char('#')), now).unwrap();
+
+    for (width, height) in [(80, 24), (190, 50)] {
+        let drawn = draw(&app, width, height);
+        let output = buffer_text(&drawn.buffer);
+        for expected in [
+            "IRON WARDEN · ╬ HELL ╬ // REDLINE",
+            "▄████████▄",
+            "PILE DRIVER",
+            "HP",
+            "Prompt:",
+            "Input",
+            "> #",
+        ] {
+            assert!(output.contains(expected), "{expected}: {output}");
+        }
+        let rows = output.lines().collect::<Vec<_>>();
+        let at = |needle: &str| {
+            let y = rows.iter().position(|row| row.contains(needle)).unwrap();
+            let x = rows[y].find(needle).unwrap();
+            (x as u16, y as u16)
+        };
+        assert_role_style(&drawn.buffer[at("HP")], default_styles().error);
+        assert_role_style(&drawn.buffer[at("PILE DRIVER")], default_styles().error);
+        assert_role_style(&drawn.buffer[at("▄████████▄")], default_styles().base);
+        assert!(drawn.cursor.is_some(), "{output}");
+        assert_no_blink(&drawn);
+    }
+
+    advance(&mut app, &mut now, Duration::from_millis(750));
+    let animated = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(
+        animated.contains("IRON WARDEN · ┼ HELL ┼ // REDLINE"),
+        "{animated}"
+    );
 }
 
 #[test]
@@ -517,6 +669,36 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
 }
 
 #[test]
+fn null_archon_hell_keeps_cmax_inside_the_centered_redline_frame() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    app.settings.boss_battle_progress[0].clear_rank = 1;
+    app.settings.boss_battle_progress[1].clear_rank = 1;
+    app.settings.boss_battle_progress[2].clear_rank = 3;
+    let now = Instant::now();
+    open_boss_options(&mut app, now);
+    press(&mut app, Key::Down, 2, now);
+    press(&mut app, Key::Tab, 2, now);
+    press(&mut app, Key::Right, 3, now);
+    app.handle_event(key(Key::Tab), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
+
+    let drawn = draw(&app, 80, 24);
+    let output = buffer_text(&drawn.buffer);
+    for expected in [
+        "NULL ARCHON · ╬ HELL ╬ // REDLINE",
+        "SYSTEM LOCK",
+        "VOID_CANTICLE",
+        "C C C",
+    ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+    assert_eq!(drawn.buffer[(0, 0)].symbol(), "╔");
+    assert_role_style(&drawn.buffer[(0, 0)], default_styles().error);
+    assert_no_blink(&drawn);
+}
+
+#[test]
 fn null_archon_overlaps_and_animates_its_cmax_glitch_layers() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
@@ -573,7 +755,7 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     for expected in [
         "Victory",
-        "☆☆☆ -> ★☆☆",
+        "☆☆☆ ✧ -> ★☆☆ ✧",
         "Boss unlocked",
         "Score",
         "KPM",
@@ -590,16 +772,31 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
     app.settings.ui_language = Language::Ko;
     let korean = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(
-        korean.contains("r: 다시 하기 · Enter/Esc: 보스 선택"),
+        korean.contains("r/ㄱ: 다시 하기 · Enter/Esc: 보스 선택"),
         "{korean}"
     );
 
     app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(app.screen(), Screen::GameOptions);
     let boss_select = buffer_text(&draw(&app, 80, 24).buffer);
-    for expected in ["BOSSES", "IRON WARDEN", "☆☆☆"] {
+    for expected in ["BOSSES", "IRON WARDEN", "★☆☆ ✧"] {
         assert!(boss_select.contains(expected), "{expected}: {boss_select}");
     }
+}
+
+#[test]
+fn hell_boss_victory_fills_the_final_emblem_without_a_fourth_star() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let mut now = Instant::now();
+    select_warden_hell(&mut app, now);
+    app.handle_event(key(Key::Tab), now).unwrap();
+    app.handle_event(key(Key::Enter), now).unwrap();
+    force_boss_victory(&mut app, &mut now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("★★★ ✧ -> ★★★ ✦"), "{output}");
+    assert!(!output.contains("★★★★"), "{output}");
 }
 
 #[test]
@@ -629,6 +826,6 @@ fn boss_defeat_keeps_progress_locked() {
     assert_eq!(app.screen(), Screen::GameResult);
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("Defeat"), "{output}");
-    assert!(output.contains("☆☆☆ -> ☆☆☆"), "{output}");
+    assert!(output.contains("☆☆☆ ✧ -> ☆☆☆ ✧"), "{output}");
     assert!(!output.contains("unlocked:"), "{output}");
 }

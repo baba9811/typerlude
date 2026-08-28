@@ -341,7 +341,6 @@ impl BossBattle {
         self.combo
     }
 
-    #[cfg(test)]
     pub(crate) const fn active_time(&self) -> Duration {
         self.active_time
     }

@@ -162,7 +162,7 @@ impl App {
             Key::Enter if key.kind == KeyKind::Press && key.modifiers == KeyModifiers::NONE => {
                 self.enter(now)?;
             }
-            Key::Char('r' | 'R')
+            Key::Char('r' | 'R' | 'ㄱ')
                 if self.screen == Screen::GameResult
                     && key.kind == KeyKind::Press
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>

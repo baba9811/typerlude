@@ -126,6 +126,10 @@ impl WordRain {
         self.difficulty
     }
 
+    pub(crate) const fn active_time(&self) -> Duration {
+        self.active_time
+    }
+
     pub(crate) fn active_words(&self) -> impl ExactSizeIterator<Item = &FallingWord> {
         self.active.iter()
     }

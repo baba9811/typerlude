@@ -1,6 +1,7 @@
 use super::{
+    danger_titled,
     format::{grouped_u64, language_name},
-    game::{centered, difficulty_name},
+    game::{centered, difficulty_name, difficulty_spans, hell_title},
     theme::ThemeStyles,
     titled,
 };
@@ -66,7 +67,17 @@ pub(super) fn render_boss_options(
 ) {
     let language = app.settings.ui_language;
     let options = app.game_options();
-    let outer = titled(text(language, TextKey::BossBattle), styles);
+    let hell = options.difficulty == GameDifficulty::Hell;
+    let title = if hell {
+        format!("{} · HELL // REDLINE", text(language, TextKey::BossBattle))
+    } else {
+        text(language, TextKey::BossBattle).to_owned()
+    };
+    let outer = if hell {
+        danger_titled(&title, styles)
+    } else {
+        titled(&title, styles)
+    };
     let inner = outer.inner(area);
     frame.render_widget(outer, area);
     let columns = Layout::horizontal([Constraint::Length(26), Constraint::Min(1)]).split(inner);
@@ -166,25 +177,10 @@ pub(super) fn render_boss_options(
     } else {
         options.error.clone()
     };
-    let available = GameDifficulty::ALL
-        .into_iter()
-        .map(|difficulty| {
-            let name = difficulty_name(language, difficulty);
-            if app
-                .settings
-                .boss_difficulty_is_unlocked(options.boss, difficulty)
-            {
-                if difficulty == options.difficulty {
-                    format!("[{name}]")
-                } else {
-                    name.to_owned()
-                }
-            } else {
-                format!("{name}×")
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" · ");
+    let unlocked_difficulties = GameDifficulty::ALL.map(|difficulty| {
+        app.settings
+            .boss_difficulty_is_unlocked(options.boss, difficulty)
+    });
     let mut start = vec![
         Span::styled(marker(5), styles.accent),
         Span::styled(
@@ -213,7 +209,16 @@ pub(super) fn render_boss_options(
             text(language, TextKey::Difficulty),
             difficulty_name(language, options.difficulty)
         )),
-        Line::from(format!("    {available}")),
+        Line::from({
+            let mut spans = vec![Span::raw("    ")];
+            spans.extend(difficulty_spans(
+                language,
+                options.difficulty,
+                unlocked_difficulties,
+                styles,
+            ));
+            spans
+        }),
         Line::from(format!(
             "  {}: {}",
             text(language, TextKey::Best),
@@ -242,11 +247,12 @@ pub(super) fn render_boss_battle(
     };
     let game = &active.game;
     let language = app.settings.ui_language;
+    let hell = game.difficulty() == GameDifficulty::Hell;
     let locking_cue = game.cue().filter(|(cue, _)| cue_locks(*cue));
     if game.boss() == BossKind::NullArchon
         && let Some((cue, progress)) = locking_cue
     {
-        render_cmax(frame, language, cue, progress, area, styles);
+        render_cmax(frame, game, language, cue, progress, area, styles);
         if game.is_paused() {
             let pause_height = area.height.min(5);
             let pause_area = Rect::new(
@@ -266,12 +272,20 @@ pub(super) fn render_boss_battle(
         return;
     }
 
-    let title = format!(
-        "{} · {}",
-        boss_name(language, game.boss()),
-        difficulty_name(language, game.difficulty())
-    );
-    let outer = titled(&title, styles);
+    let title = if hell {
+        hell_title(boss_name(language, game.boss()), game.active_time())
+    } else {
+        format!(
+            "{} · {}",
+            boss_name(language, game.boss()),
+            difficulty_name(language, game.difficulty())
+        )
+    };
+    let outer = if hell {
+        danger_titled(&title, styles)
+    } else {
+        titled(&title, styles)
+    };
     let inner = outer.inner(area);
     frame.render_widget(outer, area);
     let battle = centered(inner, 96, 18);
@@ -306,7 +320,7 @@ pub(super) fn render_boss_battle(
             game.combo(),
         ))
         .alignment(Alignment::Center)
-        .style(styles.base),
+        .style(if hell { styles.error } else { styles.base }),
         regions[0],
     );
 
@@ -463,7 +477,7 @@ pub(super) fn render_boss_result(
         )),
         Line::from(""),
         Line::from(match language {
-            Language::Ko => "r: 다시 하기 · Enter/Esc: 보스 선택",
+            Language::Ko => "r/ㄱ: 다시 하기 · Enter/Esc: 보스 선택",
             Language::En => "r: Retry · Enter/Esc: Boss select",
         }),
     ]);
@@ -534,7 +548,7 @@ fn render_warden(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
                 gauge(cast_progress, 18, false),
                 if attack.is_some() { "  // IMPACT" } else { "" }
             ),
-            if attack.is_some() {
+            if attack.is_some() || game.difficulty() == GameDifficulty::Hell {
                 styles.error
             } else {
                 styles.base
@@ -616,7 +630,11 @@ fn render_queen(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: Th
             ),
             Span::styled(
                 format!("[{}]", gauge(prompt.progress(), 10, true)),
-                styles.dim,
+                if game.difficulty() == GameDifficulty::Hell {
+                    styles.error
+                } else {
+                    styles.dim
+                },
             ),
         ]));
     }
@@ -688,9 +706,13 @@ fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
         .join(" ");
     let mut lines = vec![
         Line::from(format!("Checksum  [{slots}]")),
-        Line::from(format!(
-            "VOID_CANTICLE [{}]",
-            gauge(canticle_progress, 20, false)
+        Line::from(Span::styled(
+            format!("VOID_CANTICLE [{}]", gauge(canticle_progress, 20, false)),
+            if game.difficulty() == GameDifficulty::Hell {
+                styles.error
+            } else {
+                styles.base
+            },
         )),
         Line::from(Span::styled("ERR 00 ── NULL ── ERR 10 ── VOID", styles.dim)),
     ];
@@ -765,13 +787,24 @@ fn render_input(
 
 fn render_cmax(
     frame: &mut Frame<'_>,
+    game: &BossBattle,
     language: Language,
     cue: BattleCue,
     progress: f64,
     area: Rect,
     styles: ThemeStyles,
 ) {
-    let block = titled("C MAX // NULL ARCHON", styles);
+    let hell = game.difficulty() == GameDifficulty::Hell;
+    let title = if hell {
+        hell_title(boss_name(language, game.boss()), game.active_time())
+    } else {
+        "C MAX // NULL ARCHON".to_owned()
+    };
+    let block = if hell {
+        danger_titled(&title, styles)
+    } else {
+        titled(&title, styles)
+    };
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let alternate = ((progress * 8.0) as u8).is_multiple_of(2);
@@ -944,10 +977,12 @@ fn mechanic_summary(language: Language, boss: BossKind) -> &'static str {
 }
 
 fn stars(rank: u8) -> String {
+    let cleared = rank.min(3) as usize;
     format!(
-        "{}{}",
-        "★".repeat(rank.min(3) as usize),
-        "☆".repeat(3 - rank.min(3) as usize)
+        "{}{} {}",
+        "★".repeat(cleared),
+        "☆".repeat(3 - cleared),
+        if rank >= 4 { '✦' } else { '✧' },
     )
 }
 

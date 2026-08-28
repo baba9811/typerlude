@@ -573,8 +573,12 @@ mod tests {
     }
 
     #[test]
-    fn word_rain_result_plain_r_in_either_case_retries_the_same_options() {
-        for (character, modifiers) in [('r', KeyModifiers::NONE), ('R', KeyModifiers::SHIFT)] {
+    fn word_rain_result_r_or_korean_giyeok_retries_the_same_options() {
+        for (character, modifiers) in [
+            ('r', KeyModifiers::NONE),
+            ('R', KeyModifiers::SHIFT),
+            ('ㄱ', KeyModifiers::NONE),
+        ] {
             let now = Instant::now();
             let mut app = fixture(ContentCatalog::load_builtins().unwrap());
             start(&mut app, Language::Ko, GameDifficulty::Hell, now);
@@ -725,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn boss_result_r_retries_the_same_boss_options() {
+    fn boss_result_korean_giyeok_retries_the_same_boss_options() {
         let mut now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::Ko);
@@ -734,11 +738,7 @@ mod tests {
         app.start_boss_battle_with_seed(7, now).unwrap();
         force_boss_victory(&mut app, &mut now);
 
-        app.handle_event(
-            key_with(Key::Char('R'), KeyModifiers::SHIFT, KeyKind::Press),
-            now,
-        )
-        .unwrap();
+        app.handle_event(key(Key::Char('ㄱ')), now).unwrap();
 
         let active = app.active_boss_battle().unwrap();
         assert_eq!(app.screen, Screen::Game);
