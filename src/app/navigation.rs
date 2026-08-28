@@ -178,6 +178,7 @@ impl App {
             }
             Key::Char('r' | 'R' | 'ㄱ')
                 if self.screen == Screen::Result
+                    && key.kind == KeyKind::Press
                     && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
                 if let Some(request) = self.retry_request.clone() {

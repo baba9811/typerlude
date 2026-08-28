@@ -98,6 +98,13 @@ fn korean_giyeok_retries_the_exact_practice_result() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("r/ㄱ: 다시 연습"), "{output}");
+    app.handle_event(
+        key_with(Key::Char('ㄱ'), KeyModifiers::NONE, KeyKind::Repeat),
+        now + Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+
     app.handle_event(key(Key::Char('ㄱ')), now + Duration::from_secs(2))
         .unwrap();
 
