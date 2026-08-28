@@ -4,7 +4,8 @@ use super::{
 use crate::typing::{key_units, unit_count};
 use crate::{
     content::{ContentCatalog, ContentKind},
-    model::{Difficulty, Language},
+    game::GameDifficulty,
+    model::Language,
 };
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -16,7 +17,7 @@ fn battle(now: Instant) -> BossBattle {
     BossBattle::new(
         BossKind::IronWarden,
         Language::En,
-        Difficulty::Easy,
+        GameDifficulty::Easy,
         vec![
             "alpha".into(),
             "bravo".into(),
@@ -68,7 +69,7 @@ fn queen(now: Instant, language: Language, words: &[&str]) -> BossBattle {
     BossBattle::new(
         BossKind::ThornQueen,
         language,
-        Difficulty::Easy,
+        GameDifficulty::Easy,
         words.iter().map(|word| (*word).to_owned()).collect(),
         7,
         now,
@@ -80,7 +81,7 @@ fn archon(now: Instant) -> BossBattle {
     BossBattle::new(
         BossKind::NullArchon,
         Language::En,
-        Difficulty::Easy,
+        GameDifficulty::Easy,
         vec![
             "alpha".into(),
             "bravo".into(),
@@ -192,13 +193,13 @@ fn scripted_outcome(
     catalog: &ContentCatalog,
     boss: BossKind,
     language: Language,
-    difficulty: Difficulty,
+    difficulty: GameDifficulty,
     kpm: u32,
     accuracy: f64,
 ) -> BossBattleOutcome {
     let mut seen = HashSet::new();
     let words = catalog
-        .select(language, ContentKind::Word, difficulty)
+        .select(language, ContentKind::Word, difficulty.content_difficulty())
         .into_iter()
         .map(|item| item.text.clone())
         .filter(|word| seen.insert(word.clone()))
@@ -284,9 +285,15 @@ fn max_width_custom_words_keep_pattern_windows_fair_by_physical_key_units() {
 
         for boss in [BossKind::IronWarden, BossKind::NullArchon] {
             let mut now = Instant::now();
-            let mut game =
-                BossBattle::new(boss, language, Difficulty::Easy, vec![word.clone()], 7, now)
-                    .unwrap();
+            let mut game = BossBattle::new(
+                boss,
+                language,
+                GameDifficulty::Easy,
+                vec![word.clone()],
+                7,
+                now,
+            )
+            .unwrap();
             game.health = 1_000;
             game.max_health = 1_000;
             finish_intro(&mut game, &mut now);
@@ -582,16 +589,16 @@ fn null_archon_crosses_into_phase_two_after_a_time_freezing_cmax_transition() {
 fn fixed_target_profiles_clear_and_the_prior_tier_does_not() {
     let catalog = ContentCatalog::load_builtins().unwrap();
     let profiles = [
-        (Difficulty::Easy, 180_u32, 90.0, 70.0..=82.0, None),
+        (GameDifficulty::Easy, 180_u32, 90.0, 70.0..=82.0, None),
         (
-            Difficulty::Medium,
+            GameDifficulty::Medium,
             300_u32,
             94.0,
             70.0..=84.0,
             Some((180_u32, 90.0)),
         ),
         (
-            Difficulty::Hard,
+            GameDifficulty::Hard,
             420_u32,
             97.0,
             74.0..=87.0,

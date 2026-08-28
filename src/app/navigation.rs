@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     config::Settings,
-    game::{GameKind, boss_battle::BossKind},
+    game::{GameDifficulty, GameKind, boss_battle::BossKind},
     i18n::{TextKey, text},
     model::{Difficulty, Language, PracticeKind},
     stats::Range,
@@ -404,13 +404,18 @@ impl App {
         {
             return;
         }
-        self.game_options.difficulty = [Difficulty::Hard, Difficulty::Medium, Difficulty::Easy]
-            .into_iter()
-            .find(|difficulty| {
-                self.settings
-                    .boss_difficulty_is_unlocked(self.game_options.boss, *difficulty)
-            })
-            .unwrap_or(Difficulty::Easy);
+        self.game_options.difficulty = [
+            GameDifficulty::Hell,
+            GameDifficulty::Hard,
+            GameDifficulty::Medium,
+            GameDifficulty::Easy,
+        ]
+        .into_iter()
+        .find(|difficulty| {
+            self.settings
+                .boss_difficulty_is_unlocked(self.game_options.boss, *difficulty)
+        })
+        .unwrap_or(GameDifficulty::Easy);
     }
 
     fn adjust_mode_options(&mut self, delta: isize) {
@@ -700,27 +705,26 @@ fn cycle_mode(mode: Option<PracticeKind>, delta: isize) -> Option<PracticeKind> 
     VALUES[cycle_index(index, VALUES.len(), delta)]
 }
 
-fn cycle_game_difficulty(difficulty: Difficulty, delta: isize) -> Difficulty {
-    const VALUES: [Difficulty; 3] = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard];
-    let index = VALUES
+fn cycle_game_difficulty(difficulty: GameDifficulty, delta: isize) -> GameDifficulty {
+    let index = GameDifficulty::ALL
         .iter()
         .position(|value| *value == difficulty)
         .unwrap_or(1);
-    VALUES[cycle_index(index, VALUES.len(), delta)]
+    GameDifficulty::ALL[cycle_index(index, GameDifficulty::ALL.len(), delta)]
 }
 
 fn cycle_boss_difficulty(
     settings: &Settings,
     boss: BossKind,
-    difficulty: Difficulty,
+    difficulty: GameDifficulty,
     delta: isize,
-) -> Difficulty {
-    let values = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard]
+) -> GameDifficulty {
+    let values = GameDifficulty::ALL
         .into_iter()
         .filter(|value| settings.boss_difficulty_is_unlocked(boss, *value))
         .collect::<Vec<_>>();
     if values.is_empty() {
-        return Difficulty::Easy;
+        return GameDifficulty::Easy;
     }
     let index = values
         .iter()
@@ -825,13 +829,30 @@ mod tests {
         app.screen = Screen::GameOptions;
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
         app.settings
-            .record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Easy, 1);
+            .record_boss_clear(BossKind::IronWarden, Language::En, GameDifficulty::Easy, 1);
         app.focus = 4;
 
         app.adjust(1);
-        assert_eq!(app.game_options.difficulty, Difficulty::Medium);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Medium);
         app.adjust(1);
-        assert_eq!(app.game_options.difficulty, Difficulty::Easy);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Easy);
+    }
+
+    #[test]
+    fn word_rain_difficulty_navigation_cycles_through_hell() {
+        let mut app = fixture();
+        app.screen = Screen::GameOptions;
+        app.game_options = GameOptions::new(GameKind::WordRain, Language::En);
+        app.focus = 1;
+
+        app.adjust(1);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Hard);
+        app.adjust(1);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Hell);
+        app.adjust(1);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Easy);
+        app.adjust(-1);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Hell);
     }
 
     #[test]
@@ -941,7 +962,7 @@ mod tests {
         assert_eq!(app.focus, 3);
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
         assert_eq!(app.game_options.language, Language::En);
-        assert_eq!(app.game_options.difficulty, Difficulty::Easy);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Easy);
         assert!(app.active_game.is_none());
     }
 

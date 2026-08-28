@@ -1,5 +1,6 @@
 use crate::{
-    model::{Difficulty, Language},
+    game::GameDifficulty,
+    model::Language,
     typing::{key_units, normalize_nfc, unit_count},
 };
 use anyhow::{Result, bail};
@@ -14,28 +15,32 @@ const ATTACK_DURATION: Duration = Duration::from_millis(600);
 const FINISH_DURATION: Duration = Duration::from_secs(1);
 const HIT_DURATION: Duration = Duration::from_millis(180);
 const MAX_WORD_WIDTH: usize = 24;
-const WARDEN_HEALTH: [u64; 3] = [280, 480, 720];
-const QUEEN_HEALTH: [u64; 3] = [180, 320, 500];
+const WARDEN_HEALTH: [u64; 4] = [280, 480, 720, 720];
+const QUEEN_HEALTH: [u64; 4] = [180, 320, 500, 500];
 // Word-slot rollback loses different physical-unit chunks across the two content catalogs.
-const ARCHON_HEALTH_KO: [u64; 3] = [310, 500, 850];
-const ARCHON_HEALTH_EN: [u64; 3] = [303, 500, 895];
-const QUEEN_STAGGER: [Duration; 3] = [
+const ARCHON_HEALTH_KO: [u64; 4] = [310, 500, 850, 850];
+const ARCHON_HEALTH_EN: [u64; 4] = [303, 500, 895, 895];
+const QUEEN_STAGGER: [Duration; 4] = [
     Duration::from_millis(1_500),
     Duration::from_millis(1_200),
     Duration::from_millis(1_500),
+    Duration::from_millis(1_500),
 ];
-const WARDEN_CAST: [Duration; 3] = [
+const WARDEN_CAST: [Duration; 4] = [
     Duration::from_secs(12),
     Duration::from_secs(9),
     Duration::from_secs(7),
+    Duration::from_secs(7),
 ];
-const WARDEN_CORE: [Duration; 3] = [
+const WARDEN_CORE: [Duration; 4] = [
     Duration::from_secs(6),
     Duration::from_secs(5),
     Duration::from_secs(4),
+    Duration::from_secs(4),
 ];
-const ARCHON_CANTICLE: [Duration; 3] = [
+const ARCHON_CANTICLE: [Duration; 4] = [
     Duration::from_secs(14),
+    Duration::from_secs(25),
     Duration::from_secs(25),
     Duration::from_secs(25),
 ];
@@ -123,7 +128,7 @@ pub(crate) struct BossBattleOutcome {
     pub(crate) victory: bool,
     pub(crate) boss: BossKind,
     pub(crate) language: Language,
-    pub(crate) difficulty: Difficulty,
+    pub(crate) difficulty: GameDifficulty,
     pub(crate) score: u64,
     pub(crate) active_time: Duration,
     pub(crate) hearts: u8,
@@ -169,7 +174,7 @@ struct WardenState {
 }
 
 impl WardenState {
-    fn new(difficulty: Difficulty) -> Self {
+    fn new(difficulty: GameDifficulty) -> Self {
         Self {
             locks: 0,
             cast_units: 0,
@@ -189,7 +194,7 @@ struct ArchonState {
 }
 
 impl ArchonState {
-    fn new(difficulty: Difficulty) -> Self {
+    fn new(difficulty: GameDifficulty) -> Self {
         Self {
             checksum_units: Vec::with_capacity(3),
             canticle_units: 0,
@@ -209,7 +214,7 @@ enum BossPattern {
 pub(crate) struct BossBattle {
     boss: BossKind,
     language: Language,
-    difficulty: Difficulty,
+    difficulty: GameDifficulty,
     words: Vec<String>,
     rng: fastrand::Rng,
     next_prompt_id: u64,
@@ -240,14 +245,11 @@ impl BossBattle {
     pub(crate) fn new(
         boss: BossKind,
         language: Language,
-        difficulty: Difficulty,
+        difficulty: GameDifficulty,
         words: Vec<String>,
         seed: u64,
         now: Instant,
     ) -> Result<Self> {
-        if difficulty == Difficulty::Mixed {
-            bail!("boss battle requires a concrete difficulty");
-        }
         let words = words
             .into_iter()
             .map(|word| normalize_nfc(&word))
@@ -315,7 +317,7 @@ impl BossBattle {
         self.boss
     }
 
-    pub(crate) const fn difficulty(&self) -> Difficulty {
+    pub(crate) const fn difficulty(&self) -> GameDifficulty {
         self.difficulty
     }
 
@@ -925,23 +927,18 @@ impl BossBattle {
     }
 }
 
-fn difficulty_slot(difficulty: Difficulty) -> usize {
-    match difficulty {
-        Difficulty::Easy => 0,
-        Difficulty::Medium => 1,
-        Difficulty::Hard => 2,
-        Difficulty::Mixed => unreachable!("validated by BossBattle::new"),
-    }
+fn difficulty_slot(difficulty: GameDifficulty) -> usize {
+    difficulty.index()
 }
 
-fn prompt_window(language: Language, difficulty: Difficulty, word: &str) -> Duration {
+fn prompt_window(language: Language, difficulty: GameDifficulty, word: &str) -> Duration {
     unit_window(difficulty, unit_count(language, word))
 }
 
-fn unit_window(difficulty: Difficulty, units: u64) -> Duration {
-    const TARGET_KPM: [f64; 3] = [180.0, 300.0, 420.0];
-    const REACTION: [f64; 3] = [1.8, 1.4, 1.1];
-    const GRACE: [f64; 3] = [1.7, 2.0, 1.65];
+fn unit_window(difficulty: GameDifficulty, units: u64) -> Duration {
+    const TARGET_KPM: [f64; 4] = [180.0, 300.0, 420.0, 420.0];
+    const REACTION: [f64; 4] = [1.8, 1.4, 1.1, 1.1];
+    const GRACE: [f64; 4] = [1.7, 2.0, 1.65, 1.65];
     let index = difficulty_slot(difficulty);
     let typing = units as f64 * 60.0 / TARGET_KPM[index];
     Duration::from_secs_f64(REACTION[index] + typing * GRACE[index])
@@ -949,7 +946,7 @@ fn unit_window(difficulty: Difficulty, units: u64) -> Duration {
 
 fn pattern_window(
     floor: Duration,
-    difficulty: Difficulty,
+    difficulty: GameDifficulty,
     phase: BossPhase,
     units: u64,
 ) -> Duration {
@@ -958,7 +955,7 @@ fn pattern_window(
         .mul_f64(if phase == BossPhase::Two { 0.8 } else { 1.0 })
 }
 
-fn warden_cast(difficulty: Difficulty, phase: BossPhase, units: u64) -> Duration {
+fn warden_cast(difficulty: GameDifficulty, phase: BossPhase, units: u64) -> Duration {
     pattern_window(
         WARDEN_CAST[difficulty_slot(difficulty)],
         difficulty,
@@ -967,7 +964,7 @@ fn warden_cast(difficulty: Difficulty, phase: BossPhase, units: u64) -> Duration
     )
 }
 
-fn warden_core(difficulty: Difficulty, phase: BossPhase, units: u64) -> Duration {
+fn warden_core(difficulty: GameDifficulty, phase: BossPhase, units: u64) -> Duration {
     pattern_window(
         WARDEN_CORE[difficulty_slot(difficulty)],
         difficulty,
@@ -976,7 +973,7 @@ fn warden_core(difficulty: Difficulty, phase: BossPhase, units: u64) -> Duration
     )
 }
 
-fn archon_canticle(difficulty: Difficulty, phase: BossPhase, units: u64) -> Duration {
+fn archon_canticle(difficulty: GameDifficulty, phase: BossPhase, units: u64) -> Duration {
     pattern_window(
         ARCHON_CANTICLE[difficulty_slot(difficulty)],
         difficulty,
@@ -985,7 +982,7 @@ fn archon_canticle(difficulty: Difficulty, phase: BossPhase, units: u64) -> Dura
     )
 }
 
-fn archon_health(language: Language, difficulty: Difficulty) -> u64 {
+fn archon_health(language: Language, difficulty: GameDifficulty) -> u64 {
     match language {
         Language::Ko => ARCHON_HEALTH_KO[difficulty_slot(difficulty)],
         Language::En => ARCHON_HEALTH_EN[difficulty_slot(difficulty)],

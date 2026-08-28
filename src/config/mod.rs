@@ -1,7 +1,7 @@
 use crate::{
-    game::boss_battle::BossKind,
+    game::{GameDifficulty, boss_battle::BossKind},
     i18n::initial_ui_language_os,
-    model::{Difficulty, Language},
+    model::Language,
     storage::{AppPaths, LoadWarning, atomic_write},
 };
 use anyhow::{Context, Result, bail};
@@ -12,6 +12,8 @@ use std::{ffi::OsStr, fs, io::ErrorKind};
 pub struct BossProgress {
     pub clear_rank: u8,
     pub high_scores: [[u64; 3]; 2],
+    #[serde(default)]
+    pub hell_high_scores: [u64; 2],
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -33,6 +35,8 @@ pub struct Settings {
     pub check_updates: bool,
     pub skipped_update_version: String,
     pub word_rain_high_scores: [[u64; 3]; 2],
+    #[serde(default)]
+    pub word_rain_hell_high_scores: [u64; 2],
     pub boss_battle_progress: Vec<BossProgress>,
 }
 
@@ -55,6 +59,7 @@ impl Default for Settings {
             check_updates: true,
             skipped_update_version: String::new(),
             word_rain_high_scores: [[0; 3]; 2],
+            word_rain_hell_high_scores: [0; 2],
             boss_battle_progress: vec![BossProgress::default(); BossKind::ALL.len()],
         }
     }
@@ -80,22 +85,25 @@ impl Settings {
     pub(crate) fn boss_difficulty_is_unlocked(
         &self,
         boss: BossKind,
-        difficulty: Difficulty,
+        difficulty: GameDifficulty,
     ) -> bool {
-        self.boss_is_unlocked(boss)
-            && concrete_difficulty_slot(difficulty) <= usize::from(self.boss_clear_rank(boss))
+        self.boss_is_unlocked(boss) && difficulty.index() <= usize::from(self.boss_clear_rank(boss))
     }
 
     pub(crate) fn boss_high_score(
         &self,
         boss: BossKind,
         language: Language,
-        difficulty: Difficulty,
+        difficulty: GameDifficulty,
     ) -> u64 {
         self.boss_battle_progress
             .get(boss.index())
             .map_or(0, |progress| {
-                progress.high_scores[language_slot(language)][concrete_difficulty_slot(difficulty)]
+                if difficulty == GameDifficulty::Hell {
+                    progress.hell_high_scores[language_slot(language)]
+                } else {
+                    progress.high_scores[language_slot(language)][difficulty.index()]
+                }
             })
     }
 
@@ -103,34 +111,47 @@ impl Settings {
         &mut self,
         boss: BossKind,
         language: Language,
-        difficulty: Difficulty,
+        difficulty: GameDifficulty,
         score: u64,
     ) {
         let boss = boss.index();
-        let difficulty = concrete_difficulty_slot(difficulty);
         if self.boss_battle_progress.len() <= boss {
             self.boss_battle_progress
                 .resize_with(boss + 1, BossProgress::default);
         }
         let progress = &mut self.boss_battle_progress[boss];
-        progress.clear_rank = progress.clear_rank.max(difficulty as u8 + 1);
-        let best = &mut progress.high_scores[language_slot(language)][difficulty];
+        progress.clear_rank = progress.clear_rank.max(difficulty.index() as u8 + 1);
+        let best = if difficulty == GameDifficulty::Hell {
+            &mut progress.hell_high_scores[language_slot(language)]
+        } else {
+            &mut progress.high_scores[language_slot(language)][difficulty.index()]
+        };
         *best = (*best).max(score);
     }
 
-    pub(crate) fn word_rain_high_score(&self, language: Language, difficulty: Difficulty) -> u64 {
-        let (language, difficulty) = word_rain_score_slot(language, difficulty);
-        self.word_rain_high_scores[language][difficulty]
+    pub(crate) fn word_rain_high_score(
+        &self,
+        language: Language,
+        difficulty: GameDifficulty,
+    ) -> u64 {
+        if difficulty == GameDifficulty::Hell {
+            self.word_rain_hell_high_scores[language_slot(language)]
+        } else {
+            self.word_rain_high_scores[language_slot(language)][difficulty.index()]
+        }
     }
 
     pub(crate) fn set_word_rain_high_score(
         &mut self,
         language: Language,
-        difficulty: Difficulty,
+        difficulty: GameDifficulty,
         score: u64,
     ) {
-        let (language, difficulty) = word_rain_score_slot(language, difficulty);
-        self.word_rain_high_scores[language][difficulty] = score;
+        if difficulty == GameDifficulty::Hell {
+            self.word_rain_hell_high_scores[language_slot(language)] = score;
+        } else {
+            self.word_rain_high_scores[language_slot(language)][difficulty.index()] = score;
+        }
     }
 
     pub fn load(paths: &AppPaths) -> Result<ConfigLoad> {
@@ -225,19 +246,12 @@ impl Settings {
         if self
             .boss_battle_progress
             .iter()
-            .any(|progress| progress.clear_rank > 3)
+            .any(|progress| progress.clear_rank > 4)
         {
-            bail!("boss clear rank must be between 0 and 3");
+            bail!("boss clear rank must be between 0 and 4");
         }
         Ok(())
     }
-}
-
-fn word_rain_score_slot(language: Language, difficulty: Difficulty) -> (usize, usize) {
-    (
-        language_slot(language),
-        concrete_difficulty_slot(difficulty),
-    )
 }
 
 fn language_slot(language: Language) -> usize {
@@ -247,21 +261,12 @@ fn language_slot(language: Language) -> usize {
     }
 }
 
-fn concrete_difficulty_slot(difficulty: Difficulty) -> usize {
-    match difficulty {
-        Difficulty::Easy => 0,
-        Difficulty::Medium => 1,
-        Difficulty::Hard => 2,
-        Difficulty::Mixed => unreachable!("game requires a concrete difficulty"),
-    }
-}
-
 #[cfg(test)]
 mod locale_tests {
     use super::Settings;
     use crate::{
-        game::boss_battle::BossKind,
-        model::{Difficulty, Language},
+        game::{GameDifficulty, boss_battle::BossKind},
+        model::Language,
         storage::AppPaths,
     };
     use std::{ffi::OsStr, fs, path::PathBuf};
@@ -317,12 +322,12 @@ mod locale_tests {
         };
 
         for (language, difficulty, expected) in [
-            (Language::Ko, Difficulty::Easy, 11),
-            (Language::Ko, Difficulty::Medium, 12),
-            (Language::Ko, Difficulty::Hard, 13),
-            (Language::En, Difficulty::Easy, 21),
-            (Language::En, Difficulty::Medium, 22),
-            (Language::En, Difficulty::Hard, 23),
+            (Language::Ko, GameDifficulty::Easy, 11),
+            (Language::Ko, GameDifficulty::Medium, 12),
+            (Language::Ko, GameDifficulty::Hard, 13),
+            (Language::En, GameDifficulty::Easy, 21),
+            (Language::En, GameDifficulty::Medium, 22),
+            (Language::En, GameDifficulty::Hard, 23),
         ] {
             assert_eq!(
                 settings.word_rain_high_score(language, difficulty),
@@ -336,21 +341,30 @@ mod locale_tests {
         let mut settings = Settings::default();
         assert!(settings.boss_is_unlocked(BossKind::IronWarden));
         assert!(!settings.boss_is_unlocked(BossKind::ThornQueen));
-        assert!(settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Easy,));
-        assert!(!settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Medium,));
+        assert!(settings.boss_difficulty_is_unlocked(BossKind::IronWarden, GameDifficulty::Easy,));
+        assert!(
+            !settings.boss_difficulty_is_unlocked(BossKind::IronWarden, GameDifficulty::Medium,)
+        );
 
-        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Easy, 12_345);
+        settings.record_boss_clear(
+            BossKind::IronWarden,
+            Language::En,
+            GameDifficulty::Easy,
+            12_345,
+        );
 
         assert_eq!(settings.boss_clear_rank(BossKind::IronWarden), 1);
         assert!(settings.boss_is_unlocked(BossKind::ThornQueen));
-        assert!(settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Medium,));
-        assert!(!settings.boss_difficulty_is_unlocked(BossKind::IronWarden, Difficulty::Hard,));
+        assert!(
+            settings.boss_difficulty_is_unlocked(BossKind::IronWarden, GameDifficulty::Medium,)
+        );
+        assert!(!settings.boss_difficulty_is_unlocked(BossKind::IronWarden, GameDifficulty::Hard,));
         assert_eq!(
-            settings.boss_high_score(BossKind::IronWarden, Language::En, Difficulty::Easy,),
+            settings.boss_high_score(BossKind::IronWarden, Language::En, GameDifficulty::Easy,),
             12_345,
         );
         assert_eq!(
-            settings.boss_high_score(BossKind::IronWarden, Language::Ko, Difficulty::Easy,),
+            settings.boss_high_score(BossKind::IronWarden, Language::Ko, GameDifficulty::Easy,),
             0,
         );
     }
@@ -358,13 +372,28 @@ mod locale_tests {
     #[test]
     fn recording_a_lower_clear_never_regresses_rank_or_best_score() {
         let mut settings = Settings::default();
-        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Hard, 20_000);
-        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Easy, 10_000);
-        settings.record_boss_clear(BossKind::IronWarden, Language::En, Difficulty::Hard, 19_000);
+        settings.record_boss_clear(
+            BossKind::IronWarden,
+            Language::En,
+            GameDifficulty::Hard,
+            20_000,
+        );
+        settings.record_boss_clear(
+            BossKind::IronWarden,
+            Language::En,
+            GameDifficulty::Easy,
+            10_000,
+        );
+        settings.record_boss_clear(
+            BossKind::IronWarden,
+            Language::En,
+            GameDifficulty::Hard,
+            19_000,
+        );
 
         assert_eq!(settings.boss_clear_rank(BossKind::IronWarden), 3);
         assert_eq!(
-            settings.boss_high_score(BossKind::IronWarden, Language::En, Difficulty::Hard,),
+            settings.boss_high_score(BossKind::IronWarden, Language::En, GameDifficulty::Hard,),
             20_000,
         );
     }
@@ -376,27 +405,71 @@ mod locale_tests {
             ..Settings::default()
         };
 
-        settings.record_boss_clear(BossKind::NullArchon, Language::Ko, Difficulty::Easy, 9_000);
+        settings.record_boss_clear(
+            BossKind::NullArchon,
+            Language::Ko,
+            GameDifficulty::Easy,
+            9_000,
+        );
 
         assert_eq!(settings.boss_battle_progress.len(), 3);
         assert_eq!(settings.boss_clear_rank(BossKind::NullArchon), 1);
         assert_eq!(
-            settings.boss_high_score(BossKind::NullArchon, Language::Ko, Difficulty::Easy,),
+            settings.boss_high_score(BossKind::NullArchon, Language::Ko, GameDifficulty::Easy,),
             9_000,
         );
     }
 
     #[test]
-    fn boss_clear_rank_above_three_is_rejected() {
+    fn hell_scores_are_separate_and_four_clears_never_regress() {
         let mut settings = Settings::default();
-        settings.boss_battle_progress[0].clear_rank = 4;
+
+        settings.set_word_rain_high_score(Language::Ko, GameDifficulty::Hard, 300);
+        settings.set_word_rain_high_score(Language::Ko, GameDifficulty::Hell, 400);
+        assert_eq!(
+            settings.word_rain_high_score(Language::Ko, GameDifficulty::Hard),
+            300
+        );
+        assert_eq!(
+            settings.word_rain_high_score(Language::Ko, GameDifficulty::Hell),
+            400
+        );
+
+        for difficulty in GameDifficulty::ALL {
+            assert_eq!(
+                settings.boss_difficulty_is_unlocked(BossKind::IronWarden, difficulty),
+                difficulty.index() <= usize::from(settings.boss_clear_rank(BossKind::IronWarden)),
+            );
+            if settings.boss_difficulty_is_unlocked(BossKind::IronWarden, difficulty) {
+                settings.record_boss_clear(
+                    BossKind::IronWarden,
+                    Language::En,
+                    difficulty,
+                    10_000 + difficulty.index() as u64,
+                );
+            }
+        }
+
+        assert_eq!(settings.boss_clear_rank(BossKind::IronWarden), 4);
+        assert_eq!(
+            settings.boss_high_score(BossKind::IronWarden, Language::En, GameDifficulty::Hell,),
+            10_003,
+        );
+        settings.record_boss_clear(BossKind::IronWarden, Language::En, GameDifficulty::Hard, 1);
+        assert_eq!(settings.boss_clear_rank(BossKind::IronWarden), 4);
+    }
+
+    #[test]
+    fn boss_clear_rank_above_four_is_rejected() {
+        let mut settings = Settings::default();
+        settings.boss_battle_progress[0].clear_rank = 5;
 
         let error = settings.validate().unwrap_err();
 
         assert!(
             error
                 .to_string()
-                .contains("boss clear rank must be between 0 and 3"),
+                .contains("boss clear rank must be between 0 and 4"),
             "{error:#}",
         );
     }

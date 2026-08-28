@@ -6,9 +6,12 @@ use super::{
 };
 use crate::{
     app::App,
-    game::boss_battle::{BattleCue, BossBattle, BossKind, BossPatternView, BossPhase},
+    game::{
+        GameDifficulty,
+        boss_battle::{BattleCue, BossBattle, BossKind, BossPatternView, BossPhase},
+    },
     i18n::{TextKey, text},
-    model::{Difficulty, Language},
+    model::Language,
 };
 use ratatui::{
     Frame,
@@ -151,20 +154,19 @@ pub(super) fn render_boss_options(
             .index()
             .checked_sub(1)
             .and_then(|index| BossKind::ALL.get(index).copied())
-            .map(|boss| clear_requirement(boss, Difficulty::Easy))
+            .map(|boss| clear_requirement(boss, GameDifficulty::Easy))
             .or_else(|| Some(text(language, TextKey::BossLocked).to_owned()))
     } else if !difficulty_unlocked {
         match options.difficulty {
-            Difficulty::Medium => Some(clear_requirement(options.boss, Difficulty::Easy)),
-            Difficulty::Hard => Some(clear_requirement(options.boss, Difficulty::Medium)),
-            Difficulty::Easy | Difficulty::Mixed => {
-                Some(text(language, TextKey::DifficultyLocked).to_owned())
-            }
+            GameDifficulty::Medium => Some(clear_requirement(options.boss, GameDifficulty::Easy)),
+            GameDifficulty::Hard => Some(clear_requirement(options.boss, GameDifficulty::Medium)),
+            GameDifficulty::Hell => Some(clear_requirement(options.boss, GameDifficulty::Hard)),
+            GameDifficulty::Easy => Some(text(language, TextKey::DifficultyLocked).to_owned()),
         }
     } else {
         options.error.clone()
     };
-    let available = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard]
+    let available = GameDifficulty::ALL
         .into_iter()
         .map(|difficulty| {
             let name = difficulty_name(language, difficulty);
@@ -967,10 +969,11 @@ fn cue_locks(cue: BattleCue) -> bool {
     cue != BattleCue::Hit
 }
 
-fn unlocked_difficulty(rank: u8) -> Option<Difficulty> {
+fn unlocked_difficulty(rank: u8) -> Option<GameDifficulty> {
     match rank {
-        1 => Some(Difficulty::Medium),
-        2 => Some(Difficulty::Hard),
+        1 => Some(GameDifficulty::Medium),
+        2 => Some(GameDifficulty::Hard),
+        3 => Some(GameDifficulty::Hell),
         _ => None,
     }
 }

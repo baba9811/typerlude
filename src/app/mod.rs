@@ -14,7 +14,7 @@ use crate::{
     config::Settings,
     content::{ContentCatalog, ContentKind, SourceMeta},
     game::{
-        GameKind,
+        GameDifficulty, GameKind,
         boss_battle::{BossBattle, BossBattleOutcome, BossKind},
         word_rain::{WordRain, WordRainOutcome},
     },
@@ -358,7 +358,7 @@ pub(crate) struct GameOptions {
     pub(crate) kind: GameKind,
     pub(crate) boss: BossKind,
     pub(crate) language: Language,
-    pub(crate) difficulty: Difficulty,
+    pub(crate) difficulty: GameDifficulty,
     pub(crate) error: Option<String>,
 }
 
@@ -369,8 +369,8 @@ impl GameOptions {
             boss: BossKind::IronWarden,
             language,
             difficulty: match kind {
-                GameKind::WordRain => Difficulty::Medium,
-                GameKind::BossBattle => Difficulty::Easy,
+                GameKind::WordRain => GameDifficulty::Medium,
+                GameKind::BossBattle => GameDifficulty::Easy,
             },
             error: None,
         }

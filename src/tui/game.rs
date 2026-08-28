@@ -6,9 +6,9 @@ use super::{
 };
 use crate::{
     app::App,
-    game::{GameKind, word_rain::LOGICAL_WIDTH},
+    game::{GameDifficulty, GameKind, word_rain::LOGICAL_WIDTH},
     i18n::{TextKey, text},
-    model::{Difficulty, Language},
+    model::Language,
 };
 use ratatui::{
     Frame,
@@ -330,14 +330,16 @@ const fn game_name(language: Language, kind: GameKind) -> &'static str {
     }
 }
 
-pub(super) const fn difficulty_name(language: Language, difficulty: Difficulty) -> &'static str {
-    let key = match difficulty {
-        Difficulty::Easy => TextKey::Easy,
-        Difficulty::Medium => TextKey::Medium,
-        Difficulty::Hard => TextKey::Hard,
-        Difficulty::Mixed => TextKey::Mixed,
-    };
-    text(language, key)
+pub(super) const fn difficulty_name(
+    language: Language,
+    difficulty: GameDifficulty,
+) -> &'static str {
+    match difficulty {
+        GameDifficulty::Easy => text(language, TextKey::Easy),
+        GameDifficulty::Medium => text(language, TextKey::Medium),
+        GameDifficulty::Hard => text(language, TextKey::Hard),
+        GameDifficulty::Hell => "HELL",
+    }
 }
 
 pub(super) fn centered(area: Rect, width: u16, height: u16) -> Rect {

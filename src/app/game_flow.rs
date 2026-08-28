@@ -166,7 +166,7 @@ impl App {
             .select(
                 self.game_options.language,
                 ContentKind::Word,
-                self.game_options.difficulty,
+                self.game_options.difficulty.content_difficulty(),
             )
             .into_iter()
             .filter_map(|item| playable_word(&item.text))
@@ -339,8 +339,8 @@ mod tests {
     use crate::{
         config::Settings,
         content::ContentCatalog,
-        game::{GameKind, boss_battle::BossKind},
-        model::{Difficulty, Language},
+        game::{GameDifficulty, GameKind, boss_battle::BossKind},
+        model::Language,
         storage::AppPaths,
         theme::ThemeCatalog,
     };
@@ -373,7 +373,7 @@ mod tests {
         })
     }
 
-    fn start(app: &mut App, language: Language, difficulty: Difficulty, now: Instant) {
+    fn start(app: &mut App, language: Language, difficulty: GameDifficulty, now: Instant) {
         app.game_options = GameOptions::new(GameKind::WordRain, language);
         app.game_options.difficulty = difficulty;
         app.start_word_rain_with_seed(7, now).unwrap();
@@ -439,9 +439,10 @@ mod tests {
     fn starting_uses_exact_language_and_difficulty_content_with_an_immediate_word() {
         let now = Instant::now();
         for (difficulty, expected_content_difficulty) in [
-            (Difficulty::Easy, 1),
-            (Difficulty::Medium, 2),
-            (Difficulty::Hard, 3),
+            (GameDifficulty::Easy, 1),
+            (GameDifficulty::Medium, 2),
+            (GameDifficulty::Hard, 3),
+            (GameDifficulty::Hell, 3),
         ] {
             let mut app = fixture(ContentCatalog::load_builtins().unwrap());
             start(&mut app, Language::En, difficulty, now);
@@ -478,7 +479,7 @@ mod tests {
     fn active_text_and_backspace_are_game_input_but_paste_is_ignored() {
         let now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
-        start(&mut app, Language::En, Difficulty::Easy, now);
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
 
         app.handle_event(InputEvent::Paste, now).unwrap();
         app.handle_event(key(Key::Char('q')), now).unwrap();
@@ -493,7 +494,7 @@ mod tests {
     fn enter_submits_and_clears_invalid_game_input() {
         let now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
-        start(&mut app, Language::En, Difficulty::Easy, now);
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
         let first = app
             .active_word_rain()
             .unwrap()
@@ -522,7 +523,7 @@ mod tests {
     fn pause_requires_two_plain_q_commands_to_leave_and_escape_resumes() {
         let now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
-        start(&mut app, Language::En, Difficulty::Easy, now);
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
 
         app.handle_event(key(Key::Esc), now).unwrap();
         assert!(app.active_word_rain().unwrap().game.is_paused());
@@ -546,7 +547,7 @@ mod tests {
     fn collision_opens_result_and_enter_retries_the_same_options() {
         let now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
-        start(&mut app, Language::Ko, Difficulty::Hard, now);
+        start(&mut app, Language::Ko, GameDifficulty::Hard, now);
 
         for step in 1..=40 {
             app.tick(now + Duration::from_millis(step * 250)).unwrap();
@@ -560,7 +561,7 @@ mod tests {
         let active = app.active_word_rain().unwrap();
         assert_eq!(app.screen, Screen::Game);
         assert_eq!(app.game_options.language, Language::Ko);
-        assert_eq!(active.game.difficulty(), Difficulty::Hard);
+        assert_eq!(active.game.difficulty(), GameDifficulty::Hard);
         assert!(app.game_result.is_none());
     }
 
@@ -572,7 +573,7 @@ mod tests {
             ..Settings::default()
         };
         let mut app = fixture_with_settings(settings, ContentCatalog::load_builtins().unwrap());
-        start(&mut app, Language::En, Difficulty::Easy, now);
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
         let score = complete_first_word(&mut app, now);
 
         finish_game(&mut app, now);
@@ -597,11 +598,11 @@ mod tests {
     fn an_equal_score_does_not_update_the_personal_best() {
         let now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
-        start(&mut app, Language::En, Difficulty::Easy, now);
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
         let score = complete_first_word(&mut app, now);
         finish_game(&mut app, now);
 
-        start(&mut app, Language::En, Difficulty::Easy, now);
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
         assert_eq!(complete_first_word(&mut app, now), score);
         finish_game(&mut app, now);
 
@@ -610,7 +611,7 @@ mod tests {
         assert_eq!(previous_best, score);
         assert_eq!(
             app.settings
-                .word_rain_high_score(Language::En, Difficulty::Easy),
+                .word_rain_high_score(Language::En, GameDifficulty::Easy),
             score
         );
     }
@@ -621,7 +622,7 @@ mod tests {
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
         app.game_options.boss = BossKind::IronWarden;
-        app.game_options.difficulty = Difficulty::Easy;
+        app.game_options.difficulty = GameDifficulty::Easy;
         app.start_boss_battle_with_seed(7, now).unwrap();
 
         force_boss_victory(&mut app, &mut now);
@@ -631,7 +632,7 @@ mod tests {
         assert!(app.settings.boss_is_unlocked(BossKind::ThornQueen));
         assert_eq!(
             app.settings
-                .boss_high_score(BossKind::IronWarden, Language::Ko, Difficulty::Easy,),
+                .boss_high_score(BossKind::IronWarden, Language::Ko, GameDifficulty::Easy,),
             0,
         );
     }
@@ -641,17 +642,17 @@ mod tests {
         let mut now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
         for (boss, difficulty) in [
-            (BossKind::IronWarden, Difficulty::Easy),
-            (BossKind::ThornQueen, Difficulty::Easy),
-            (BossKind::NullArchon, Difficulty::Easy),
-            (BossKind::NullArchon, Difficulty::Medium),
+            (BossKind::IronWarden, GameDifficulty::Easy),
+            (BossKind::ThornQueen, GameDifficulty::Easy),
+            (BossKind::NullArchon, GameDifficulty::Easy),
+            (BossKind::NullArchon, GameDifficulty::Medium),
         ] {
             app.settings
                 .record_boss_clear(boss, Language::En, difficulty, 1);
         }
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::Ko);
         app.game_options.boss = BossKind::NullArchon;
-        app.game_options.difficulty = Difficulty::Hard;
+        app.game_options.difficulty = GameDifficulty::Hard;
         app.start_boss_battle_with_seed(7, now).unwrap();
         force_boss_victory(&mut app, &mut now);
 
@@ -663,7 +664,7 @@ mod tests {
         assert_eq!(app.game_options.kind, GameKind::BossBattle);
         assert_eq!(app.game_options.boss, BossKind::NullArchon);
         assert_eq!(app.game_options.language, Language::Ko);
-        assert_eq!(app.game_options.difficulty, Difficulty::Hard);
+        assert_eq!(app.game_options.difficulty, GameDifficulty::Hard);
         assert!(app.game_options.error.is_none());
         assert!(app.active_game.is_none());
         assert!(app.game_result.is_none());
