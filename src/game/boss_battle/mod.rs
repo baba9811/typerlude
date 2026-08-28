@@ -15,22 +15,22 @@ const ATTACK_DURATION: Duration = Duration::from_millis(600);
 const FINISH_DURATION: Duration = Duration::from_secs(1);
 const HIT_DURATION: Duration = Duration::from_millis(180);
 const MAX_WORD_WIDTH: usize = 24;
-const WARDEN_HEALTH: [u64; 4] = [280, 480, 720, 720];
-const QUEEN_HEALTH: [u64; 4] = [180, 320, 500, 500];
+const WARDEN_HEALTH: [u64; 4] = [280, 480, 720, 975];
+const QUEEN_HEALTH: [u64; 4] = [180, 320, 500, 653];
 // Word-slot rollback loses different physical-unit chunks across the two content catalogs.
-const ARCHON_HEALTH_KO: [u64; 4] = [310, 500, 850, 850];
-const ARCHON_HEALTH_EN: [u64; 4] = [303, 500, 895, 895];
+const ARCHON_HEALTH_KO: [u64; 4] = [310, 500, 850, 1_090];
+const ARCHON_HEALTH_EN: [u64; 4] = [303, 500, 895, 1_220];
 const QUEEN_STAGGER: [Duration; 4] = [
     Duration::from_millis(1_500),
     Duration::from_millis(1_200),
     Duration::from_millis(1_500),
-    Duration::from_millis(1_500),
+    Duration::from_millis(1_200),
 ];
 const WARDEN_CAST: [Duration; 4] = [
     Duration::from_secs(12),
     Duration::from_secs(9),
     Duration::from_secs(7),
-    Duration::from_secs(7),
+    Duration::from_secs(6),
 ];
 const WARDEN_CORE: [Duration; 4] = [
     Duration::from_secs(6),
@@ -42,7 +42,7 @@ const ARCHON_CANTICLE: [Duration; 4] = [
     Duration::from_secs(14),
     Duration::from_secs(25),
     Duration::from_secs(25),
-    Duration::from_secs(25),
+    Duration::from_secs(22),
 ];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -936,9 +936,9 @@ fn prompt_window(language: Language, difficulty: GameDifficulty, word: &str) -> 
 }
 
 fn unit_window(difficulty: GameDifficulty, units: u64) -> Duration {
-    const TARGET_KPM: [f64; 4] = [180.0, 300.0, 420.0, 420.0];
-    const REACTION: [f64; 4] = [1.8, 1.4, 1.1, 1.1];
-    const GRACE: [f64; 4] = [1.7, 2.0, 1.65, 1.65];
+    const TARGET_KPM: [f64; 4] = [180.0, 300.0, 420.0, 540.0];
+    const REACTION: [f64; 4] = [1.8, 1.4, 1.1, 0.9];
+    const GRACE: [f64; 4] = [1.7, 2.0, 1.65, 1.55];
     let index = difficulty_slot(difficulty);
     let typing = units as f64 * 60.0 / TARGET_KPM[index];
     Duration::from_secs_f64(REACTION[index] + typing * GRACE[index])

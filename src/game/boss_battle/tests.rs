@@ -604,6 +604,13 @@ fn fixed_target_profiles_clear_and_the_prior_tier_does_not() {
             74.0..=87.0,
             Some((300_u32, 94.0)),
         ),
+        (
+            GameDifficulty::Hell,
+            540_u32,
+            98.5,
+            75.0..=88.0,
+            Some((420_u32, 97.0)),
+        ),
     ];
     let mut failures = Vec::new();
 
