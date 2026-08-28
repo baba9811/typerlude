@@ -11,7 +11,9 @@ phase-two behavior.
 - Defeat the boss within 90 seconds of active battle time while protecting three hearts.
 - Reaching half health starts phase two. Skill and transition cinematics lock input and pause the
   active timer.
-- `Esc` pauses. Press `q` or `ㅂ` twice while paused to leave; `Enter` retries from the result screen.
+- `Esc` pauses. Press `q` or `ㅂ` twice while paused to leave.
+- On the result screen, `r` or `ㄱ` retries the same fight. `Enter` or `Esc` returns to that boss's
+  options.
 - Paste is ignored. `Backspace` edits normal input, but some boss mechanics punish a wrong key
   immediately.
 
@@ -21,13 +23,21 @@ Difficulty unlocks separately for each boss. A clear also fills that boss's star
 
 | Clear | Stars | Unlocks |
 | --- | --- | --- |
-| None | ☆☆☆ | IRON WARDEN Easy |
-| Easy | ★☆☆ | The same boss on Medium and the next boss on Easy |
-| Medium | ★★☆ | The same boss on Hard |
-| Hard | ★★★ | Full clear for that boss |
+| None | ☆☆☆ ✧ | IRON WARDEN Easy |
+| Easy | ★☆☆ ✧ | The same boss on Medium and the next boss on Easy |
+| Medium | ★★☆ ✧ | The same boss on Hard |
+| Hard | ★★★ ✧ | The same boss on Hell |
+| Hell | ★★★ ✦ | Final clear for that boss |
 
 Stars and difficulty unlocks are shared between Korean and English. Personal best scores are saved
 separately for each boss, language, and difficulty.
+
+## Hell difficulty
+
+Hell uses the Hard word pool with tighter health and timing pressure. Its double-line
+`╬ HELL ╬ // REDLINE` frame identifies the tier even without color and uses no terminal blinking.
+Balance targets a 540 KPM, 98.5% accurate player clearing every boss in either language in 75–88
+seconds. A 420 KPM, 97% accurate player is expected to reach the final stretch but not clear it.
 
 ## Boss roster
 

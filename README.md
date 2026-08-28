@@ -55,16 +55,18 @@ Paste is ignored during scored practice.
 
 ### Word Rain
 
-Choose Korean or English and Easy, Medium, or Hard for an endless run. Words fall faster every ten
-clears, and the first word to reach the miss line ends the game. A typo stays editable: use
-`Backspace`, or erase the input completely to target a different word. `Esc` pauses, pressing `q`
-or `ㅂ` twice while paused leaves, and `Enter` retries from the result screen.
+Choose Korean or English and Easy, Medium, Hard, or Hell for an endless run. Words fall faster every
+ten clears, and the first word to reach the miss line ends the game. A typo stays editable: use
+`Backspace`, or erase the input completely to target a different word. `Esc` pauses and pressing `q`
+or `ㅂ` twice while paused leaves. On the result screen, `r` or `ㄱ` retries; `Enter` or `Esc` returns
+to Games.
 
 ### Boss Battle
 
 Fight one of three bosses for 90 active seconds with three hearts. Each boss has its own typing
-pattern and phase-two skill. Difficulties unlock Easy → Medium → Hard for each boss, while clearing
-Easy also opens the next boss. Empty and filled stars show the highest cleared difficulty.
+pattern and phase-two skill. Difficulties unlock Easy → Medium → Hard → Hell for each boss, while
+clearing Easy also opens the next boss. `☆☆☆ ✧` through `★★★ ✦` shows the highest clear. On the
+result screen, `r` or `ㄱ` retries; `Enter` or `Esc` returns to the selected boss's options.
 
 See the [Boss Battle guide](https://github.com/baba9811/typerlude/blob/main/docs/games/boss-battle.md)
 for the boss roster, mechanics, progression, and scoring rules.
