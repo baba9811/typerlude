@@ -20,6 +20,11 @@ const QUEEN_HEALTH: [u64; 4] = [180, 320, 500, 653];
 // Word-slot rollback loses different physical-unit chunks across the two content catalogs.
 const ARCHON_HEALTH_KO: [u64; 4] = [310, 500, 850, 1_090];
 const ARCHON_HEALTH_EN: [u64; 4] = [303, 500, 895, 1_220];
+const SERAPH_HEALTH: [u64; 4] = [185, 325, 505, 660];
+const SERAPH_OPEN_PHASE_ONE: Duration = Duration::from_secs(8);
+const SERAPH_OPEN_PHASE_TWO: Duration = Duration::from_secs(6);
+const SERAPH_REFLECTING: Duration = Duration::from_secs(2);
+const SERAPH_RELEASE: Duration = Duration::from_millis(450);
 const QUEEN_STAGGER: [Duration; 4] = [
     Duration::from_millis(1_500),
     Duration::from_millis(1_200),
@@ -51,10 +56,16 @@ pub(crate) enum BossKind {
     IronWarden,
     ThornQueen,
     NullArchon,
+    PrismSeraph,
 }
 
 impl BossKind {
-    pub(crate) const ALL: [Self; 3] = [Self::IronWarden, Self::ThornQueen, Self::NullArchon];
+    pub(crate) const ALL: [Self; 4] = [
+        Self::IronWarden,
+        Self::ThornQueen,
+        Self::NullArchon,
+        Self::PrismSeraph,
+    ];
 
     pub(crate) const fn index(self) -> usize {
         self as usize
@@ -77,6 +88,14 @@ pub(crate) enum BattleCue {
     Defeat,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum SeraphStance {
+    Open,
+    Warning,
+    Reflecting,
+    Release,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum BossPatternView {
     Warden {
@@ -90,6 +109,10 @@ pub(crate) enum BossPatternView {
     NullArchon {
         checksum: u8,
         canticle_progress: f64,
+    },
+    PrismSeraph {
+        stance: SeraphStance,
+        progress: f64,
     },
 }
 
@@ -205,10 +228,57 @@ impl ArchonState {
 }
 
 #[derive(Debug)]
+struct SeraphState {
+    stance: SeraphStance,
+    elapsed: Duration,
+}
+
+impl SeraphState {
+    const fn new() -> Self {
+        Self {
+            stance: SeraphStance::Open,
+            elapsed: Duration::ZERO,
+        }
+    }
+
+    fn duration(&self, difficulty: GameDifficulty, phase: BossPhase) -> Duration {
+        match self.stance {
+            SeraphStance::Open => match phase {
+                BossPhase::One => SERAPH_OPEN_PHASE_ONE,
+                BossPhase::Two => SERAPH_OPEN_PHASE_TWO,
+            },
+            SeraphStance::Warning => unit_window(difficulty, 0),
+            SeraphStance::Reflecting => SERAPH_REFLECTING,
+            SeraphStance::Release => SERAPH_RELEASE,
+        }
+    }
+
+    fn advance(&mut self, elapsed: Duration, difficulty: GameDifficulty, phase: BossPhase) {
+        let mut remaining = elapsed;
+        while !remaining.is_zero() {
+            let duration = self.duration(difficulty, phase);
+            let consumed = remaining.min(duration.saturating_sub(self.elapsed));
+            self.elapsed = self.elapsed.saturating_add(consumed);
+            remaining = remaining.saturating_sub(consumed);
+            if self.elapsed >= duration {
+                self.elapsed = Duration::ZERO;
+                self.stance = match self.stance {
+                    SeraphStance::Open => SeraphStance::Warning,
+                    SeraphStance::Warning => SeraphStance::Reflecting,
+                    SeraphStance::Reflecting => SeraphStance::Release,
+                    SeraphStance::Release => SeraphStance::Open,
+                };
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 enum BossPattern {
     Warden(WardenState),
     Queen,
     NullArchon(ArchonState),
+    PrismSeraph(SeraphState),
 }
 
 pub(crate) struct BossBattle {
@@ -276,6 +346,10 @@ impl BossBattle {
                 archon_health(language, difficulty),
                 BossPattern::NullArchon(ArchonState::new(difficulty)),
             ),
+            BossKind::PrismSeraph => (
+                SERAPH_HEALTH[difficulty_slot(difficulty)],
+                BossPattern::PrismSeraph(SeraphState::new()),
+            ),
         };
         let mut battle = Self {
             boss,
@@ -307,7 +381,9 @@ impl BossBattle {
             outcome: None,
         };
         match boss {
-            BossKind::IronWarden | BossKind::NullArchon => battle.spawn_prompt(),
+            BossKind::IronWarden | BossKind::NullArchon | BossKind::PrismSeraph => {
+                battle.spawn_prompt()
+            }
             BossKind::ThornQueen => battle.fill_queen_lanes(),
         }
         Ok(battle)
@@ -378,6 +454,13 @@ impl BossBattle {
                     state.canticle_deadline,
                 ),
             },
+            BossPattern::PrismSeraph(state) => BossPatternView::PrismSeraph {
+                stance: state.stance,
+                progress: duration_progress(
+                    state.elapsed,
+                    state.duration(self.difficulty, self.phase),
+                ),
+            },
         }
     }
 
@@ -421,6 +504,7 @@ impl BossBattle {
             BossKind::IronWarden => self.tick_warden(active),
             BossKind::ThornQueen => self.tick_queen(),
             BossKind::NullArchon => self.tick_archon(active),
+            BossKind::PrismSeraph => self.tick_seraph(active),
         }
     }
 
@@ -566,6 +650,7 @@ impl BossBattle {
                 };
                 units.saturating_add(bonus)
             }
+            BossPattern::PrismSeraph(_) => units,
         };
 
         self.combo = self.combo.saturating_add(1);
@@ -588,7 +673,9 @@ impl BossBattle {
             self.start_cue(BattleCue::Hit, HIT_DURATION, false);
         }
         match self.boss {
-            BossKind::IronWarden | BossKind::NullArchon => self.spawn_prompt(),
+            BossKind::IronWarden | BossKind::NullArchon | BossKind::PrismSeraph => {
+                self.spawn_prompt()
+            }
             BossKind::ThornQueen => self.fill_queen_lanes(),
         }
     }
@@ -625,7 +712,7 @@ impl BossBattle {
                     Event::None
                 }
             }
-            BossPattern::Queen | BossPattern::NullArchon(_) => {
+            BossPattern::Queen | BossPattern::NullArchon(_) | BossPattern::PrismSeraph(_) => {
                 unreachable!("tick_warden requires Warden state")
             }
         };
@@ -694,7 +781,7 @@ impl BossBattle {
                     false
                 }
             }
-            BossPattern::Warden(_) | BossPattern::Queen => {
+            BossPattern::Warden(_) | BossPattern::Queen | BossPattern::PrismSeraph(_) => {
                 unreachable!("tick_archon requires Null Archon state")
             }
         };
@@ -712,6 +799,13 @@ impl BossBattle {
         } else {
             self.start_cue(BattleCue::BossAttack, ATTACK_DURATION, true);
         }
+    }
+
+    fn tick_seraph(&mut self, elapsed: Duration) {
+        let BossPattern::PrismSeraph(state) = &mut self.pattern else {
+            unreachable!("tick_seraph requires Prism Seraph state");
+        };
+        state.advance(elapsed, self.difficulty, self.phase);
     }
 
     fn spawn_prompt(&mut self) {
@@ -740,7 +834,7 @@ impl BossBattle {
                 state.canticle_deadline =
                     archon_canticle(self.difficulty, self.phase, state.canticle_units);
             }
-            BossPattern::Queen => {}
+            BossPattern::Queen | BossPattern::PrismSeraph(_) => {}
         }
     }
 
@@ -806,7 +900,7 @@ impl BossBattle {
                 state.canticle_deadline =
                     archon_canticle(self.difficulty, self.phase, state.canticle_units);
             }
-            BossPattern::Warden(_) | BossPattern::Queen => {}
+            BossPattern::Warden(_) | BossPattern::Queen | BossPattern::PrismSeraph(_) => {}
         }
     }
 
@@ -890,6 +984,7 @@ impl BossBattle {
                         state.canticle_elapsed =
                             state.canticle_elapsed.min(state.canticle_deadline);
                     }
+                    BossPattern::PrismSeraph(state) => *state = SeraphState::new(),
                 }
             }
             BattleCue::Victory | BattleCue::Defeat => self.publish_outcome(),

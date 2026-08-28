@@ -1,5 +1,6 @@
 use super::{
     BATTLE_LIMIT, BattleCue, BossBattle, BossBattleOutcome, BossKind, BossPatternView, BossPhase,
+    SeraphStance,
 };
 use crate::typing::{key_units, unit_count};
 use crate::{
@@ -92,6 +93,30 @@ fn archon(now: Instant) -> BossBattle {
         now,
     )
     .unwrap()
+}
+
+fn seraph(now: Instant, difficulty: GameDifficulty) -> BossBattle {
+    BossBattle::new(
+        BossKind::PrismSeraph,
+        Language::En,
+        difficulty,
+        vec![
+            "alpha".into(),
+            "bravo".into(),
+            "cider".into(),
+            "delta".into(),
+        ],
+        7,
+        now,
+    )
+    .unwrap()
+}
+
+fn seraph_stance(game: &BossBattle) -> SeraphStance {
+    let BossPatternView::PrismSeraph { stance, .. } = game.pattern_view() else {
+        panic!("expected Prism Seraph state");
+    };
+    stance
 }
 
 fn drive_profile(
@@ -231,6 +256,42 @@ fn iron_warden_breaks_three_locks_then_exposes_its_core() {
 }
 
 #[test]
+fn prism_seraph_cycles_through_exact_stance_boundaries() {
+    let mut now = Instant::now();
+    let mut game = seraph(now, GameDifficulty::Easy);
+    finish_intro(&mut game, &mut now);
+
+    advance(&mut game, &mut now, Duration::from_millis(7_999));
+    assert_eq!(seraph_stance(&game), SeraphStance::Open);
+    advance(&mut game, &mut now, Duration::from_millis(1));
+    assert_eq!(seraph_stance(&game), SeraphStance::Warning);
+    advance(&mut game, &mut now, Duration::from_millis(1_800));
+    assert_eq!(seraph_stance(&game), SeraphStance::Reflecting);
+    advance(&mut game, &mut now, Duration::from_millis(2_000));
+    assert_eq!(seraph_stance(&game), SeraphStance::Release);
+    advance(&mut game, &mut now, Duration::from_millis(450));
+    assert_eq!(seraph_stance(&game), SeraphStance::Open);
+}
+
+#[test]
+fn prism_seraph_carries_tick_overshoot_into_the_next_stance() {
+    let mut now = Instant::now();
+    let mut game = seraph(now, GameDifficulty::Hard);
+    finish_intro(&mut game, &mut now);
+    advance(&mut game, &mut now, Duration::from_secs(8));
+    advance(&mut game, &mut now, Duration::from_secs(1));
+
+    now += Duration::from_millis(250);
+    game.tick(now);
+
+    let BossPatternView::PrismSeraph { stance, progress } = game.pattern_view() else {
+        panic!("expected Prism Seraph state");
+    };
+    assert_eq!(stance, SeraphStance::Reflecting);
+    assert!((progress - 0.075).abs() < f64::EPSILON, "{progress}");
+}
+
+#[test]
 fn intro_pause_and_unsupported_viewport_do_not_consume_active_time() {
     let mut now = Instant::now();
     let mut game = battle(now);
@@ -321,7 +382,7 @@ fn max_width_custom_words_keep_pattern_windows_fair_by_physical_key_units() {
                     game.pattern_view(),
                     BossPatternView::NullArchon { checksum: 0, .. }
                 )),
-                BossKind::ThornQueen => unreachable!(),
+                BossKind::ThornQueen | BossKind::PrismSeraph => unreachable!(),
             }
         }
     }

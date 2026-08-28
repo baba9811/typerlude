@@ -406,6 +406,7 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
         "IRON WARDEN",
         "THORN QUEEN",
         "NULL ARCHON",
+        "PRISM SERAPH",
         "☆☆☆ ✧",
         "Language: en",
         "Easy",
@@ -413,6 +414,24 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
         "╬ HELL × ╬",
         "Enter/Tab Options",
     ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+}
+
+#[test]
+fn boss_select_focus_marker_follows_the_fourth_boss_and_three_controls() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    let now = Instant::now();
+    open_boss_options(&mut app, now);
+    press(&mut app, Key::Down, 3, now);
+
+    let roster = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(roster.contains("> × PRISM SERAPH"), "{roster}");
+
+    for expected in ["> Language:", "> Difficulty:", "> Start"] {
+        app.handle_event(key(Key::Tab), now).unwrap();
+        let output = buffer_text(&draw(&app, 80, 24).buffer);
         assert!(output.contains(expected), "{expected}: {output}");
     }
 }
@@ -742,6 +761,49 @@ fn null_archon_overlaps_and_animates_its_cmax_glitch_layers() {
         .position(|cell| cell.symbol() == "{")
         .unwrap() as u16;
     assert_ne!(archon_x, animated_archon % 80, "{output}");
+}
+
+#[test]
+fn prism_seraph_uses_distinct_nonverbal_stances_at_80x24() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    for progress in &mut app.settings.boss_battle_progress[..3] {
+        progress.clear_rank = 1;
+    }
+    let mut now = Instant::now();
+    start_boss(&mut app, 3, now);
+    advance(&mut app, &mut now, Duration::from_millis(800));
+
+    let open = draw(&app, 80, 24);
+    let open_text = buffer_text(&open.buffer);
+    assert!(open_text.contains("╲   ╲   │   ╱   ╱"), "{open_text}");
+    assert!(open.cursor.is_some(), "{open_text}");
+
+    advance(&mut app, &mut now, Duration::from_secs(8));
+    let warning_wide = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(warning_wide.contains("◇ ╲     │     ╱ ◇"), "{warning_wide}");
+
+    advance(&mut app, &mut now, Duration::from_secs(1));
+    let warning_tight = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(warning_tight.contains("◇ ╲   │   ╱ ◇"), "{warning_tight}");
+
+    advance(&mut app, &mut now, Duration::from_millis(800));
+    let reflecting = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(reflecting.contains("╔══╩══╗"), "{reflecting}");
+    assert!(reflecting.contains("◇══╣ ╲│╱ ╠══◇"), "{reflecting}");
+
+    advance(&mut app, &mut now, Duration::from_secs(2));
+    let release = draw(&app, 80, 24);
+    let release_text = buffer_text(&release.buffer);
+    assert!(release_text.contains("──── ╳◈╳ ────"), "{release_text}");
+    assert!(release.cursor.is_some(), "{release_text}");
+    for forbidden in ["REFLECT", "WARNING", "STOP", "반사 중"] {
+        assert!(
+            !release_text.contains(forbidden),
+            "{forbidden}: {release_text}"
+        );
+    }
+    assert_no_blink(&release);
 }
 
 #[test]

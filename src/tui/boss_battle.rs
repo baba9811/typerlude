@@ -9,7 +9,7 @@ use crate::{
     app::App,
     game::{
         GameDifficulty,
-        boss_battle::{BattleCue, BossBattle, BossKind, BossPatternView, BossPhase},
+        boss_battle::{BattleCue, BossBattle, BossKind, BossPatternView, BossPhase, SeraphStance},
     },
     i18n::{TextKey, text},
     model::Language,
@@ -49,6 +49,56 @@ const NULL_ARCHON_ART: &[&str] = &[
     "   ERR  --  { }  --  ERR   ",
     "    VOID   / 10 \\   VOID    ",
     "          \\FAIL/           ",
+];
+
+const PRISM_SERAPH_ART: &[&str] = &[
+    "   ◇  ╲   ╲   │   ╱   ╱  ◇   ",
+    "       ╲   ╲  │  ╱   ╱       ",
+    "         ╲  ╲ │ ╱  ╱         ",
+    " ◇ ───────╲  ◈  ╱─────── ◇ ",
+    "         ╱  ╱ │ ╲  ╲         ",
+    "       ╱   ╱  │  ╲   ╲       ",
+    "   ◇  ╱   ╱   │   ╲   ╲  ◇   ",
+];
+
+const PRISM_SERAPH_WARNING_WIDE_ART: &[&str] = &[
+    "      ◇ ╲     │     ╱ ◇      ",
+    "          ╲   │   ╱          ",
+    "    ◇      ╲  │  ╱      ◇    ",
+    "            ╲ ◈ ╱            ",
+    "    ◇      ╱  │  ╲      ◇    ",
+    "          ╱   │   ╲          ",
+    "      ◇ ╱     │     ╲ ◇      ",
+];
+
+const PRISM_SERAPH_WARNING_TIGHT_ART: &[&str] = &[
+    "        ◇ ╲   │   ╱ ◇        ",
+    "           ╲ ╲│╱ ╱           ",
+    "      ◇ ╲   ╲│╱   ╱ ◇      ",
+    "          ╲ ╲◈╱ ╱          ",
+    "      ◇ ╱   ╱│╲   ╲ ◇      ",
+    "           ╱ ╱│╲ ╲           ",
+    "        ◇ ╱   │   ╲ ◇        ",
+];
+
+const PRISM_SERAPH_REFLECTING_ART: &[&str] = &[
+    "             ◇             ",
+    "          ╔══╩══╗          ",
+    "       ◇══╣ ╲│╱ ╠══◇       ",
+    "          ║  ◈  ║          ",
+    "       ◇══╣ ╱│╲ ╠══◇       ",
+    "          ╚══╦══╝          ",
+    "             ◇             ",
+];
+
+const PRISM_SERAPH_RELEASE_ART: &[&str] = &[
+    "      ◇  ╲   │   ╱  ◇      ",
+    "          ╲  │  ╱          ",
+    "   ◇       ╲ │ ╱       ◇   ",
+    "       ──── ╳◈╳ ────       ",
+    "   ◇       ╱ │ ╲       ◇   ",
+    "          ╱  │  ╲          ",
+    "      ◇  ╱   │   ╲  ◇      ",
 ];
 
 const CMAX_ART: &[&str] = &[
@@ -181,8 +231,12 @@ pub(super) fn render_boss_options(
         app.settings
             .boss_difficulty_is_unlocked(options.boss, difficulty)
     });
+    let roster_count = BossKind::ALL.len();
+    let language_focus = roster_count;
+    let difficulty_focus = roster_count + 1;
+    let start_focus = roster_count + 2;
     let mut start = vec![
-        Span::styled(marker(5), styles.accent),
+        Span::styled(marker(start_focus), styles.accent),
         Span::styled(
             text(language, TextKey::Start),
             if unlocked && difficulty_unlocked {
@@ -199,13 +253,13 @@ pub(super) fn render_boss_options(
     let option_lines = vec![
         Line::from(format!(
             "{}{}: {}",
-            marker(3),
+            marker(language_focus),
             text(language, TextKey::Language),
             language_name(options.language)
         )),
         Line::from(format!(
             "{}{}: {}",
-            marker(4),
+            marker(difficulty_focus),
             text(language, TextKey::Difficulty),
             difficulty_name(language, options.difficulty)
         )),
@@ -328,6 +382,7 @@ pub(super) fn render_boss_battle(
         BossKind::IronWarden => render_warden(frame, game, regions[1], styles),
         BossKind::ThornQueen => render_queen(frame, game, regions[1], styles),
         BossKind::NullArchon => render_archon(frame, game, regions[1], styles),
+        BossKind::PrismSeraph => render_seraph(frame, game, regions[1], styles),
     }
     let input_area = centered(regions[2], 56, regions[2].height);
     render_input(
@@ -736,6 +791,20 @@ fn render_archon(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
     );
 }
 
+fn render_seraph(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: ThemeStyles) {
+    let BossPatternView::PrismSeraph { stance, progress } = game.pattern_view() else {
+        return;
+    };
+    let (art, style) = match stance {
+        SeraphStance::Open => (PRISM_SERAPH_ART, styles.base),
+        SeraphStance::Warning if progress < 0.5 => (PRISM_SERAPH_WARNING_WIDE_ART, styles.accent),
+        SeraphStance::Warning => (PRISM_SERAPH_WARNING_TIGHT_ART, styles.accent),
+        SeraphStance::Reflecting => (PRISM_SERAPH_REFLECTING_ART, styles.error),
+        SeraphStance::Release => (PRISM_SERAPH_RELEASE_ART, styles.correct),
+    };
+    render_static_art(frame, art, area, style);
+}
+
 fn render_input(
     frame: &mut Frame<'_>,
     game: &BossBattle,
@@ -941,6 +1010,7 @@ fn boss_art(boss: BossKind) -> &'static [&'static str] {
         BossKind::IronWarden => IRON_WARDEN_ART,
         BossKind::ThornQueen => THORN_QUEEN_ART,
         BossKind::NullArchon => NULL_ARCHON_ART,
+        BossKind::PrismSeraph => PRISM_SERAPH_ART,
     }
 }
 
@@ -951,6 +1021,7 @@ fn boss_name(language: Language, boss: BossKind) -> &'static str {
             BossKind::IronWarden => TextKey::IronWarden,
             BossKind::ThornQueen => TextKey::ThornQueen,
             BossKind::NullArchon => TextKey::NullArchon,
+            BossKind::PrismSeraph => TextKey::PrismSeraph,
         },
     )
 }
@@ -972,6 +1043,10 @@ fn mechanic_summary(language: Language, boss: BossKind) -> &'static str {
         (Language::Ko, BossKind::NullArchon) => "체크섬 세 개를 연결해 공허의 성가를 역전하세요.",
         (Language::En, BossKind::NullArchon) => {
             "Chain three checksums to reverse the void canticle."
+        }
+        (Language::Ko, BossKind::PrismSeraph) => "거울날개가 닫힌 동안 완성된 공격이 되돌아옵니다.",
+        (Language::En, BossKind::PrismSeraph) => {
+            "Completed attacks return while the mirror wings are closed."
         }
     }
 }

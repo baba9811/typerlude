@@ -269,7 +269,7 @@ impl App {
             Screen::Games => GameKind::ALL.len(),
             Screen::GameOptions => match self.game_options.kind {
                 GameKind::WordRain => 3,
-                GameKind::BossBattle => 6,
+                GameKind::BossBattle => BossKind::ALL.len() + 3,
             },
             Screen::ModeOptions => match self.mode_options.kind {
                 PracticeKind::Quick | PracticeKind::Key => 5,
@@ -333,16 +333,19 @@ impl App {
 
     fn move_tab_focus(&mut self, delta: isize) {
         if self.screen == Screen::GameOptions && self.game_options.kind == GameKind::BossBattle {
+            let roster_count = BossKind::ALL.len();
+            let language_focus = roster_count;
+            let start_focus = roster_count + 2;
             self.focus = if delta < 0 {
                 match self.focus {
-                    0..=2 => 5,
-                    3 => self.game_options.boss.index(),
+                    focus if focus < roster_count => start_focus,
+                    focus if focus == language_focus => self.game_options.boss.index(),
                     focus => focus - 1,
                 }
             } else {
                 match self.focus {
-                    0..=2 => 3,
-                    5 => self.game_options.boss.index(),
+                    focus if focus < roster_count => language_focus,
+                    focus if focus == start_focus => self.game_options.boss.index(),
                     focus => focus + 1,
                 }
             };
@@ -367,18 +370,23 @@ impl App {
                     }
                     _ => {}
                 },
-                GameKind::BossBattle => match self.focus {
-                    3 => self.game_options.language = other_language(self.game_options.language),
-                    4 => {
-                        self.game_options.difficulty = cycle_boss_difficulty(
-                            &self.settings,
-                            self.game_options.boss,
-                            self.game_options.difficulty,
-                            delta,
-                        );
+                GameKind::BossBattle => {
+                    let roster_count = BossKind::ALL.len();
+                    match self.focus {
+                        focus if focus == roster_count => {
+                            self.game_options.language = other_language(self.game_options.language);
+                        }
+                        focus if focus == roster_count + 1 => {
+                            self.game_options.difficulty = cycle_boss_difficulty(
+                                &self.settings,
+                                self.game_options.boss,
+                                self.game_options.difficulty,
+                                delta,
+                            );
+                        }
+                        _ => {}
                     }
-                    _ => {}
-                },
+                }
             }
             return;
         }
@@ -607,12 +615,16 @@ impl App {
                     self.start_word_rain_with_seed(fastrand::u64(..), now)?;
                 }
                 (GameKind::WordRain, _) => self.adjust(1),
-                (GameKind::BossBattle, 5) => {
-                    self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
+                (GameKind::BossBattle, focus) => {
+                    let roster_count = BossKind::ALL.len();
+                    if focus == roster_count + 2 {
+                        self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
+                    } else if focus < roster_count {
+                        self.focus = roster_count;
+                    } else if focus < roster_count + 2 {
+                        self.adjust(1);
+                    }
                 }
-                (GameKind::BossBattle, 0..=2) => self.focus = 3,
-                (GameKind::BossBattle, 3 | 4) => self.adjust(1),
-                (GameKind::BossBattle, _) => {}
             },
             Screen::GameResult => self.escape(),
             Screen::Stats => match self.focus {
@@ -818,7 +830,7 @@ mod tests {
     }
 
     #[test]
-    fn boss_options_use_six_positions_and_preview_locked_roster_rows() {
+    fn boss_options_append_every_roster_row_before_three_controls() {
         let mut app = fixture();
         app.screen = Screen::Games;
         app.focus = 1;
@@ -826,12 +838,17 @@ mod tests {
         app.enter(Instant::now()).unwrap();
         assert_eq!(app.screen, Screen::GameOptions);
         assert_eq!(app.game_options.kind, GameKind::BossBattle);
-        assert_eq!(app.focus_count(), 6);
+        assert_eq!(app.focus_count(), BossKind::ALL.len() + 3);
 
-        app.move_focus(1);
-        assert_eq!(app.focus, 1);
-        assert_eq!(app.game_options.boss, BossKind::ThornQueen);
-        assert!(!app.settings.boss_is_unlocked(BossKind::ThornQueen));
+        for _ in 1..BossKind::ALL.len() {
+            app.move_focus(1);
+        }
+        assert_eq!(app.focus, BossKind::PrismSeraph.index());
+        assert_eq!(app.game_options.boss, BossKind::PrismSeraph);
+        assert!(!app.settings.boss_is_unlocked(BossKind::PrismSeraph));
+
+        app.move_tab_focus(1);
+        assert_eq!(app.focus, BossKind::ALL.len());
     }
 
     #[test]
@@ -841,7 +858,7 @@ mod tests {
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
         app.settings
             .record_boss_clear(BossKind::IronWarden, Language::En, GameDifficulty::Easy, 1);
-        app.focus = 4;
+        app.focus = BossKind::ALL.len() + 1;
 
         app.adjust(1);
         assert_eq!(app.game_options.difficulty, GameDifficulty::Medium);
@@ -884,7 +901,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(app.focus, 3);
+        assert_eq!(app.focus, BossKind::ALL.len());
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
     }
 
@@ -896,12 +913,12 @@ mod tests {
         app.game_options.boss = BossKind::NullArchon;
         let now = Instant::now();
 
+        let roster_count = BossKind::ALL.len();
         for (focus, key) in [
-            (5, Key::Down),
-            (5, Key::Char('j')),
-            (3, Key::Up),
-            (3, Key::Char('k')),
-            (2, Key::Down),
+            (roster_count + 2, Key::Down),
+            (roster_count + 2, Key::Char('j')),
+            (roster_count, Key::Up),
+            (roster_count, Key::Char('k')),
         ] {
             app.focus = focus;
             app.handle_event(
@@ -916,6 +933,20 @@ mod tests {
             assert_eq!(app.focus, focus);
             assert_eq!(app.game_options.boss, BossKind::NullArchon);
         }
+
+        app.focus = BossKind::PrismSeraph.index();
+        app.game_options.boss = BossKind::PrismSeraph;
+        app.handle_event(
+            InputEvent::Key(KeyInput {
+                key: Key::Down,
+                modifiers: KeyModifiers::NONE,
+                kind: KeyKind::Press,
+            }),
+            now,
+        )
+        .unwrap();
+        assert_eq!(app.focus, BossKind::PrismSeraph.index());
+        assert_eq!(app.game_options.boss, BossKind::PrismSeraph);
 
         app.focus = 0;
         app.game_options.boss = BossKind::IronWarden;
@@ -952,7 +983,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(app.screen, Screen::GameOptions);
-        assert_eq!(app.focus, 3);
+        assert_eq!(app.focus, BossKind::ALL.len());
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
 
         for (modifiers, kind) in [
@@ -970,7 +1001,7 @@ mod tests {
             .unwrap();
         }
 
-        assert_eq!(app.focus, 3);
+        assert_eq!(app.focus, BossKind::ALL.len());
         assert_eq!(app.game_options.boss, BossKind::ThornQueen);
         assert_eq!(app.game_options.language, Language::En);
         assert_eq!(app.game_options.difficulty, GameDifficulty::Easy);
@@ -983,7 +1014,7 @@ mod tests {
         app.screen = Screen::GameOptions;
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::En);
         app.game_options.boss = BossKind::NullArchon;
-        app.focus = 5;
+        app.focus = BossKind::ALL.len() + 2;
 
         app.enter(Instant::now()).unwrap();
 
