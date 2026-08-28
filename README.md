@@ -63,7 +63,7 @@ to Games. Hell starts with a 7.0-second fall time and a 1.2-second spawn interva
 
 ### Boss Battle
 
-Fight one of three bosses for 90 active seconds with three hearts. Each boss has its own typing
+Fight one of four bosses for 90 active seconds with three hearts. Each boss has its own typing
 pattern and phase-two skill. Difficulties unlock Easy → Medium → Hard → Hell for each boss, while
 clearing Easy also opens the next boss. `☆☆☆ ✧` through `★★★ ✦` shows the highest clear. On the
 result screen, `r` or `ㄱ` retries; `Enter` or `Esc` returns to the selected boss's options.
@@ -74,7 +74,7 @@ for the boss roster, mechanics, progression, and scoring rules.
 ## What you get
 
 - Quick, Keys, Words, Sentences, Long Text, and timed Test modes
-- Two offline games: escalating one-miss Word Rain and three-boss Boss Battle
+- Two offline games: escalating one-miss Word Rain and four-boss Boss Battle
 - Korean and English UI, content, scoring, and speed units
 - Unicode-aware typing metrics, goals, history, progress, and weak-key practice
 - Built-in offline content plus local content packs and themes

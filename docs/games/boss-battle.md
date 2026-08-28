@@ -65,6 +65,18 @@ seconds. A 420 KPM, 97% accurate player is expected to reach the final stretch b
 - **Phase two:** C MAX locks the system during the transition, then the canticle accelerates.
 - **Signature:** C MAX, checksum rollback, and the three-checksum reversal.
 
+### 4. PRISM SERAPH
+
+- **Pattern:** Six mirror wings converge around the central lens. Typing and `Backspace` remain
+  available in every stance, but a word completed while the lens is closed returns that attack.
+- **Failure:** Each returned attack leaves the boss unharmed, costs one heart, and resets combo.
+  Building the word during reflection and holding its final character until the lens cracks open is
+  intended play; the first release frame is safe.
+- **Phase two:** The open-wing interval becomes shorter. The warning and closed-lens rule stay the
+  same.
+- **Signature:** Converging mirror wings, a closed double-contour lens, and a return ray toward the
+  player.
+
 ## Score and local data
 
 Score is the sum of a 10,000-point victory bonus, whole seconds remaining × 100, remaining hearts ×
