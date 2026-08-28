@@ -433,10 +433,10 @@ pub fn initial_ui_language(lc_all: Option<&str>, lang: Option<&str>) -> Language
 
 pub(crate) const fn result_actions(language: Language, can_start_next: bool) -> &'static str {
     match (language, can_start_next) {
-        (Language::Ko, true) => "r: 다시 연습 · n: 다음 · Esc: 메뉴",
-        (Language::Ko, false) => "r: 다시 연습 · Esc: 메뉴",
-        (Language::En, true) => "r: Retry · n: Next · Esc: Menu",
-        (Language::En, false) => "r: Retry · Esc: Menu",
+        (Language::Ko, true) => "r/ㄱ: 다시 연습 · n: 다음 · Esc: 메뉴",
+        (Language::Ko, false) => "r/ㄱ: 다시 연습 · Esc: 메뉴",
+        (Language::En, true) => "r/ㄱ: Retry · n: Next · Esc: Menu",
+        (Language::En, false) => "r/ㄱ: Retry · Esc: Menu",
     }
 }
 

@@ -1,14 +1,15 @@
 use super::{
     boss_battle::{render_boss_battle, render_boss_options, render_boss_result},
+    danger_titled,
     format::{grouped_u64, language_name},
     theme::ThemeStyles,
     titled,
 };
 use crate::{
     app::App,
-    game::{GameKind, word_rain::LOGICAL_WIDTH},
+    game::{GameDifficulty, GameKind, word_rain::LOGICAL_WIDTH},
     i18n::{TextKey, text},
-    model::{Difficulty, Language},
+    model::Language,
 };
 use ratatui::{
     Frame,
@@ -17,6 +18,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{List, ListItem, Paragraph, Wrap},
 };
+use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -47,7 +49,17 @@ pub(super) fn render_game_options(
     }
     let language = app.settings.ui_language;
     let options = app.game_options();
-    let block = titled(game_name(language, options.kind), styles);
+    let hell = options.difficulty == GameDifficulty::Hell;
+    let title = if hell {
+        format!("{} · HELL // REDLINE", game_name(language, options.kind))
+    } else {
+        game_name(language, options.kind).to_owned()
+    };
+    let block = if hell {
+        danger_titled(&title, styles)
+    } else {
+        titled(&title, styles)
+    };
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let marker = |index| if index == app.focus() { "> " } else { "  " };
@@ -63,17 +75,22 @@ pub(super) fn render_game_options(
                 styles.base,
             ),
         ]),
-        Line::from(vec![
-            Span::styled(marker(1), styles.accent),
-            Span::styled(
-                format!(
-                    "{}: {}",
-                    text(language, TextKey::Difficulty),
-                    difficulty_name(language, options.difficulty)
+        Line::from({
+            let mut spans = vec![
+                Span::styled(marker(1), styles.accent),
+                Span::styled(
+                    format!("{}: ", text(language, TextKey::Difficulty)),
+                    styles.base,
                 ),
-                styles.base,
-            ),
-        ]),
+            ];
+            spans.extend(difficulty_spans(
+                language,
+                options.difficulty,
+                [true; 4],
+                styles,
+            ));
+            spans
+        }),
         Line::from(vec![
             Span::styled(marker(2), styles.accent),
             Span::styled(text(language, TextKey::Start), styles.base),
@@ -105,15 +122,27 @@ pub(super) fn render_game(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
         Constraint::Length(5),
     ])
     .split(area);
-    let title = format!(
-        "{} · {}",
-        text(language, TextKey::WordRain),
-        difficulty_name(language, active.game.difficulty())
+    let hell = active.game.difficulty() == GameDifficulty::Hell;
+    let title = if hell {
+        hell_title(text(language, TextKey::WordRain), active.game.active_time())
+    } else {
+        format!(
+            "{} · {}",
+            text(language, TextKey::WordRain),
+            difficulty_name(language, active.game.difficulty())
+        )
+    };
+    let collision = format!(
+        " {}{} ",
+        if hell { "!! " } else { "" },
+        text(language, TextKey::CollisionLine)
     );
-    let playfield = titled(&title, styles).title_bottom(Span::styled(
-        format!(" {} ", text(language, TextKey::CollisionLine)),
-        styles.error,
-    ));
+    let playfield = if hell {
+        danger_titled(&title, styles)
+    } else {
+        titled(&title, styles)
+    }
+    .title_bottom(Span::styled(collision, styles.error));
     let sky = playfield.inner(regions[0]);
     frame.render_widget(playfield, regions[0]);
 
@@ -309,11 +338,10 @@ pub(super) fn render_game_result(
             result.missed_word
         )),
         Line::from(""),
-        Line::from(format!(
-            "Enter: {} · Esc: {}",
-            text(language, TextKey::Retry),
-            text(language, TextKey::HomeGames)
-        )),
+        Line::from(match language {
+            Language::Ko => "r/ㄱ: 다시 하기 · Enter/Esc: 게임",
+            Language::En => "r/ㄱ: Retry · Enter/Esc: Games",
+        }),
     ]);
     frame.render_widget(
         Paragraph::new(lines)
@@ -330,14 +358,59 @@ const fn game_name(language: Language, kind: GameKind) -> &'static str {
     }
 }
 
-pub(super) const fn difficulty_name(language: Language, difficulty: Difficulty) -> &'static str {
-    let key = match difficulty {
-        Difficulty::Easy => TextKey::Easy,
-        Difficulty::Medium => TextKey::Medium,
-        Difficulty::Hard => TextKey::Hard,
-        Difficulty::Mixed => TextKey::Mixed,
+pub(super) const fn difficulty_name(
+    language: Language,
+    difficulty: GameDifficulty,
+) -> &'static str {
+    match difficulty {
+        GameDifficulty::Easy => text(language, TextKey::Easy),
+        GameDifficulty::Medium => text(language, TextKey::Medium),
+        GameDifficulty::Hard => text(language, TextKey::Hard),
+        GameDifficulty::Hell => "HELL",
+    }
+}
+
+pub(super) fn difficulty_spans(
+    language: Language,
+    selected: GameDifficulty,
+    unlocked: [bool; 4],
+    styles: ThemeStyles,
+) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    for (index, difficulty) in GameDifficulty::ALL.into_iter().enumerate() {
+        if index != 0 {
+            spans.push(Span::styled(" · ", styles.dim));
+        }
+        let available = unlocked[index];
+        let chosen = selected == difficulty && available;
+        let name = difficulty_name(language, difficulty);
+        let label = match (difficulty, available, chosen) {
+            (GameDifficulty::Hell, false, _) => "╬ HELL × ╬".to_owned(),
+            (GameDifficulty::Hell, true, true) => "[╬ HELL ╬]".to_owned(),
+            (GameDifficulty::Hell, true, false) => "╬ HELL ╬".to_owned(),
+            (_, false, _) => format!("{name}×"),
+            (_, true, true) => format!("[{name}]"),
+            (_, true, false) => name.to_owned(),
+        };
+        let style = match (difficulty, available, chosen) {
+            (GameDifficulty::Hell, true, true) => styles.error.add_modifier(Modifier::REVERSED),
+            (GameDifficulty::Hell, true, false) => styles.error,
+            (_, false, _) => styles.dim,
+            (_, true, true) => styles.accent,
+            (_, true, false) => styles.base,
+        };
+        spans.push(Span::styled(label, style));
+    }
+    spans
+}
+
+pub(super) fn hell_title(name: &str, elapsed: Duration) -> String {
+    let edge = if (elapsed.as_millis() / 750).is_multiple_of(2) {
+        '╬'
+    } else {
+        '┼'
     };
-    text(language, key)
+    format!("{name} · {edge} HELL {edge} // REDLINE")
 }
 
 pub(super) fn centered(area: Rect, width: u16, height: u16) -> Rect {

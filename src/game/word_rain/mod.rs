@@ -1,5 +1,6 @@
 use crate::{
-    model::{Difficulty, Language},
+    game::GameDifficulty,
+    model::Language,
     typing::{key_units, unit_count},
 };
 use anyhow::{Result, bail};
@@ -55,7 +56,7 @@ pub(crate) struct WordRainOutcome {
 
 pub(crate) struct WordRain {
     language: Language,
-    difficulty: Difficulty,
+    difficulty: GameDifficulty,
     words: Vec<String>,
     active: Vec<FallingWord>,
     rng: fastrand::Rng,
@@ -77,14 +78,11 @@ pub(crate) struct WordRain {
 impl WordRain {
     pub(crate) fn new(
         language: Language,
-        difficulty: Difficulty,
+        difficulty: GameDifficulty,
         words: Vec<String>,
         seed: u64,
         now: Instant,
     ) -> Result<Self> {
-        if difficulty == Difficulty::Mixed {
-            bail!("word rain requires a concrete difficulty");
-        }
         if words.is_empty()
             || words.iter().any(|word| {
                 let width = UnicodeWidthStr::width(word.as_str());
@@ -124,8 +122,12 @@ impl WordRain {
         1_u64.saturating_add(self.cleared / 10)
     }
 
-    pub(crate) const fn difficulty(&self) -> Difficulty {
+    pub(crate) const fn difficulty(&self) -> GameDifficulty {
         self.difficulty
+    }
+
+    pub(crate) const fn active_time(&self) -> Duration {
+        self.active_time
     }
 
     pub(crate) fn active_words(&self) -> impl ExactSizeIterator<Item = &FallingWord> {
@@ -166,19 +168,19 @@ impl WordRain {
 
     fn base_fall_seconds(&self) -> f64 {
         match self.difficulty {
-            Difficulty::Easy => 18.0,
-            Difficulty::Medium => 14.0,
-            Difficulty::Hard => 10.0,
-            Difficulty::Mixed => unreachable!("validated by WordRain::new"),
+            GameDifficulty::Easy => 18.0,
+            GameDifficulty::Medium => 14.0,
+            GameDifficulty::Hard => 10.0,
+            GameDifficulty::Hell => 7.0,
         }
     }
 
     fn base_spawn_seconds(&self) -> f64 {
         match self.difficulty {
-            Difficulty::Easy => 2.4,
-            Difficulty::Medium => 2.0,
-            Difficulty::Hard => 1.6,
-            Difficulty::Mixed => unreachable!("validated by WordRain::new"),
+            GameDifficulty::Easy => 2.4,
+            GameDifficulty::Medium => 2.0,
+            GameDifficulty::Hard => 1.6,
+            GameDifficulty::Hell => 1.2,
         }
     }
 

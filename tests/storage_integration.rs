@@ -181,10 +181,12 @@ fn config_round_trip_atomically_replaces_the_previous_value() {
         language: Language::Ko,
         daily_minutes: 25,
         word_rain_high_scores: [[101, 102, 103], [201, 202, 203]],
+        word_rain_hell_high_scores: [104, 204],
         boss_battle_progress: vec![
             BossProgress {
                 clear_rank: 1,
                 high_scores: [[301, 0, 0], [401, 0, 0]],
+                hell_high_scores: [304, 404],
             },
             BossProgress::default(),
             BossProgress::default(),
@@ -205,6 +207,32 @@ fn config_round_trip_atomically_replaces_the_previous_value() {
             .count(),
         1
     );
+}
+
+#[test]
+fn old_config_without_hell_scores_loads_zero_defaults() {
+    let root = TestDir::new();
+    let paths = AppPaths::from_override(root.path().join("home"));
+    fs::create_dir_all(paths.config.parent().unwrap()).unwrap();
+    fs::write(
+        &paths.config,
+        r#"schema_version = 1
+language = "en"
+
+[[boss_battle_progress]]
+clear_rank = 3
+high_scores = [[1, 2, 3], [4, 5, 6]]
+"#,
+    )
+    .unwrap();
+
+    let loaded = Settings::load(&paths).unwrap();
+    assert_eq!(loaded.value.word_rain_hell_high_scores, [0, 0]);
+    assert_eq!(
+        loaded.value.boss_battle_progress[0].hell_high_scores,
+        [0, 0]
+    );
+    assert!(loaded.warnings.is_empty());
 }
 
 #[test]

@@ -70,7 +70,7 @@ fn assert_result_next_unavailable_and_retry_exact(app: &mut App, now: Instant) {
     finish_started_practice(app, now);
     let result = app.result.clone();
     let output = buffer_text(&draw(app, 80, 24).buffer);
-    assert!(output.contains("r: Retry"), "{output}");
+    assert!(output.contains("r/ㄱ: Retry"), "{output}");
     assert!(output.contains("Esc: Menu"), "{output}");
     assert!(!output.contains("n: Next"), "{output}");
 
@@ -82,6 +82,32 @@ fn assert_result_next_unavailable_and_retry_exact(app: &mut App, now: Instant) {
 
     app.handle_event(key(Key::Char('r')), now + Duration::from_secs(3))
         .unwrap();
+    assert_eq!(app.screen(), Screen::Practice);
+    assert_eq!(app.retry_request(), Some(&request));
+}
+
+#[test]
+fn korean_giyeok_retries_the_exact_practice_result() {
+    let (_root, mut app) = fixture_app();
+    app.settings.ui_language = Language::Ko;
+    let now = Instant::now();
+    app.start_words(Language::Ko, Difficulty::Easy, 7, now)
+        .unwrap();
+    let request = app.retry_request().unwrap().clone();
+    finish_started_practice(&mut app, now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("r/ㄱ: 다시 연습"), "{output}");
+    app.handle_event(
+        key_with(Key::Char('ㄱ'), KeyModifiers::NONE, KeyKind::Repeat),
+        now + Duration::from_secs(2),
+    )
+    .unwrap();
+    assert_eq!(app.screen(), Screen::Result);
+
+    app.handle_event(key(Key::Char('ㄱ')), now + Duration::from_secs(2))
+        .unwrap();
+
     assert_eq!(app.screen(), Screen::Practice);
     assert_eq!(app.retry_request(), Some(&request));
 }
@@ -271,7 +297,7 @@ fn result_next_retains_options_and_builds_fresh_quick_words_sentence_content() {
         assert_eq!(app.screen(), Screen::Result);
         if kind == PracticeKind::Quick {
             let output = buffer_text(&draw(&app, 80, 24).buffer);
-            for action in ["r: 다시 연습", "n: 다음", "Esc: 메뉴"] {
+            for action in ["r/ㄱ: 다시 연습", "n: 다음", "Esc: 메뉴"] {
                 assert!(output.contains(action), "missing {action:?}: {output}");
             }
         }
