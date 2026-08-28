@@ -162,6 +162,20 @@ impl App {
             Key::Enter if key.kind == KeyKind::Press && key.modifiers == KeyModifiers::NONE => {
                 self.enter(now)?;
             }
+            Key::Char('r' | 'R')
+                if self.screen == Screen::GameResult
+                    && key.kind == KeyKind::Press
+                    && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
+            {
+                match self.game_options.kind {
+                    GameKind::WordRain => {
+                        self.start_word_rain_with_seed(fastrand::u64(..), now)?;
+                    }
+                    GameKind::BossBattle => {
+                        self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
+                    }
+                }
+            }
             Key::Char('r')
                 if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
             {
@@ -598,12 +612,7 @@ impl App {
                 (GameKind::BossBattle, 3 | 4) => self.adjust(1),
                 (GameKind::BossBattle, _) => {}
             },
-            Screen::GameResult => match self.game_options.kind {
-                GameKind::WordRain => self.start_word_rain_with_seed(fastrand::u64(..), now)?,
-                GameKind::BossBattle => {
-                    self.start_boss_battle_with_seed(fastrand::u64(..), now)?;
-                }
-            },
+            Screen::GameResult => self.escape(),
             Screen::Stats => match self.focus {
                 0..=2 => self.adjust(1),
                 3 => self.open(Screen::History),

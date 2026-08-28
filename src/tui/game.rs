@@ -309,11 +309,10 @@ pub(super) fn render_game_result(
             result.missed_word
         )),
         Line::from(""),
-        Line::from(format!(
-            "Enter: {} · Esc: {}",
-            text(language, TextKey::Retry),
-            text(language, TextKey::HomeGames)
-        )),
+        Line::from(match language {
+            Language::Ko => "r: 다시 하기 · Enter/Esc: 게임",
+            Language::En => "r: Retry · Enter/Esc: Games",
+        }),
     ]);
     frame.render_widget(
         Paragraph::new(lines)

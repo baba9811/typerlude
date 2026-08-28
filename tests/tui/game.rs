@@ -248,10 +248,11 @@ fn game_result_shows_every_outcome_and_retry_action() {
         "Level",
         "Duration",
         "Missed word",
-        "Enter: Retry",
+        "r: Retry · Enter/Esc: Games",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
+    assert!(!output.contains("Enter: Retry"), "{output}");
 }
 
 #[test]
@@ -271,6 +272,10 @@ fn updated_personal_best_fanfare_is_localized_and_uses_two_lines() {
         .position(|row| row.contains("개인 최고 기록 갱신!"))
         .unwrap();
     assert!(rows[update + 1].contains("0 -> "), "{output}");
+    assert!(
+        output.contains("r: 다시 하기 · Enter/Esc: 게임"),
+        "{output}"
+    );
 }
 
 #[test]
@@ -575,12 +580,19 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
         "Accuracy",
         "Max combo",
         "Time",
-        "Enter: Retry",
-        "Esc: Boss select",
+        "r: Retry · Enter/Esc: Boss select",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
+    assert!(!output.contains("Enter: Retry"), "{output}");
     assert!(output.lines().count() <= 24, "{output}");
+
+    app.settings.ui_language = Language::Ko;
+    let korean = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(
+        korean.contains("r: 다시 하기 · Enter/Esc: 보스 선택"),
+        "{korean}"
+    );
 
     app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(app.screen(), Screen::GameOptions);

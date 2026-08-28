@@ -373,6 +373,14 @@ mod tests {
         })
     }
 
+    fn key_with(key: Key, modifiers: KeyModifiers, kind: KeyKind) -> InputEvent {
+        InputEvent::Key(KeyInput {
+            key,
+            modifiers,
+            kind,
+        })
+    }
+
     fn start(app: &mut App, language: Language, difficulty: GameDifficulty, now: Instant) {
         app.game_options = GameOptions::new(GameKind::WordRain, language);
         app.game_options.difficulty = difficulty;
@@ -544,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn collision_opens_result_and_enter_retries_the_same_options() {
+    fn word_rain_result_enter_returns_to_games() {
         let now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
         start(&mut app, Language::Ko, GameDifficulty::Hard, now);
@@ -558,11 +566,51 @@ mod tests {
 
         app.handle_event(key(Key::Enter), now + Duration::from_secs(11))
             .unwrap();
-        let active = app.active_word_rain().unwrap();
-        assert_eq!(app.screen, Screen::Game);
-        assert_eq!(app.game_options.language, Language::Ko);
-        assert_eq!(active.game.difficulty(), GameDifficulty::Hard);
+
+        assert_eq!(app.screen, Screen::Games);
+        assert!(app.active_game.is_none());
         assert!(app.game_result.is_none());
+    }
+
+    #[test]
+    fn word_rain_result_plain_r_in_either_case_retries_the_same_options() {
+        for (character, modifiers) in [('r', KeyModifiers::NONE), ('R', KeyModifiers::SHIFT)] {
+            let now = Instant::now();
+            let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+            start(&mut app, Language::Ko, GameDifficulty::Hell, now);
+            finish_game(&mut app, now);
+
+            app.handle_event(
+                key_with(Key::Char(character), modifiers, KeyKind::Press),
+                now + Duration::from_secs(26),
+            )
+            .unwrap();
+
+            let active = app.active_word_rain().unwrap();
+            assert_eq!(app.screen, Screen::Game);
+            assert_eq!(app.game_options.language, Language::Ko);
+            assert_eq!(active.game.difficulty(), GameDifficulty::Hell);
+            assert!(app.game_result.is_none());
+        }
+    }
+
+    #[test]
+    fn word_rain_result_ignores_repeated_or_modified_r() {
+        let now = Instant::now();
+        let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+        start(&mut app, Language::En, GameDifficulty::Easy, now);
+        finish_game(&mut app, now);
+
+        for event in [
+            key_with(Key::Char('r'), KeyModifiers::NONE, KeyKind::Repeat),
+            key_with(Key::Char('r'), KeyModifiers::OTHER, KeyKind::Press),
+        ] {
+            app.handle_event(event, now + Duration::from_secs(26))
+                .unwrap();
+            assert_eq!(app.screen, Screen::GameResult);
+            assert!(app.active_game.is_none());
+            assert!(app.game_result.is_some());
+        }
     }
 
     #[test]
@@ -638,35 +686,65 @@ mod tests {
     }
 
     #[test]
-    fn boss_result_escape_preserves_the_exact_boss_options() {
+    fn boss_result_enter_and_escape_preserve_the_exact_boss_options() {
+        for exit in [Key::Enter, Key::Esc] {
+            let mut now = Instant::now();
+            let mut app = fixture(ContentCatalog::load_builtins().unwrap());
+            for (boss, difficulty) in [
+                (BossKind::IronWarden, GameDifficulty::Easy),
+                (BossKind::ThornQueen, GameDifficulty::Easy),
+                (BossKind::NullArchon, GameDifficulty::Easy),
+                (BossKind::NullArchon, GameDifficulty::Medium),
+            ] {
+                app.settings
+                    .record_boss_clear(boss, Language::En, difficulty, 1);
+            }
+            app.game_options = GameOptions::new(GameKind::BossBattle, Language::Ko);
+            app.game_options.boss = BossKind::NullArchon;
+            app.game_options.difficulty = GameDifficulty::Hard;
+            app.start_boss_battle_with_seed(7, now).unwrap();
+            force_boss_victory(&mut app, &mut now);
+
+            app.handle_event(key(exit), now).unwrap();
+
+            assert_eq!(app.screen, Screen::GameOptions, "{exit:?}");
+            assert_eq!(app.parent, Screen::Games, "{exit:?}");
+            assert_eq!(app.focus, BossKind::NullArchon.index(), "{exit:?}");
+            assert_eq!(app.game_options.kind, GameKind::BossBattle, "{exit:?}");
+            assert_eq!(app.game_options.boss, BossKind::NullArchon, "{exit:?}");
+            assert_eq!(app.game_options.language, Language::Ko, "{exit:?}");
+            assert_eq!(
+                app.game_options.difficulty,
+                GameDifficulty::Hard,
+                "{exit:?}"
+            );
+            assert!(app.game_options.error.is_none(), "{exit:?}");
+            assert!(app.active_game.is_none(), "{exit:?}");
+            assert!(app.game_result.is_none(), "{exit:?}");
+        }
+    }
+
+    #[test]
+    fn boss_result_r_retries_the_same_boss_options() {
         let mut now = Instant::now();
         let mut app = fixture(ContentCatalog::load_builtins().unwrap());
-        for (boss, difficulty) in [
-            (BossKind::IronWarden, GameDifficulty::Easy),
-            (BossKind::ThornQueen, GameDifficulty::Easy),
-            (BossKind::NullArchon, GameDifficulty::Easy),
-            (BossKind::NullArchon, GameDifficulty::Medium),
-        ] {
-            app.settings
-                .record_boss_clear(boss, Language::En, difficulty, 1);
-        }
         app.game_options = GameOptions::new(GameKind::BossBattle, Language::Ko);
-        app.game_options.boss = BossKind::NullArchon;
-        app.game_options.difficulty = GameDifficulty::Hard;
+        app.game_options.boss = BossKind::IronWarden;
+        app.game_options.difficulty = GameDifficulty::Easy;
         app.start_boss_battle_with_seed(7, now).unwrap();
         force_boss_victory(&mut app, &mut now);
 
-        app.handle_event(key(Key::Esc), now).unwrap();
+        app.handle_event(
+            key_with(Key::Char('R'), KeyModifiers::SHIFT, KeyKind::Press),
+            now,
+        )
+        .unwrap();
 
-        assert_eq!(app.screen, Screen::GameOptions);
-        assert_eq!(app.parent, Screen::Games);
-        assert_eq!(app.focus, BossKind::NullArchon.index());
-        assert_eq!(app.game_options.kind, GameKind::BossBattle);
-        assert_eq!(app.game_options.boss, BossKind::NullArchon);
+        let active = app.active_boss_battle().unwrap();
+        assert_eq!(app.screen, Screen::Game);
+        assert_eq!(app.game_options.boss, BossKind::IronWarden);
         assert_eq!(app.game_options.language, Language::Ko);
-        assert_eq!(app.game_options.difficulty, GameDifficulty::Hard);
-        assert!(app.game_options.error.is_none());
-        assert!(app.active_game.is_none());
+        assert_eq!(active.game.difficulty(), GameDifficulty::Easy);
         assert!(app.game_result.is_none());
     }
 }
