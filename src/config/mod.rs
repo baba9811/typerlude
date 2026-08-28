@@ -341,6 +341,7 @@ mod locale_tests {
         let mut settings = Settings::default();
         assert!(settings.boss_is_unlocked(BossKind::IronWarden));
         assert!(!settings.boss_is_unlocked(BossKind::ThornQueen));
+        assert!(!settings.boss_is_unlocked(BossKind::PrismSeraph));
         assert!(settings.boss_difficulty_is_unlocked(BossKind::IronWarden, GameDifficulty::Easy,));
         assert!(
             !settings.boss_difficulty_is_unlocked(BossKind::IronWarden, GameDifficulty::Medium,)
@@ -367,6 +368,20 @@ mod locale_tests {
             settings.boss_high_score(BossKind::IronWarden, Language::Ko, GameDifficulty::Easy,),
             0,
         );
+
+        settings.record_boss_clear(
+            BossKind::ThornQueen,
+            Language::En,
+            GameDifficulty::Easy,
+            10_000,
+        );
+        settings.record_boss_clear(
+            BossKind::NullArchon,
+            Language::En,
+            GameDifficulty::Easy,
+            11_000,
+        );
+        assert!(settings.boss_is_unlocked(BossKind::PrismSeraph));
     }
 
     #[test]
@@ -400,22 +415,24 @@ mod locale_tests {
 
     #[test]
     fn recording_an_appended_boss_extends_short_progress() {
-        let mut settings = Settings {
-            boss_battle_progress: Vec::new(),
-            ..Settings::default()
-        };
+        let mut settings = Settings::default();
+        settings.boss_battle_progress.truncate(3);
+        settings.boss_battle_progress[2].clear_rank = 1;
+        settings.boss_battle_progress[2].high_scores[0][0] = 8_000;
+        let existing = settings.boss_battle_progress.clone();
 
         settings.record_boss_clear(
-            BossKind::NullArchon,
+            BossKind::PrismSeraph,
             Language::Ko,
             GameDifficulty::Easy,
             9_000,
         );
 
-        assert_eq!(settings.boss_battle_progress.len(), 3);
-        assert_eq!(settings.boss_clear_rank(BossKind::NullArchon), 1);
+        assert_eq!(settings.boss_battle_progress.len(), 4);
+        assert_eq!(&settings.boss_battle_progress[..3], existing);
+        assert_eq!(settings.boss_clear_rank(BossKind::PrismSeraph), 1);
         assert_eq!(
-            settings.boss_high_score(BossKind::NullArchon, Language::Ko, GameDifficulty::Easy,),
+            settings.boss_high_score(BossKind::PrismSeraph, Language::Ko, GameDifficulty::Easy,),
             9_000,
         );
     }

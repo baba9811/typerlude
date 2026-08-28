@@ -1,6 +1,6 @@
 use super::{
     BATTLE_LIMIT, BattleCue, BossBattle, BossBattleOutcome, BossKind, BossPatternView, BossPhase,
-    SeraphStance,
+    SERAPH_REFLECTING, SeraphStance,
 };
 use crate::typing::{key_units, unit_count};
 use crate::{
@@ -180,7 +180,26 @@ fn drive_profile(
             continue;
         }
 
-        if !profile_delay(game, now, unit_delay.mul_f64(units as f64)) {
+        let completes_prompt = prompt.chars().nth(prefix + 1).is_none();
+        let delay = match game.pattern_view() {
+            BossPatternView::PrismSeraph {
+                stance: SeraphStance::Reflecting,
+                progress,
+            } if completes_prompt => SERAPH_REFLECTING.mul_f64(1.0 - progress),
+            _ => unit_delay.mul_f64(units as f64),
+        };
+        if !profile_delay(game, now, delay) {
+            continue;
+        }
+        if completes_prompt
+            && matches!(
+                game.pattern_view(),
+                BossPatternView::PrismSeraph {
+                    stance: SeraphStance::Reflecting,
+                    ..
+                }
+            )
+        {
             continue;
         }
         if game.prompts.iter().any(|prompt| prompt.id == target)
@@ -222,6 +241,18 @@ fn scripted_outcome(
     kpm: u32,
     accuracy: f64,
 ) -> BossBattleOutcome {
+    scripted_outcome_with_seed(catalog, boss, language, difficulty, kpm, accuracy, 7)
+}
+
+fn scripted_outcome_with_seed(
+    catalog: &ContentCatalog,
+    boss: BossKind,
+    language: Language,
+    difficulty: GameDifficulty,
+    kpm: u32,
+    accuracy: f64,
+    seed: u64,
+) -> BossBattleOutcome {
     let mut seen = HashSet::new();
     let words = catalog
         .select(language, ContentKind::Word, difficulty.content_difficulty())
@@ -230,7 +261,7 @@ fn scripted_outcome(
         .filter(|word| seen.insert(word.clone()))
         .collect();
     let mut now = Instant::now();
-    let mut game = BossBattle::new(boss, language, difficulty, words, 7, now).unwrap();
+    let mut game = BossBattle::new(boss, language, difficulty, words, seed, now).unwrap();
     drive_profile(&mut game, &mut now, kpm, accuracy)
 }
 
@@ -289,6 +320,128 @@ fn prism_seraph_carries_tick_overshoot_into_the_next_stance() {
     };
     assert_eq!(stance, SeraphStance::Reflecting);
     assert!((progress - 0.075).abs() < f64::EPSILON, "{progress}");
+}
+
+#[test]
+fn completed_word_during_reflection_returns_the_attack() {
+    let mut now = Instant::now();
+    let mut game = seraph(now, GameDifficulty::Easy);
+    finish_intro(&mut game, &mut now);
+    advance(&mut game, &mut now, Duration::from_millis(9_800));
+    assert_eq!(seraph_stance(&game), SeraphStance::Reflecting);
+
+    game.health = game.max_health / 2 + 1;
+    let health = game.health();
+    let prompt_id = game.prompts().next().unwrap().id();
+    let correct_units = game.correct_units;
+    let attempted_units = game.attempted_units;
+    let completed_units = unit_count(game.language, game.prompts().next().unwrap().text());
+    type_current_prompt(&mut game);
+
+    assert_eq!(game.health(), health);
+    assert_eq!(game.hearts(), 2);
+    assert_eq!(game.combo(), 0);
+    assert_eq!(game.correct_units - correct_units, completed_units);
+    assert_eq!(game.attempted_units - attempted_units, completed_units);
+    assert!(game.input().is_empty());
+    assert_ne!(game.prompts().next().unwrap().id(), prompt_id);
+    assert_eq!(game.cue().map(|(cue, _)| cue), Some(BattleCue::Hit));
+    assert_eq!(game.phase(), BossPhase::One);
+    assert_eq!(seraph_stance(&game), SeraphStance::Reflecting);
+}
+
+#[test]
+fn korean_prefix_and_backspace_stay_live_until_release_is_safe() {
+    let mut now = Instant::now();
+    let mut game = BossBattle::new(
+        BossKind::PrismSeraph,
+        Language::Ko,
+        GameDifficulty::Easy,
+        vec!["한글".into()],
+        7,
+        now,
+    )
+    .unwrap();
+    finish_intro(&mut game, &mut now);
+    advance(&mut game, &mut now, Duration::from_millis(9_800));
+
+    game.input_char('한');
+    assert_eq!(game.input(), "한");
+    assert!(game.backspace());
+    assert!(game.input().is_empty());
+    game.input_char('한');
+    advance(&mut game, &mut now, Duration::from_secs(2));
+    assert_eq!(seraph_stance(&game), SeraphStance::Release);
+
+    let health = game.health();
+    game.input_char('글');
+
+    assert_eq!(health - game.health(), unit_count(Language::Ko, "한글"));
+    assert_eq!(game.hearts(), 3);
+    assert_eq!(game.combo(), 1);
+}
+
+#[test]
+fn wrong_key_during_reflection_does_not_cost_a_heart() {
+    let mut now = Instant::now();
+    let mut game = seraph(now, GameDifficulty::Easy);
+    finish_intro(&mut game, &mut now);
+    advance(&mut game, &mut now, Duration::from_millis(9_800));
+
+    game.input_char('#');
+
+    assert_eq!(game.hearts(), 3);
+    assert_eq!(game.combo(), 0);
+    assert!(!game.input_is_valid());
+    assert!(game.backspace());
+}
+
+#[test]
+fn three_completed_attacks_in_one_reflection_produce_one_defeat() {
+    let mut now = Instant::now();
+    let mut game = seraph(now, GameDifficulty::Easy);
+    finish_intro(&mut game, &mut now);
+    advance(&mut game, &mut now, Duration::from_millis(9_800));
+
+    type_current_prompt(&mut game);
+    type_current_prompt(&mut game);
+    assert_eq!(game.hearts(), 1);
+    assert_eq!(seraph_stance(&game), SeraphStance::Reflecting);
+    type_current_prompt(&mut game);
+
+    assert_eq!(game.hearts(), 0);
+    assert!(game.prompts().next().is_none());
+    assert_eq!(game.cue().map(|(cue, _)| cue), Some(BattleCue::Defeat));
+    assert!(game.outcome().is_none());
+
+    advance(&mut game, &mut now, Duration::from_secs(1));
+    let outcome = game.outcome().cloned().unwrap();
+    assert!(!outcome.victory);
+    assert_eq!(outcome.hearts, 0);
+    advance(&mut game, &mut now, Duration::from_secs(1));
+    assert_eq!(game.outcome(), Some(&outcome));
+}
+
+#[test]
+fn seraph_phase_two_restarts_with_a_full_six_second_open_stance() {
+    let mut now = Instant::now();
+    let mut game = seraph(now, GameDifficulty::Easy);
+    finish_intro(&mut game, &mut now);
+    game.health = game.max_health / 2 + 1;
+
+    type_current_prompt(&mut game);
+    assert_eq!(
+        game.cue().map(|(cue, _)| cue),
+        Some(BattleCue::PhaseTransition)
+    );
+    advance(&mut game, &mut now, Duration::from_millis(750));
+    assert_eq!(game.phase(), BossPhase::Two);
+    assert_eq!(seraph_stance(&game), SeraphStance::Open);
+
+    advance(&mut game, &mut now, Duration::from_millis(5_999));
+    assert_eq!(seraph_stance(&game), SeraphStance::Open);
+    advance(&mut game, &mut now, Duration::from_millis(1));
+    assert_eq!(seraph_stance(&game), SeraphStance::Warning);
 }
 
 #[test]
@@ -729,4 +882,103 @@ fn fixed_target_profiles_clear_and_the_prior_tier_does_not() {
     }
 
     assert!(failures.is_empty(), "\n{}", failures.join("\n"));
+}
+
+#[test]
+#[ignore = "release calibration audit"]
+fn prism_seraph_multi_seed_balance_audit() {
+    let catalog = ContentCatalog::load_builtins().unwrap();
+    let profiles = [
+        (GameDifficulty::Easy, 180, 90.0, 70, 82, None),
+        (GameDifficulty::Medium, 300, 94.0, 70, 84, Some((180, 90.0))),
+        (GameDifficulty::Hard, 420, 97.0, 74, 87, Some((300, 94.0))),
+        (GameDifficulty::Hell, 540, 98.5, 75, 88, Some((420, 97.0))),
+    ];
+
+    for (difficulty, kpm, accuracy, intended_min, intended_max, prior) in profiles {
+        let mut language_medians = Vec::new();
+        for language in [Language::Ko, Language::En] {
+            let mut target_times = Vec::new();
+            let mut prior_failures = 0;
+            let mut prior_misses = Vec::new();
+
+            for seed in 0..16 {
+                let target = scripted_outcome_with_seed(
+                    &catalog,
+                    BossKind::PrismSeraph,
+                    language,
+                    difficulty,
+                    kpm,
+                    accuracy,
+                    seed,
+                );
+                assert!(
+                    target.victory
+                        && (Duration::from_secs(65)..=Duration::from_secs(89))
+                            .contains(&target.active_time),
+                    "target {difficulty:?} {language:?} seed={seed}: victory={} time={:.3}s hearts={}",
+                    target.victory,
+                    target.active_time.as_secs_f64(),
+                    target.hearts,
+                );
+                target_times.push(target.active_time);
+
+                if let Some((prior_kpm, prior_accuracy)) = prior {
+                    let outcome = scripted_outcome_with_seed(
+                        &catalog,
+                        BossKind::PrismSeraph,
+                        language,
+                        difficulty,
+                        prior_kpm,
+                        prior_accuracy,
+                        seed,
+                    );
+                    let narrow_defeat = !outcome.victory
+                        && outcome.active_time >= Duration::from_secs(75)
+                        && (outcome.active_time == BATTLE_LIMIT || outcome.hearts == 0);
+                    if narrow_defeat {
+                        prior_failures += 1;
+                    } else {
+                        prior_misses.push(format!(
+                            "seed={seed} victory={} time={:.3}s hearts={}",
+                            outcome.victory,
+                            outcome.active_time.as_secs_f64(),
+                            outcome.hearts,
+                        ));
+                    }
+                }
+            }
+
+            target_times.sort_unstable();
+            let median_millis = (target_times[7].as_millis() + target_times[8].as_millis()) / 2;
+            let median = Duration::from_millis(median_millis as u64);
+            assert!(
+                (Duration::from_secs(intended_min)..=Duration::from_secs(intended_max))
+                    .contains(&median),
+                "median {difficulty:?} {language:?}: {:.3}s expected={intended_min}..={intended_max}s",
+                median.as_secs_f64(),
+            );
+            if prior.is_some() {
+                assert!(
+                    prior_failures >= 12,
+                    "prior {difficulty:?} {language:?}: {prior_failures}/16 narrow defeats; {}",
+                    prior_misses.join(", "),
+                );
+            }
+            eprintln!(
+                "PrismSeraph {language:?} {difficulty:?}: median={:.3}s range={:.3}..={:.3}s prior={prior_failures}/16",
+                median.as_secs_f64(),
+                target_times[0].as_secs_f64(),
+                target_times[15].as_secs_f64(),
+            );
+            language_medians.push(median);
+        }
+
+        assert!(
+            language_medians[0].abs_diff(language_medians[1]) <= Duration::from_secs(5),
+            "language median gap {difficulty:?}: Ko={:.3}s En={:.3}s",
+            language_medians[0].as_secs_f64(),
+            language_medians[1].as_secs_f64(),
+        );
+    }
 }

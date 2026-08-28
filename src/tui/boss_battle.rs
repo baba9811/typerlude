@@ -91,6 +91,16 @@ const PRISM_SERAPH_REFLECTING_ART: &[&str] = &[
     "             ◇             ",
 ];
 
+const PRISM_SERAPH_RETURN_ART: &[&str] = &[
+    "             ◇             ",
+    "          ╔══╩══╗          ",
+    "       ◇══╣ ╲│╱ ╠══◇       ",
+    "          ║  ◈  ║          ",
+    "       ◇══╣  │  ╠══◇       ",
+    "          ╚══╦══╝          ",
+    "             ▼             ",
+];
+
 const PRISM_SERAPH_RELEASE_ART: &[&str] = &[
     "      ◇  ╲   │   ╱  ◇      ",
     "          ╲  │  ╱          ",
@@ -795,10 +805,14 @@ fn render_seraph(frame: &mut Frame<'_>, game: &BossBattle, area: Rect, styles: T
     let BossPatternView::PrismSeraph { stance, progress } = game.pattern_view() else {
         return;
     };
+    let reflected_hit = game
+        .cue()
+        .is_some_and(|(cue, _)| cue == BattleCue::Hit && stance == SeraphStance::Reflecting);
     let (art, style) = match stance {
         SeraphStance::Open => (PRISM_SERAPH_ART, styles.base),
         SeraphStance::Warning if progress < 0.5 => (PRISM_SERAPH_WARNING_WIDE_ART, styles.accent),
         SeraphStance::Warning => (PRISM_SERAPH_WARNING_TIGHT_ART, styles.accent),
+        SeraphStance::Reflecting if reflected_hit => (PRISM_SERAPH_RETURN_ART, styles.error),
         SeraphStance::Reflecting => (PRISM_SERAPH_REFLECTING_ART, styles.error),
         SeraphStance::Release => (PRISM_SERAPH_RELEASE_ART, styles.correct),
     };

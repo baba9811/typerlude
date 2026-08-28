@@ -20,7 +20,7 @@ const QUEEN_HEALTH: [u64; 4] = [180, 320, 500, 653];
 // Word-slot rollback loses different physical-unit chunks across the two content catalogs.
 const ARCHON_HEALTH_KO: [u64; 4] = [310, 500, 850, 1_090];
 const ARCHON_HEALTH_EN: [u64; 4] = [303, 500, 895, 1_220];
-const SERAPH_HEALTH: [u64; 4] = [185, 325, 505, 660];
+const SERAPH_HEALTH: [u64; 4] = [170, 325, 500, 650];
 const SERAPH_OPEN_PHASE_ONE: Duration = Duration::from_secs(8);
 const SERAPH_OPEN_PHASE_TWO: Duration = Duration::from_secs(6);
 const SERAPH_REFLECTING: Duration = Duration::from_secs(2);
@@ -625,6 +625,16 @@ impl BossBattle {
         else {
             return;
         };
+        if matches!(
+            &self.pattern,
+            BossPattern::PrismSeraph(SeraphState {
+                stance: SeraphStance::Reflecting,
+                ..
+            })
+        ) {
+            self.complete_reflected_target(index);
+            return;
+        }
         let units = unit_count(self.language, &self.prompts[index].text);
         let damage = match &mut self.pattern {
             BossPattern::Warden(state) => {
@@ -677,6 +687,19 @@ impl BossBattle {
                 self.spawn_prompt()
             }
             BossKind::ThornQueen => self.fill_queen_lanes(),
+        }
+    }
+
+    fn complete_reflected_target(&mut self, index: usize) {
+        self.hearts = self.hearts.saturating_sub(1);
+        self.combo = 0;
+        self.prompts.remove(index);
+        self.clear_input();
+        if self.hearts == 0 {
+            self.start_finish(false);
+        } else {
+            self.start_cue(BattleCue::Hit, HIT_DURATION, false);
+            self.spawn_prompt();
         }
     }
 

@@ -53,17 +53,21 @@ fn force_boss_victory(app: &mut App, now: &mut Instant) {
         if app.screen() == Screen::GameResult {
             return;
         }
-        let output = buffer_text(&draw(app, 80, 24).buffer);
-        let word = output.lines().find_map(|row| {
-            row.split_once("Prompt:")
-                .map(|(_, prompt)| prompt.trim_matches([' ', '│', '║']).to_owned())
-        });
-        if let Some(word) = word {
+        if let Some(word) = visible_boss_prompt(app) {
             type_text(app, &word, *now);
         }
         advance(app, now, Duration::from_millis(250));
     }
     panic!("boss battle did not finish");
+}
+
+fn visible_boss_prompt(app: &App) -> Option<String> {
+    buffer_text(&draw(app, 80, 24).buffer)
+        .lines()
+        .find_map(|row| {
+            row.split_once("Prompt:")
+                .map(|(_, prompt)| prompt.trim_matches([' ', '│', '║']).to_owned())
+        })
 }
 
 fn start_game(app: &mut App, now: Instant) {
@@ -804,6 +808,33 @@ fn prism_seraph_uses_distinct_nonverbal_stances_at_80x24() {
         );
     }
     assert_no_blink(&release);
+}
+
+#[test]
+fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    for progress in &mut app.settings.boss_battle_progress[..3] {
+        progress.clear_rank = 1;
+    }
+    let mut now = Instant::now();
+    start_boss(&mut app, 3, now);
+    advance(&mut app, &mut now, Duration::from_millis(10_600));
+    let prompt = visible_boss_prompt(&app).unwrap();
+
+    type_text(&mut app, &prompt, now);
+
+    let reflected = draw(&app, 80, 24);
+    let output = buffer_text(&reflected.buffer);
+    assert!(output.contains("╔══╩══╗"), "{output}");
+    assert!(output.contains("▼"), "{output}");
+    assert!(output.contains("♥♥♡  Phase"), "{output}");
+    assert!(output.contains("Prompt:"), "{output}");
+    assert!(reflected.cursor.is_some(), "{output}");
+    for forbidden in ["REFLECT", "WARNING", "STOP", "반사 중"] {
+        assert!(!output.contains(forbidden), "{forbidden}: {output}");
+    }
+    assert_no_blink(&reflected);
 }
 
 #[test]
