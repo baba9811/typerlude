@@ -53,6 +53,10 @@ fn force_boss_victory(app: &mut App, now: &mut Instant) {
         if app.screen() == Screen::GameResult {
             return;
         }
+        if buffer_text(&draw(app, 80, 24).buffer).contains("╔══╩══╗") {
+            advance(app, now, Duration::from_millis(250));
+            continue;
+        }
         if let Some(word) = visible_boss_prompt(app) {
             type_text(app, &word, *now);
         }
@@ -811,6 +815,25 @@ fn prism_seraph_uses_distinct_nonverbal_stances_at_80x24() {
 }
 
 #[test]
+fn safe_seraph_completion_marks_the_inward_impact() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    for progress in &mut app.settings.boss_battle_progress[..3] {
+        progress.clear_rank = 1;
+    }
+    let mut now = Instant::now();
+    start_boss(&mut app, 3, now);
+    advance(&mut app, &mut now, Duration::from_millis(800));
+    let prompt = visible_boss_prompt(&app).unwrap();
+
+    type_text(&mut app, &prompt, now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("✦"), "{output}");
+    assert!(output.contains("♥♥♥  Phase"), "{output}");
+}
+
+#[test]
 fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
     let (_root, mut app) = fixture_app();
     app.warnings.clear();
@@ -835,6 +858,14 @@ fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
         assert!(!output.contains(forbidden), "{forbidden}: {output}");
     }
     assert_no_blink(&reflected);
+
+    advance(&mut app, &mut now, Duration::from_millis(1_950));
+    let prompt = visible_boss_prompt(&app).unwrap();
+    type_text(&mut app, &prompt, now);
+    advance(&mut app, &mut now, Duration::from_millis(100));
+    let released = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(released.contains("──── ╳◈╳ ────"), "{released}");
+    assert!(!released.contains("✦"), "{released}");
 }
 
 #[test]
@@ -875,6 +906,23 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
     for expected in ["BOSSES", "IRON WARDEN", "★☆☆ ✧"] {
         assert!(boss_select.contains(expected), "{expected}: {boss_select}");
     }
+}
+
+#[test]
+fn prism_seraph_victory_does_not_announce_a_nonexistent_next_boss() {
+    let (_root, mut app) = fixture_app();
+    app.warnings.clear();
+    for progress in &mut app.settings.boss_battle_progress[..3] {
+        progress.clear_rank = 1;
+    }
+    let mut now = Instant::now();
+    start_boss(&mut app, 3, now);
+    force_boss_victory(&mut app, &mut now);
+
+    let output = buffer_text(&draw(&app, 80, 24).buffer);
+    assert!(output.contains("PRISM SERAPH"), "{output}");
+    assert!(output.contains("Victory"), "{output}");
+    assert!(!output.contains("Boss unlocked"), "{output}");
 }
 
 #[test]

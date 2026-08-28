@@ -54,7 +54,7 @@ dim = "dark_gray"
 
 #[test]
 fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
-    assert_eq!(TextKey::ALL.len(), 102);
+    assert_eq!(TextKey::ALL.len(), 103);
     assert_eq!(
         TextKey::ALL.iter().copied().collect::<HashSet<_>>().len(),
         TextKey::ALL.len()
@@ -68,6 +68,7 @@ fn every_translation_key_has_distinct_nonempty_korean_and_english_text() {
             TextKey::IronWarden => Some("IRON WARDEN"),
             TextKey::ThornQueen => Some("THORN QUEEN"),
             TextKey::NullArchon => Some("NULL ARCHON"),
+            TextKey::PrismSeraph => Some("PRISM SERAPH"),
             _ => None,
         } {
             assert_eq!(korean, shared_name);
