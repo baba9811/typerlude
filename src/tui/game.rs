@@ -340,7 +340,7 @@ pub(super) fn render_game_result(
         Line::from(""),
         Line::from(match language {
             Language::Ko => "r/ㄱ: 다시 하기 · Enter/Esc: 게임",
-            Language::En => "r: Retry · Enter/Esc: Games",
+            Language::En => "r/ㄱ: Retry · Enter/Esc: Games",
         }),
     ]);
     frame.render_widget(

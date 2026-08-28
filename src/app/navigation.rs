@@ -176,8 +176,9 @@ impl App {
                     }
                 }
             }
-            Key::Char('r')
-                if self.screen == Screen::Result && key.modifiers == KeyModifiers::NONE =>
+            Key::Char('r' | 'R' | 'ㄱ')
+                if self.screen == Screen::Result
+                    && matches!(key.modifiers, KeyModifiers::NONE | KeyModifiers::SHIFT) =>
             {
                 if let Some(request) = self.retry_request.clone() {
                     let stream = self.retry_stream.clone();

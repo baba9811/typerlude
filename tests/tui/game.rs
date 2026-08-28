@@ -341,7 +341,7 @@ fn game_result_shows_every_outcome_and_retry_action() {
         "Level",
         "Duration",
         "Missed word",
-        "r: Retry · Enter/Esc: Games",
+        "r/ㄱ: Retry · Enter/Esc: Games",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }
@@ -762,7 +762,7 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
         "Accuracy",
         "Max combo",
         "Time",
-        "r: Retry · Enter/Esc: Boss select",
+        "r/ㄱ: Retry · Enter/Esc: Boss select",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
     }

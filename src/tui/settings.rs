@@ -143,7 +143,7 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
             Line::from("뒤로/홈에서 종료: Esc / q / ㅂ · 즉시 종료: Ctrl+C · 도움말: ?"),
             Line::from("시험 외: Esc / Ctrl+P 일시 정지 · 정지 중 q 또는 ㅂ을 두 번 눌러 나가기"),
             Line::from("시험: Esc 나가기 확인 열기/취소 · q 또는 ㅂ으로 확인"),
-            Line::from("결과 r: 같은 대상/설정 · n: 빠른/단어/문장/카탈로그 긴 글만"),
+            Line::from("결과 r/ㄱ: 같은 대상/설정 · n: 빠른/단어/문장/카탈로그 긴 글만"),
             Line::from("업데이트 알림: l 나중에 · s 이번 버전 건너뛰기"),
         ],
         Language::En => vec![
@@ -156,7 +156,7 @@ pub(super) fn render_help(frame: &mut Frame<'_>, app: &App, area: Rect, styles: 
             Line::from("Non-Test: Esc / Ctrl+P pause · paused: press q or ㅂ twice to leave"),
             Line::from("Test: Esc opens/cancels leave · q or ㅂ confirms"),
             Line::from(
-                "Result r: exact target/options · n: Quick/Words/Sentence/catalog Long only",
+                "Result r/ㄱ: exact target/options · n: Quick/Words/Sentence/catalog Long only",
             ),
             Line::from("Update notice: l later · s skip this version"),
         ],

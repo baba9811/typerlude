@@ -478,7 +478,7 @@ pub(super) fn render_boss_result(
         Line::from(""),
         Line::from(match language {
             Language::Ko => "r/ㄱ: 다시 하기 · Enter/Esc: 보스 선택",
-            Language::En => "r: Retry · Enter/Esc: Boss select",
+            Language::En => "r/ㄱ: Retry · Enter/Esc: Boss select",
         }),
     ]);
     frame.render_widget(
