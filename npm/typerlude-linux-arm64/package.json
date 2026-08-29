@@ -1,6 +1,6 @@
 {
   "name": "typerlude-linux-arm64",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Typerlude native binary for the Typerlude typing tutor",
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
