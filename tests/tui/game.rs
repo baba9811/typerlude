@@ -49,11 +49,13 @@ fn advance(app: &mut App, now: &mut Instant, duration: Duration) {
 }
 
 fn force_boss_victory(app: &mut App, now: &mut Instant) {
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
     for _ in 0..10_000 {
         if app.screen() == Screen::GameResult {
             return;
         }
-        if buffer_text(&draw(app, 80, 24).buffer).contains("╔══╩══╗") {
+        assert_replaces_previous_frame(&mut terminal, app);
+        if buffer_text(terminal.backend().buffer()).contains("╔══╩══╗") {
             advance(app, now, Duration::from_millis(250));
             continue;
         }
@@ -113,6 +115,17 @@ fn assert_no_blink(drawn: &Drawn) {
             .content
             .iter()
             .all(|cell| !cell.modifier.intersects(blink))
+    );
+}
+
+fn assert_no_underlined_blanks(buffer: &Buffer, row: u16) {
+    assert!(
+        (0..buffer.area.width).all(|column| {
+            let cell = &buffer[(column, row)];
+            cell.symbol() != " " || !cell.modifier.contains(Modifier::UNDERLINED)
+        }),
+        "underlined blank on row {row}: {}",
+        buffer_text(buffer)
     );
 }
 
@@ -729,8 +742,9 @@ fn null_archon_has_stable_checksum_ui_and_full_cmax_system_lock() {
     assert_role_style(&hit.buffer.content[hit_archon], default_styles().error);
     assert_role_style(
         &hit.buffer[(pre_hit_cmax, impact_y)],
-        default_styles().error,
+        default_styles().error.remove_modifier(Modifier::UNDERLINED),
     );
+    assert_no_underlined_blanks(&hit.buffer, impact_y);
 }
 
 #[test]
@@ -834,9 +848,15 @@ fn prism_seraph_uses_distinct_nonverbal_stances_at_80x24() {
     assert!(warning_tight.contains("◇─────╲│╱─────◇"), "{warning_tight}");
 
     advance(&mut app, &mut now, Duration::from_millis(800));
-    let reflecting = buffer_text(&draw(&app, 80, 24).buffer);
+    let reflecting_frame = draw(&app, 80, 24);
+    let reflecting = buffer_text(&reflecting_frame.buffer);
     assert!(reflecting.contains("╔══╩══╗"), "{reflecting}");
     assert!(reflecting.contains("◇═══╣ ╲│╱ ╠═══◇"), "{reflecting}");
+    let reflecting_row = reflecting
+        .lines()
+        .position(|row| row.contains("╔══╩══╗"))
+        .unwrap() as u16;
+    assert_no_underlined_blanks(&reflecting_frame.buffer, reflecting_row);
 
     advance(&mut app, &mut now, Duration::from_secs(2));
     let release = draw(&app, 80, 24);
@@ -862,9 +882,12 @@ fn safe_seraph_completion_marks_the_inward_impact() {
     let mut now = Instant::now();
     start_boss(&mut app, 3, now);
     advance(&mut app, &mut now, Duration::from_millis(800));
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    assert_replaces_previous_frame(&mut terminal, &app);
     let prompt = visible_boss_prompt(&app).unwrap();
 
     type_text(&mut app, &prompt, now);
+    assert_replaces_previous_frame(&mut terminal, &app);
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("✦"), "{output}");
@@ -881,9 +904,12 @@ fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
     let mut now = Instant::now();
     start_boss(&mut app, 3, now);
     advance(&mut app, &mut now, Duration::from_millis(10_600));
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    assert_replaces_previous_frame(&mut terminal, &app);
     let prompt = visible_boss_prompt(&app).unwrap();
 
     type_text(&mut app, &prompt, now);
+    assert_replaces_previous_frame(&mut terminal, &app);
 
     let reflected = draw(&app, 80, 24);
     let output = buffer_text(&reflected.buffer);
@@ -901,6 +927,7 @@ fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
     let prompt = visible_boss_prompt(&app).unwrap();
     type_text(&mut app, &prompt, now);
     advance(&mut app, &mut now, Duration::from_millis(100));
+    assert_replaces_previous_frame(&mut terminal, &app);
     let released = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(released.contains("──╳◈╳──"), "{released}");
     assert!(!released.contains("✦"), "{released}");

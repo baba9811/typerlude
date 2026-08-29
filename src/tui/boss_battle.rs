@@ -948,6 +948,7 @@ fn render_cmax(
 }
 
 fn render_static_art(frame: &mut Frame<'_>, art: &[&str], area: Rect, style: Style) {
+    let style = style.remove_modifier(Modifier::UNDERLINED);
     frame.render_widget(
         Paragraph::new(
             art.iter()
@@ -973,13 +974,14 @@ fn render_motion_art(
         .map(|(index, line)| {
             Line::from(Span::styled(
                 (*line).to_owned(),
-                if hit.is_some() && index == impact_row {
+                (if hit.is_some() && index == impact_row {
                     styles.error
                 } else if hit.is_some() && index.is_multiple_of(2) {
                     styles.accent
                 } else {
                     styles.base
-                },
+                })
+                .remove_modifier(Modifier::UNDERLINED),
             ))
         })
         .collect::<Vec<_>>();
