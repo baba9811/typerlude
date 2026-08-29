@@ -65,7 +65,7 @@ to Games. Hell starts with a 7.0-second fall time and a 1.2-second spawn interva
 
 Fight one of four bosses for 90 active seconds with three hearts. Each boss has its own typing
 pattern and phase-two skill. Difficulties unlock Easy → Medium → Hard → Hell for each boss, while
-clearing Easy also opens the next boss. `☆☆☆ ✧` through `★★★ ✦` shows the highest clear. On the
+clearing Easy also opens the next boss. `☆ ☆ ☆ ✧` through `★ ★ ★ ✦` shows the highest clear. On the
 result screen, `r` or `ㄱ` retries; `Enter` or `Esc` returns to the selected boss's options.
 
 See the [Boss Battle guide](https://github.com/baba9811/typerlude/blob/main/docs/games/boss-battle.md)

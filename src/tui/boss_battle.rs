@@ -52,41 +52,41 @@ const NULL_ARCHON_ART: &[&str] = &[
 ];
 
 const PRISM_SERAPH_ART: &[&str] = &[
-    "   ◇  ╲   ╲   │   ╱   ╱  ◇   ",
-    "       ╲   ╲  │  ╱   ╱       ",
-    "         ╲  ╲ │ ╱  ╱         ",
-    " ◇ ───────╲  ◈  ╱─────── ◇ ",
-    "         ╱  ╱ │ ╲  ╲         ",
-    "       ╱   ╱  │  ╲   ╲       ",
-    "   ◇  ╱   ╱   │   ╲   ╲  ◇   ",
+    "             ◇             ",
+    "         ╲   │   ╱         ",
+    "      ◇───╲  │  ╱───◇      ",
+    "           ╲ ◈ ╱           ",
+    "      ◇───╱  │  ╲───◇      ",
+    "         ╱   │   ╲         ",
+    "             ◇             ",
 ];
 
 const PRISM_SERAPH_WARNING_WIDE_ART: &[&str] = &[
-    "      ◇ ╲     │     ╱ ◇      ",
-    "          ╲   │   ╱          ",
-    "    ◇      ╲  │  ╱      ◇    ",
-    "            ╲ ◈ ╱            ",
-    "    ◇      ╱  │  ╲      ◇    ",
-    "          ╱   │   ╲          ",
-    "      ◇ ╱     │     ╲ ◇      ",
+    "             ◇             ",
+    "          ╲  │  ╱          ",
+    "      ◇────╲ │ ╱────◇      ",
+    "            ╲◈╱            ",
+    "      ◇────╱ │ ╲────◇      ",
+    "          ╱  │  ╲          ",
+    "             ◇             ",
 ];
 
 const PRISM_SERAPH_WARNING_TIGHT_ART: &[&str] = &[
-    "        ◇ ╲   │   ╱ ◇        ",
-    "           ╲ ╲│╱ ╱           ",
-    "      ◇ ╲   ╲│╱   ╱ ◇      ",
-    "          ╲ ╲◈╱ ╱          ",
-    "      ◇ ╱   ╱│╲   ╲ ◇      ",
-    "           ╱ ╱│╲ ╲           ",
-    "        ◇ ╱   │   ╲ ◇        ",
+    "             ◇             ",
+    "           ╲ │ ╱           ",
+    "      ◇─────╲│╱─────◇      ",
+    "           ╲╲◈╱╱           ",
+    "      ◇─────╱│╲─────◇      ",
+    "           ╱ │ ╲           ",
+    "             ◇             ",
 ];
 
 const PRISM_SERAPH_REFLECTING_ART: &[&str] = &[
     "             ◇             ",
     "          ╔══╩══╗          ",
-    "       ◇══╣ ╲│╱ ╠══◇       ",
+    "      ◇═══╣ ╲│╱ ╠═══◇      ",
     "          ║  ◈  ║          ",
-    "       ◇══╣ ╱│╲ ╠══◇       ",
+    "      ◇═══╣ ╱│╲ ╠═══◇      ",
     "          ╚══╦══╝          ",
     "             ◇             ",
 ];
@@ -94,21 +94,21 @@ const PRISM_SERAPH_REFLECTING_ART: &[&str] = &[
 const PRISM_SERAPH_RETURN_ART: &[&str] = &[
     "             ◇             ",
     "          ╔══╩══╗          ",
-    "       ◇══╣ ╲│╱ ╠══◇       ",
+    "      ◇═══╣ ╲│╱ ╠═══◇      ",
     "          ║  ◈  ║          ",
-    "       ◇══╣  │  ╠══◇       ",
+    "      ◇═══╣  │  ╠═══◇      ",
     "          ╚══╦══╝          ",
     "             ▼             ",
 ];
 
 const PRISM_SERAPH_RELEASE_ART: &[&str] = &[
-    "      ◇  ╲   │   ╱  ◇      ",
+    "             ◇             ",
     "          ╲  │  ╱          ",
-    "   ◇       ╲ │ ╱       ◇   ",
-    "       ──── ╳◈╳ ────       ",
-    "   ◇       ╱ │ ╲       ◇   ",
+    "      ◇────╲ │ ╱────◇      ",
+    "          ──╳◈╳──          ",
+    "      ◇────╱ │ ╲────◇      ",
     "          ╱  │  ╲          ",
-    "      ◇  ╱   │   ╲  ◇      ",
+    "             ◇             ",
 ];
 
 const CMAX_ART: &[&str] = &[
@@ -948,6 +948,7 @@ fn render_cmax(
 }
 
 fn render_static_art(frame: &mut Frame<'_>, art: &[&str], area: Rect, style: Style) {
+    let style = style.remove_modifier(Modifier::UNDERLINED);
     frame.render_widget(
         Paragraph::new(
             art.iter()
@@ -973,13 +974,14 @@ fn render_motion_art(
         .map(|(index, line)| {
             Line::from(Span::styled(
                 (*line).to_owned(),
-                if hit.is_some() && index == impact_row {
+                (if hit.is_some() && index == impact_row {
                     styles.error
                 } else if hit.is_some() && index.is_multiple_of(2) {
                     styles.accent
                 } else {
                     styles.base
-                },
+                })
+                .remove_modifier(Modifier::UNDERLINED),
             ))
         })
         .collect::<Vec<_>>();
@@ -1070,22 +1072,28 @@ fn mechanic_summary(language: Language, boss: BossKind) -> &'static str {
     }
 }
 
+fn three_icons(filled: u8, filled_icon: char, empty_icon: char) -> String {
+    let filled = filled.min(3);
+    let icon = |index| {
+        if index < filled {
+            filled_icon
+        } else {
+            empty_icon
+        }
+    };
+    format!("{} {} {}", icon(0), icon(1), icon(2))
+}
+
 fn stars(rank: u8) -> String {
-    let cleared = rank.min(3) as usize;
     format!(
-        "{}{} {}",
-        "★".repeat(cleared),
-        "☆".repeat(3 - cleared),
+        "{} {}",
+        three_icons(rank, '★', '☆'),
         if rank >= 4 { '✦' } else { '✧' },
     )
 }
 
 fn hearts(remaining: u8) -> String {
-    format!(
-        "{}{}",
-        "♥".repeat(remaining.min(3) as usize),
-        "♡".repeat(3 - remaining.min(3) as usize)
-    )
+    three_icons(remaining, '♥', '♡')
 }
 
 fn gauge(progress: f64, width: usize, invert: bool) -> String {

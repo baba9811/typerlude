@@ -287,15 +287,31 @@ pub(super) fn buffer_text(buffer: &Buffer) -> String {
             for cell in row {
                 if hidden == 0 {
                     output.push_str(cell.symbol());
+                    hidden = UnicodeWidthStr::width(cell.symbol()).saturating_sub(1);
+                } else {
+                    hidden -= 1;
                 }
-                hidden = hidden
-                    .max(UnicodeWidthStr::width(cell.symbol()))
-                    .saturating_sub(1);
             }
             output
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+pub(super) fn visible_buffer(buffer: &Buffer) -> Buffer {
+    let mut visible = buffer.clone();
+    for row in visible.content.chunks_mut(visible.area.width as usize) {
+        let mut hidden = 0_usize;
+        for cell in row {
+            if hidden == 0 {
+                hidden = UnicodeWidthStr::width(cell.symbol()).saturating_sub(1);
+            } else {
+                cell.reset();
+                hidden -= 1;
+            }
+        }
+    }
+    visible
 }
 
 pub(super) fn assert_role_style(cell: &Cell, expected: Style) {

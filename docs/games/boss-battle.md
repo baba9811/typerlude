@@ -23,11 +23,11 @@ Difficulty unlocks separately for each boss. A clear also fills that boss's star
 
 | Clear | Stars | Unlocks |
 | --- | --- | --- |
-| None | ☆☆☆ ✧ | IRON WARDEN Easy |
-| Easy | ★☆☆ ✧ | The same boss on Medium and the next boss on Easy |
-| Medium | ★★☆ ✧ | The same boss on Hard |
-| Hard | ★★★ ✧ | The same boss on Hell |
-| Hell | ★★★ ✦ | Final clear for that boss |
+| None | ☆ ☆ ☆ ✧ | IRON WARDEN Easy |
+| Easy | ★ ☆ ☆ ✧ | The same boss on Medium and the next boss on Easy |
+| Medium | ★ ★ ☆ ✧ | The same boss on Hard |
+| Hard | ★ ★ ★ ✧ | The same boss on Hell |
+| Hell | ★ ★ ★ ✦ | Final clear for that boss |
 
 Stars and difficulty unlocks are shared between Korean and English. Personal best scores are saved
 separately for each boss, language, and difficulty.
