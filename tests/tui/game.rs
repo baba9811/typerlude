@@ -116,6 +116,44 @@ fn assert_no_blink(drawn: &Drawn) {
     );
 }
 
+fn assert_replaces_previous_frame(terminal: &mut Terminal<TestBackend>, app: &App) {
+    terminal.draw(|frame| render(frame, app)).unwrap();
+    let fresh = draw(app, 80, 24);
+    assert_eq!(
+        visible_buffer(terminal.backend().buffer()),
+        visible_buffer(&fresh.buffer)
+    );
+}
+
+#[test]
+fn animated_games_replace_every_previous_frame() {
+    let mut terminal = Terminal::new(TestBackend::new(80, 24)).unwrap();
+    {
+        let (_root, mut app) = fixture_app();
+        app.warnings.clear();
+        let mut now = Instant::now();
+        start_game(&mut app, now);
+        for _ in 0..56 {
+            assert_replaces_previous_frame(&mut terminal, &app);
+            advance(&mut app, &mut now, Duration::from_millis(250));
+        }
+    }
+
+    for boss_index in 0..4 {
+        let (_root, mut app) = fixture_app();
+        app.warnings.clear();
+        for progress in &mut app.settings.boss_battle_progress[..3] {
+            progress.clear_rank = 1;
+        }
+        let mut now = Instant::now();
+        start_boss(&mut app, boss_index, now);
+        for _ in 0..56 {
+            assert_replaces_previous_frame(&mut terminal, &app);
+            advance(&mut app, &mut now, Duration::from_millis(250));
+        }
+    }
+}
+
 #[test]
 fn games_and_options_render_the_concrete_word_rain_choice() {
     let (_root, mut app) = fixture_app();
@@ -415,7 +453,7 @@ fn boss_select_uses_roster_preview_stars_and_sequential_locks_at_80x24() {
         "THORN QUEEN",
         "NULL ARCHON",
         "PRISM SERAPH",
-        "☆☆☆ ✧",
+        "☆ ☆ ☆ ✧",
         "Language: en",
         "Easy",
         "LOCKED",
@@ -453,7 +491,7 @@ fn boss_hell_keeps_the_danger_hud_boss_and_input_together_at_both_sizes() {
 
     let options = draw(&app, 80, 24);
     let option_output = buffer_text(&options.buffer);
-    for expected in ["★★★ ✧", "[╬ HELL ╬]", "HELL // REDLINE"] {
+    for expected in ["★ ★ ★ ✧", "[╬ HELL ╬]", "HELL // REDLINE"] {
         assert!(
             option_output.contains(expected),
             "{expected}: {option_output}"
@@ -533,7 +571,7 @@ fn iron_warden_battle_keeps_art_pattern_status_prompt_and_input_visible() {
         "◇ ◇ ◇",
         "HP",
         "01:30",
-        "♥♥♥",
+        "♥ ♥ ♥",
         "Prompt:",
         "Input",
     ] {
@@ -588,7 +626,7 @@ fn thorn_queen_battle_shows_crown_and_parallel_vine_lanes() {
         "TARGET",
         "HP",
         "01:30",
-        "♥♥♥",
+        "♥ ♥ ♥",
         "Prompt:",
     ] {
         assert!(output.contains(expected), "{expected}: {output}");
@@ -784,26 +822,26 @@ fn prism_seraph_uses_distinct_nonverbal_stances_at_80x24() {
 
     let open = draw(&app, 80, 24);
     let open_text = buffer_text(&open.buffer);
-    assert!(open_text.contains("╲   ╲   │   ╱   ╱"), "{open_text}");
+    assert!(open_text.contains("◇───╲  │  ╱───◇"), "{open_text}");
     assert!(open.cursor.is_some(), "{open_text}");
 
     advance(&mut app, &mut now, Duration::from_secs(8));
     let warning_wide = buffer_text(&draw(&app, 80, 24).buffer);
-    assert!(warning_wide.contains("◇ ╲     │     ╱ ◇"), "{warning_wide}");
+    assert!(warning_wide.contains("◇────╲ │ ╱────◇"), "{warning_wide}");
 
     advance(&mut app, &mut now, Duration::from_secs(1));
     let warning_tight = buffer_text(&draw(&app, 80, 24).buffer);
-    assert!(warning_tight.contains("◇ ╲   │   ╱ ◇"), "{warning_tight}");
+    assert!(warning_tight.contains("◇─────╲│╱─────◇"), "{warning_tight}");
 
     advance(&mut app, &mut now, Duration::from_millis(800));
     let reflecting = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(reflecting.contains("╔══╩══╗"), "{reflecting}");
-    assert!(reflecting.contains("◇══╣ ╲│╱ ╠══◇"), "{reflecting}");
+    assert!(reflecting.contains("◇═══╣ ╲│╱ ╠═══◇"), "{reflecting}");
 
     advance(&mut app, &mut now, Duration::from_secs(2));
     let release = draw(&app, 80, 24);
     let release_text = buffer_text(&release.buffer);
-    assert!(release_text.contains("──── ╳◈╳ ────"), "{release_text}");
+    assert!(release_text.contains("──╳◈╳──"), "{release_text}");
     assert!(release.cursor.is_some(), "{release_text}");
     for forbidden in ["REFLECT", "WARNING", "STOP", "반사 중"] {
         assert!(
@@ -830,7 +868,7 @@ fn safe_seraph_completion_marks_the_inward_impact() {
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("✦"), "{output}");
-    assert!(output.contains("♥♥♥  Phase"), "{output}");
+    assert!(output.contains("♥ ♥ ♥  Phase"), "{output}");
 }
 
 #[test]
@@ -851,7 +889,7 @@ fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
     let output = buffer_text(&reflected.buffer);
     assert!(output.contains("╔══╩══╗"), "{output}");
     assert!(output.contains("▼"), "{output}");
-    assert!(output.contains("♥♥♡  Phase"), "{output}");
+    assert!(output.contains("♥ ♥ ♡  Phase"), "{output}");
     assert!(output.contains("Prompt:"), "{output}");
     assert!(reflected.cursor.is_some(), "{output}");
     for forbidden in ["REFLECT", "WARNING", "STOP", "반사 중"] {
@@ -864,7 +902,7 @@ fn reflected_seraph_completion_draws_a_ray_toward_the_player() {
     type_text(&mut app, &prompt, now);
     advance(&mut app, &mut now, Duration::from_millis(100));
     let released = buffer_text(&draw(&app, 80, 24).buffer);
-    assert!(released.contains("──── ╳◈╳ ────"), "{released}");
+    assert!(released.contains("──╳◈╳──"), "{released}");
     assert!(!released.contains("✦"), "{released}");
 }
 
@@ -879,7 +917,7 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     for expected in [
         "Victory",
-        "☆☆☆ ✧ -> ★☆☆ ✧",
+        "☆ ☆ ☆ ✧ -> ★ ☆ ☆ ✧",
         "Boss unlocked",
         "Score",
         "KPM",
@@ -903,7 +941,7 @@ fn boss_victory_result_shows_progress_metrics_unlocks_and_actions() {
     app.handle_event(key(Key::Esc), now).unwrap();
     assert_eq!(app.screen(), Screen::GameOptions);
     let boss_select = buffer_text(&draw(&app, 80, 24).buffer);
-    for expected in ["BOSSES", "IRON WARDEN", "★☆☆ ✧"] {
+    for expected in ["BOSSES", "IRON WARDEN", "★ ☆ ☆ ✧"] {
         assert!(boss_select.contains(expected), "{expected}: {boss_select}");
     }
 }
@@ -936,8 +974,8 @@ fn hell_boss_victory_fills_the_final_emblem_without_a_fourth_star() {
     force_boss_victory(&mut app, &mut now);
 
     let output = buffer_text(&draw(&app, 80, 24).buffer);
-    assert!(output.contains("★★★ ✧ -> ★★★ ✦"), "{output}");
-    assert!(!output.contains("★★★★"), "{output}");
+    assert!(output.contains("★ ★ ★ ✧ -> ★ ★ ★ ✦"), "{output}");
+    assert!(!output.contains("★ ★ ★ ★"), "{output}");
 }
 
 #[test]
@@ -967,6 +1005,6 @@ fn boss_defeat_keeps_progress_locked() {
     assert_eq!(app.screen(), Screen::GameResult);
     let output = buffer_text(&draw(&app, 80, 24).buffer);
     assert!(output.contains("Defeat"), "{output}");
-    assert!(output.contains("☆☆☆ ✧ -> ☆☆☆ ✧"), "{output}");
+    assert!(output.contains("☆ ☆ ☆ ✧ -> ☆ ☆ ☆ ✧"), "{output}");
     assert!(!output.contains("unlocked:"), "{output}");
 }

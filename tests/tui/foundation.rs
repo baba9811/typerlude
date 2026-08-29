@@ -63,14 +63,21 @@ fn engine_exposes_only_the_borrowed_target_render_view() {
 #[test]
 fn every_screen_renders_its_bilingual_identity_at_supported_sizes() {
     for language in [Language::Ko, Language::En] {
-        for screen in Screen::ALL {
-            for (width, height) in [(80, 24), (120, 40)] {
+        for (width, height) in [(80, 24), (120, 40)] {
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+            for screen in Screen::ALL {
                 let (_root, mut app) = fixture_app();
                 app.settings.ui_language = language;
                 app.open(screen);
 
-                let drawn = draw(&app, width, height);
-                let output = buffer_text(&drawn.buffer);
+                terminal.draw(|frame| render(frame, &app)).unwrap();
+                let fresh = draw(&app, width, height);
+                assert_eq!(
+                    visible_buffer(terminal.backend().buffer()),
+                    visible_buffer(&fresh.buffer),
+                    "retained cells before {language:?} {screen:?} at {width}x{height}"
+                );
+                let output = buffer_text(terminal.backend().buffer());
                 assert!(
                     output.contains(required_label(screen, language)),
                     "{language:?} {screen:?} at {width}x{height}: {output}"
