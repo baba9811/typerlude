@@ -2,6 +2,14 @@
   "name": "typerlude",
   "version": "1.5.1",
   "description": "Offline-first Korean and English terminal typing tutor",
+  "keywords": [
+    "korean",
+    "ratatui",
+    "rust",
+    "terminal",
+    "tui",
+    "typing"
+  ],
   "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
